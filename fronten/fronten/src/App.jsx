@@ -5,6 +5,7 @@ import FeaturesSection from './components/home/FeaturesSection';
 import HowItWorks from './components/home/HowItWorks';
 import Footer from './components/layout/Footer';
 import Features from './components/Feature/Feature';
+import PopularRoutes from './components/home/PopularRoutes';
 
 function App() {
   return (
@@ -14,6 +15,7 @@ function App() {
       <FeaturesSection />
       <HowItWorks />
       <Features />
+      <PopularRoutes />
       <Footer />
     </div>
   );
