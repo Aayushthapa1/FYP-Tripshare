@@ -10,7 +10,7 @@ export default function AuthButtons() {
         Sign Up
       </button>
        {/* Login Button */}
-       <button className="text-black hover:text-green-600 font-medium">
+       <button className="text-blue hover:text-green-600 font-medium">
         Login
       </button>
     </div>
