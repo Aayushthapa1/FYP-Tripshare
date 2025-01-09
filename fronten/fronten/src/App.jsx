@@ -16,7 +16,6 @@ function App() {
       <HowItWorks />
       <Features />
       <PopularRoutes />
-      <Footer />
     </div>
   );
 }
