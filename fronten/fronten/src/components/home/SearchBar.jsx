@@ -3,6 +3,6 @@ import { MapPin, Calendar, Search } from 'lucide-react';
 
 export default function SearchBar() {
   return (
- <h1>dfd</h1>
+ <h1></h1>
   );
 }
