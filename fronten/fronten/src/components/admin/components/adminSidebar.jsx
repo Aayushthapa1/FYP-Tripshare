@@ -1,4 +1,3 @@
-// src/admin/components/AdminSidebar.jsx
 
 import React from 'react';
 import {
@@ -67,7 +66,7 @@ function AdminSidebar({ isOpen, onClose }) {
 
         {/* New Settings link */}
         <NavLink
-          to="/adminSettings"
+          to="//adminSettings"
           className="flex items-center space-x-2 text-gray-700 p-2 hover:bg-gray-100 rounded"
         >
           <SettingsIcon className="w-5 h-5" />

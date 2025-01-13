@@ -35,13 +35,13 @@ function App() {
               <Features />
               <PopularRoutes />
               <HelpCenter />
-              <Footer />
+              {/* <Footer /> */}
             </>
           }
         />
 
         {/* About route -> loads HelpCenter page */}
-        <Route path="/about" element={<HelpCenter />} />
+        <Route path="/Helpcentre" element={<HelpCenter />} />
 
         {/* ========================
             Admin Routes ("/admin")
