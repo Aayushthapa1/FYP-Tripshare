@@ -51,7 +51,6 @@ function App() {
           <Route index element={<AdminDashboard />} />
           
         </Route>
-      </Routes>
     </Router>
   );
 }
