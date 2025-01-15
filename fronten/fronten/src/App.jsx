@@ -35,7 +35,6 @@ function App() {
               <Features />
               <PopularRoutes />
               <HelpCenter />
-              <Footer />
             </>
           }
         />
