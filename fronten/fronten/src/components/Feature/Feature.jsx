@@ -5,8 +5,7 @@ import {
   Smartphone, 
   Globe, 
   Cloud, 
-  LineChart,
-  ArrowRight
+  LineChart
 } from 'lucide-react';
 
 const features = [
@@ -71,11 +70,10 @@ function Features() {
           {features.map((feature, index) => (
             <div
               key={index}
-              className="relative group bg-white p-6 rounded-xl shadow-sm hover:shadow-md transition-all duration-300 ease-in-out"
+              className="relative group bg-white p-6 rounded-xl shadow-sm transition-transform duration-300 hover:scale-105 hover:shadow-lg"
             >
-              <div className="absolute -inset-0.5 bg-gradient-to-r from-green-500 to-green-600 rounded-xl opacity-0 group-hover:opacity-100 transition duration-300 ease-in-out blur"></div>
               <div className="relative bg-white p-6 rounded-xl">
-                <div className="w-12 h-12 rounded-full bg-indigo-50 flex items-center justify-center mb-4">
+                <div className="w-12 h-12 rounded-full bg-gray-100 flex items-center justify-center mb-4">
                   {feature.icon}
                 </div>
                 <h3 className="text-lg font-semibold text-gray-900 mb-2">
@@ -89,8 +87,6 @@ function Features() {
           ))}
         </div>
       </div>
-
-      
     </div>
   );
 }

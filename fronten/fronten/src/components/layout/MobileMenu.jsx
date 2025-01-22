@@ -21,6 +21,7 @@ export default function MobileMenu({ isOpen }) {
           </a>
         ))}
         <div className="mt-4 space-y-2">
+          {/* In a real app, you'd conditionally show these or a Profile link if logged in */}
           <button className="block w-full px-3 py-2 text-base font-medium text-gray-700 hover:text-green-600 hover:bg-gray-50 rounded-md">
             Login
           </button>
