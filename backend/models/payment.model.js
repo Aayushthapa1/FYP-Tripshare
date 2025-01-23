@@ -27,7 +27,7 @@ const paymentSchema = new mongoose.Schema(
       unique: true,
     },
     amount: {
-      // type: Number,
+      type: Number,
       required: true,
       min: 0,
     },
