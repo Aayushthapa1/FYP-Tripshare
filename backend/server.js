@@ -1,8 +1,9 @@
+// server.js
 import app from "./app.js";
 import _config from "./utils/config.js";
 import connectToDB from "./utils/connectToDB.js";
 
-const port = _config.port || 5000;
+const { port } = _config;
 
 const startServer = async () => {
   try {

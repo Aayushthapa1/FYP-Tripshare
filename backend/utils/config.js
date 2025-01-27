@@ -1,19 +1,28 @@
 import dotenv from "dotenv";
+import path from "path";
+import { fileURLToPath } from "url";
 
-dotenv.config({ path: "../.env" });
+// __filename and __dirname aren't available by default with ESM,
+// so we recreate them to build a reliable path to the .env file.
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
+// Load .env from one directory up
+dotenv.config({
+  path: path.join(__dirname, "../.env")
+});
+
+// Build and freeze your config object
 const _config = Object.freeze({
   port: process.env.PORT || 3000,
   databaseUrl: process.env.MONGO_URI,
-  jwt_key: process.env.JWT_SECRET_KEY,
-  jwt_expiration: process.env.JWT_EXPIRATION,
-  refresh_token: process.env.REFRESH_TOKEN_SECRET,
-  c_cloud_name: process.env.CLOUDINARY_CLOUD,
-  c_cloud_key: process.env.CLOUDINARY_API_KEY,
-  c_cloud_secret: process.env.CLOUDINARY_API_SECRET,
-
-
-  env: process.env.NODE_ENV,
+  jwtKey: process.env.JWT_SECRET_KEY,
+  jwtExpiration: process.env.JWT_EXPIRATION,
+  refreshToken: process.env.REFRESH_TOKEN_SECRET,
+  cloudinaryCloud: process.env.CLOUDINARY_CLOUD,
+  cloudinaryAPIKey: process.env.CLOUDINARY_API_KEY,
+  cloudinaryAPISecret: process.env.CLOUDINARY_API_SECRET,
+  nodeEnv: process.env.NODE_ENV
 });
 
 export default _config;
