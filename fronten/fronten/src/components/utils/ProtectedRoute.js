@@ -1,22 +1,28 @@
-import React from 'react';
-import { Redirect, Route } from 'react-router-dom';
-import { useAuth } from './AuthContext';
+import { Navigate, useLocation } from "react-router-dom";
+import { useSelector } from "react-redux";
 
-const ProtectedRoute = ({ component: Component, ...rest }) => {
-  const { isAuthenticated } = useAuth();
+function CheckAuth({ role, children }) {
+  const { isAuthenticated, user } = useSelector((state) => state.auth);
+  const location = useLocation();
 
-  return (
-    <Route
-      {...rest}
-      render={(props) =>
-        isAuthenticated ? (
-          <Component {...props} />
-        ) : (
-          <Redirect to="/login" />
-        )
-      }
-    />
-  );
-};
+  // Redirect to login if not authenticated
+  if (!isAuthenticated) {
+    return <Navigate to="/login" state={{ from: location }} />;
+  }
 
-export default ProtectedRoute;
+  if (role === "admin") {
+    // Admin trying to access user pages
+    if (user?.role === "admin" && !location.pathname.includes("/admin")) {
+      return <Navigate to="/login" />;
+    }
+  }
+  // Redirect non-admin users from admin routes
+  if (role === "admin" && user?.role !== "admin") {
+    return <Navigate to="/unauth-page" />;
+  }
+
+  // Allow access if authenticated and role matches
+  return children;
+}
+
+export default CheckAuth;

@@ -1,17 +1,20 @@
 // src/App.jsx
-import React from "react";
-import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
+import React, { useEffect } from "react";
+import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-dom";
+import { useDispatch, useSelector } from "react-redux";
+import "react-toastify/dist/ReactToastify.css";
+import { ToastContainer } from "react-toastify";
 
-// Public / home
+// Layout / Shared
 import Navbar from "./components/layout/Navbar";
 import Footer from "./components/layout/Footer";
+
+// Public/Home
 import HeroSection from "./components/home/HeroSection";
 import FeaturesSection from "./components/home/FeaturesSection";
 import HowItWorks from "./components/home/HowItWorks";
 import Features from "./components/Feature/Feature";
 import PopularRoutes from "./components/home/PopularRoutes";
-
-// Help / Contact
 import HelpCenter from "./components/home/HelpCenter";
 
 // Admin
@@ -23,55 +26,142 @@ import ManagePayments from "./components/admin/pages/ManagePayments";
 import ManageDisputes from "./components/admin/pages/ManageDisputes";
 import AdminSettings from "./components/admin/pages/AdminSettings";
 
-// User side
+// User
+import UserLayout from "./components/pages/UserLayout";
 import BookRide from "./components/user/pages/BookRide";
 import RiderDashboard from "./components/user/pages/RiderDashboard";
 import NotFound from "./components/user/pages/NotFound";
-// import ProfileModal from "./components/user/pages/ProfileModal";
+
+// Auth
+import RegisterPage from "./pages/RegisterPage";
+import LoginPage from "./pages/LoginPage";
+import UnauthPage from "./pages/UnAuthPage"; // If you want an unauthorized page
+
+// Redux
+import { checkAuth } from "./features/auth/authSlice.jsx";
+import CheckAuth from "./utils/ProtectedRoute";
 
 function App() {
+  const { isAuthenticated, user } = useSelector((state) => state.auth);
+  const dispatch = useDispatch();
+
+  useEffect(() => {
+    // Check if user is authenticated on app load
+    dispatch(checkAuth());
+  }, [dispatch]);
+
   return (
-    <Router>
-      <Routes>
-        {/* Home page ("/") */}
-        <Route
-          path="/"
-          element={
-            <>
-              <Navbar />
-              <HeroSection />
-              <FeaturesSection />
-              <HowItWorks />
-              <Features />
-              <PopularRoutes />
-              <Footer />
-            </>
-          }
-        />
+    <>
+      <ToastContainer position="top-right" autoClose={3000} />
+      <Router>
+        <Routes>
+          {/* =========================
+              Public Home Page ("/")
+          ========================== */}
+          <Route
+            path="/"
+            element={
+              <>
+                <Navbar />
+                <HeroSection />
+                <FeaturesSection />
+                <HowItWorks />
+                <Features />
+                <PopularRoutes />
+                <Footer />
+              </>
+            }
+          />
 
-        {/* Contact => shows HelpCenter */}
-        <Route path="/contact" element={<HelpCenter />} />
+          {/* =======================
+              Public Contact Page
+          ======================== */}
+          <Route path="/contact" element={<HelpCenter />} />
 
-        {/* Admin Routes ("/admin") */}
-        <Route path="/admin" element={<AdminLayout />}>
-          <Route index element={<AdminDashboard />} />
-          <Route path="users" element={<ManageUsers />} />
-          <Route path="rides" element={<ManageRides />} />
-          <Route path="payments" element={<ManagePayments />} />
-          <Route path="disputes" element={<ManageDisputes />} />
-          <Route path="settings" element={<AdminSettings />} />
-        </Route>
+          {/* =======================
+              Auth Routes
+          ======================== */}
+          <Route
+            path="/login"
+            element={
+              isAuthenticated ? (
+                user?.role === "admin" ? (
+                  <Navigate to="/admin" />
+                ) : (
+                  <Navigate to="/" />
+                )
+              ) : (
+                <LoginPage />
+              )
+            }
+          />
+          <Route
+            path="/register"
+            element={
+              isAuthenticated ? (
+                user?.role === "admin" ? (
+                  <Navigate to="/admin" />
+                ) : (
+                  <Navigate to="/" />
+                )
+              ) : (
+                <RegisterPage />
+              )
+            }
+          />
 
-        {/* === User routes === */}
-        <Route path="/ride" element={<BookRide />} />
-        <Route path="/driver" element={<RiderDashboard />} />
-        {/* <Route path="/profile" element={<ProfileModal />} /> */}
+          {/* ==================================
+              Admin Routes (Protected by role)
+          =================================== */}
+          <Route
+            path="/admin"
+            element={
+              <CheckAuth role="admin">
+                <AdminLayout />
+              </CheckAuth>
+            }
+          >
+            {/* Nested admin routes */}
+            <Route index element={<AdminDashboard />} />
+            <Route path="users" element={<ManageUsers />} />
+            <Route path="rides" element={<ManageRides />} />
+            <Route path="payments" element={<ManagePayments />} />
+            <Route path="disputes" element={<ManageDisputes />} />
+            <Route path="settings" element={<AdminSettings />} />
+          </Route>
 
+          {/* =======================
+              Example User Routes
+          ======================== */}
+          <Route
+            path="/ride"
+            element={
+              <CheckAuth role="user">
+                <UserLayout>
+                  <BookRide />
+                </UserLayout>
+              </CheckAuth>
+            }
+          />
+          <Route
+            path="/driver"
+            element={
+              <CheckAuth role="user">
+                <UserLayout>
+                  <RiderDashboard />
+                </UserLayout>
+              </CheckAuth>
+            }
+          />
 
-        {/* 404 / NotFound (catch-all) */}
-        <Route path="*" element={<NotFound />} />
-      </Routes>
-    </Router>
+          {/* =======================
+              404 / Catch-All
+          ======================== */}
+          <Route path="/unauth-page" element={<UnauthPage />} />
+          <Route path="*" element={<NotFound />} />
+        </Routes>
+      </Router>
+    </>
   );
 }
 
