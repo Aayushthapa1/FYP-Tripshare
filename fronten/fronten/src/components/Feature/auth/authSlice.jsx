@@ -1,84 +1,6 @@
 import { createSlice, createAsyncThunk } from "@reduxjs/toolkit";
 import authService from "../../services/authService";
 
-// Async thunks for login, signup, and logout
-
-//  THUNK FOR LOGIN USER
-export const loginUser = createAsyncThunk(
-  "auth/login",
-  async (credentials, { rejectWithValue }) => {
-    try {
-      const response = await authService.login(credentials);
-      return response;
-    } catch (error) {
-      return rejectWithValue(error || "Login failed");
-    }
-  }
-);
-
-// THUNK FOR REGISTER USER
-export const registerUser = createAsyncThunk(
-  "auth/register",
-  async (userData, { rejectWithValue }) => {
-    try {
-      const response = await authService.register(userData);
-      return response;
-    } catch (error) {
-      return rejectWithValue(error || "Registration failed");
-    }
-  }
-);
-
-// THUNK FOR CHECKING AUTHENTICATION
-export const checkAuth = createAsyncThunk(
-  "auth/checkAuth",
-  async (_, { rejectWithValue }) => {
-    try {
-      console.log("ENTERED THE CHECK AUTH ");
-      const response = await authService.checkAuth();
-      console.log("The resposne in the check auth is", response);
-      return response;
-    } catch (error) {
-      return rejectWithValue(
-        error.response?.data || "Authentication check failed"
-      );
-    }
-  }
-);
-
-export const logoutUser = createAsyncThunk(
-  "auth/logout",
-  async (_, { rejectWithValue }) => {
-    try {
-      const response = await authService.logout();
-
-      return response;
-    } catch (error) {
-      return rejectWithValue(error.response?.data || "Logout failed");
-    }
-  }
-);
-
-export const refreshAccessToken = createAsyncThunk(
-  "auth/refresh_token",
-  async (_, { rejectWithValue }) => {
-    try {
-      const response = await authService.refreshAccessTokenService();
-
-      return response.data;
-    } catch (error) {
-      return rejectWithValue(error.response?.data || "Failed to refresh token");
-    }
-  }
-);
-
-const initialState = {
-  isAuthenticated: false,
-  isLoading: false,
-  user: null,
-};
-
-// Auth slice
 const authSlice = createSlice({
   name: "auth",
   initialState,
@@ -163,6 +85,85 @@ const authSlice = createSlice({
       });
   },
 });
+
+// Async thunks for login, signup, and logout
+
+//  THUNK FOR LOGIN USER
+export const loginUser = createAsyncThunk(
+  "auth/login",
+  async (credentials, { rejectWithValue }) => {
+    try {
+      const response = await authService.login(credentials);
+      return response;
+    } catch (error) {
+      return rejectWithValue(error || "Login failed");
+    }
+  }
+);
+
+// THUNK FOR REGISTER USER
+export const registerUser = createAsyncThunk(
+  "auth/register",
+  async (userData, { rejectWithValue }) => {
+    try {
+      const response = await authService.register(userData);
+      return response;
+    } catch (error) {
+      return rejectWithValue(error || "Registration failed");
+    }
+  }
+);
+
+// THUNK FOR CHECKING AUTHENTICATION
+export const checkAuth = createAsyncThunk(
+  "auth/checkAuth",
+  async (_, { rejectWithValue }) => {
+    try {
+      console.log("ENTERED THE CHECK AUTH ");
+      const response = await authService.checkAuth();
+      console.log("The resposne in the check auth is", response);
+      return response;
+    } catch (error) {
+      return rejectWithValue(
+        error.response?.data || "Authentication check failed"
+      );
+    }
+  }
+);
+
+export const logoutUser = createAsyncThunk(
+  "auth/logout",
+  async (_, { rejectWithValue }) => {
+    try {
+      const response = await authService.logout();
+
+      return response;
+    } catch (error) {
+      return rejectWithValue(error.response?.data || "Logout failed");
+    }
+  }
+);
+
+export const refreshAccessToken = createAsyncThunk(
+  "auth/refresh_token",
+  async (_, { rejectWithValue }) => {
+    try {
+      const response = await authService.refreshAccessTokenService();
+
+      return response.data;
+    } catch (error) {
+      return rejectWithValue(error.response?.data || "Failed to refresh token");
+    }
+  }
+);
+
+const initialState = {
+  isAuthenticated: false,
+  isLoading: false,
+  user: null,
+};
+
+// Auth slice
 
 export const { resetAuthState } = authSlice.actions;
 export default authSlice.reducer;

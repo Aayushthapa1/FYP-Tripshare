@@ -33,13 +33,13 @@ import RiderDashboard from "./components/user/pages/RiderDashboard";
 import NotFound from "./components/user/pages/NotFound";
 
 // Auth
-import RegisterPage from "./pages/RegisterPage";
-import LoginPage from "./pages/LoginPage";
-import UnauthPage from "./pages/UnAuthPage"; // If you want an unauthorized page
+import RegisterPage from "./components/pages/RegisterPage.jsx";
+import LoginPage from "./components/pages/LoginPage.jsx";
+import UnauthPage from "./components/pages/UnAuthPage.jsx"; // If you want an unauthorized page
 
 // Redux
-import { checkAuth } from "./features/auth/authSlice.jsx";
-import CheckAuth from "./utils/ProtectedRoute";
+import { checkAuth } from "./components/Feature/auth/authSlice.jsx";
+import CheckAuth from "./components/utils/ProtectedRoute.jsx";
 
 function App() {
   const { isAuthenticated, user } = useSelector((state) => state.auth);
@@ -158,6 +158,7 @@ function App() {
               404 / Catch-All
           ======================== */}
           <Route path="/unauth-page" element={<UnauthPage />} />
+
           <Route path="*" element={<NotFound />} />
         </Routes>
       </Router>

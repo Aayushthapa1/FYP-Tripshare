@@ -1,7 +1,7 @@
 import axios from "axios";
 import store from "../store/store";
-import { refreshAccessToken } from "../features/auth/authSlice";
-import { Base_Backend_Url } from "../constants";
+import { refreshAccessToken } from "../Feature/auth/authSlice";
+import { Base_Backend_Url } from "../../../constant";
 import Cookies from "js-cookie";
 
 const axiosInstance = axios.create({
