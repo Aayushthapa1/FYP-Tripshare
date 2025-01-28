@@ -140,7 +140,7 @@ function App() {
                 <UserLayout>
                   <BookRide />
                 </UserLayout>
-              {/* </CheckAuth> */}
+              </CheckAuth>
             }
           />
           <Route
