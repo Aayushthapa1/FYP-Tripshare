@@ -1,9 +1,9 @@
-// src/App.jsx
+// App.jsx
 import React, { useEffect } from "react";
 import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-dom";
 import { useDispatch, useSelector } from "react-redux";
-import "react-toastify/dist/ReactToastify.css";
 import { ToastContainer } from "react-toastify";
+import "react-toastify/dist/ReactToastify.css";
 
 // Layout / Shared
 import Navbar from "./components/layout/Navbar";
@@ -33,20 +33,20 @@ import RiderDashboard from "./components/user/pages/RiderDashboard";
 import NotFound from "./components/user/pages/NotFound";
 
 // Auth
-import RegisterPage from "./components/pages/RegisterPage.jsx";
-import LoginPage from "./components/pages/LoginPage.jsx";
-import UnauthPage from "./components/pages/UnAuthPage.jsx"; // If you want an unauthorized page
+import RegisterPage from "./components/pages/RegisterPage";
+import LoginPage from "./components/pages/LoginPage";
+import UnauthPage from "./components/pages/UnAuthPage";
 
-// Redux
-import { checkAuth } from "./components/Feature/auth/authSlice.jsx";
-import CheckAuth from "./components/utils/ProtectedRoute.jsx";
+// Utils/Redux
+import { checkAuth } from "./components/Feature/auth/authSlice"; 
+import CheckAuth from "./components/utils/ProtectedRoute";
 
 function App() {
-  const { isAuthenticated, user } = useSelector((state) => state.auth);
   const dispatch = useDispatch();
+  const { isAuthenticated, user } = useSelector((state) => state.auth);
 
   useEffect(() => {
-    // Check if user is authenticated on app load
+    // On initial load, check if user is still authenticated
     dispatch(checkAuth());
   }, [dispatch]);
 
@@ -55,9 +55,7 @@ function App() {
       <ToastContainer position="top-right" autoClose={3000} />
       <Router>
         <Routes>
-          {/* =========================
-              Public Home Page ("/")
-          ========================== */}
+          {/* Public Routes */}
           <Route
             path="/"
             element={
@@ -72,47 +70,31 @@ function App() {
               </>
             }
           />
-
-          {/* =======================
-              Public Contact Page
-          ======================== */}
           <Route path="/contact" element={<HelpCenter />} />
 
-          {/* =======================
-              Auth Routes
-          ======================== */}
+          {/* Auth Routes */}
           <Route
             path="/login"
             element={
-              isAuthenticated ? (
-                user?.role === "admin" ? (
-                  <Navigate to="/admin" />
-                ) : (
-                  <Navigate to="/" />
-                )
-              ) : (
-                <LoginPage />
-              )
+              isAuthenticated
+                ? user?.role === "admin"
+                  ? <Navigate to="/admin" />
+                  : <Navigate to="/" />
+                : <LoginPage />
             }
           />
           <Route
             path="/register"
             element={
-              isAuthenticated ? (
-                user?.role === "admin" ? (
-                  <Navigate to="/admin" />
-                ) : (
-                  <Navigate to="/" />
-                )
-              ) : (
-                <RegisterPage />
-              )
+              isAuthenticated
+                ? user?.role === "admin"
+                  ? <Navigate to="/admin" />
+                  : <Navigate to="/" />
+                : <RegisterPage />
             }
           />
 
-          {/* ==================================
-              Admin Routes (Protected by role)
-          =================================== */}
+          {/* Admin Routes (Protected) */}
           <Route
             path="/admin"
             element={
@@ -121,7 +103,6 @@ function App() {
               </CheckAuth>
             }
           >
-            {/* Nested admin routes */}
             <Route index element={<AdminDashboard />} />
             <Route path="users" element={<ManageUsers />} />
             <Route path="rides" element={<ManageRides />} />
@@ -130,9 +111,7 @@ function App() {
             <Route path="settings" element={<AdminSettings />} />
           </Route>
 
-          {/* =======================
-              Example User Routes
-          ======================== */}
+          {/* User Routes (Protected) */}
           <Route
             path="/ride"
             element={
@@ -154,11 +133,8 @@ function App() {
             }
           />
 
-          {/* =======================
-              404 / Catch-All
-          ======================== */}
+          {/* Misc */}
           <Route path="/unauth-page" element={<UnauthPage />} />
-
           <Route path="*" element={<NotFound />} />
         </Routes>
       </Router>

@@ -32,7 +32,7 @@ export const userRegister = async (req, res, next) => {
       address,
       email,
       password: hashedPassword,
-      phoneNumber,
+      // phoneNumber,
     });
 
     const userObj = newUser.toObject();

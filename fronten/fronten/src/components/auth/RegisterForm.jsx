@@ -16,7 +16,7 @@ const RegisterForm = () => {
     address: "",
     email: "",
     password: "",
-    phoneNumber: "",
+    // phoneNumber: "",
   });
 
   const [loading, setLoading] = useState(false);
@@ -56,9 +56,9 @@ const RegisterForm = () => {
     if (!password || password.length < 6) {
       errors.push("Password must be at least 6 characters long.");
     }
-    if (isEmpty(phoneNumber)) {
-      errors.push("Phone number is required.");
-    }
+    // if (isEmpty(phoneNumber)) {
+    //   errors.push("Phone number is required.");
+    // }
 
 
     // Display all error messages
@@ -212,7 +212,7 @@ const RegisterForm = () => {
         </div>
 
         {/* Phone Number Input */}
-        <div className="relative group">
+        {/* <div className="relative group">
           <div className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-indigo-600 transition-colors">
             <Phone size={20} />
           </div>
@@ -231,7 +231,7 @@ const RegisterForm = () => {
           >
             Phone Number
           </label>
-        </div>
+        </div> */}
 
         {/* Password Input */}
         <div className="relative group">

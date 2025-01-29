@@ -28,11 +28,11 @@ const userModelSchema = new mongoose.Schema(
       enum: ["user", "admin"],
       default: "user",
     },
-    phoneNumber: {
-      type: String,
-      required: true,
-      unique: true,
-    },
+    // phoneNumber: {
+    //   type: String,
+    //   required: true,
+    //   unique: true,
+    // },
   },
   { timestamps: true }
 );
