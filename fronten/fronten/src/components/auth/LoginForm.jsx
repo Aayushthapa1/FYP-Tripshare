@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { Mail, Lock } from "lucide-react";
 import { toast } from "react-toastify";
-import { loginUser } from "../Feature/auth/authSlice";
+import { loginUser } from "../../authSetup";
 import { useDispatch, useSelector } from "react-redux";
 import { useNavigate } from "react-router-dom";
 const LoginForm = () => {

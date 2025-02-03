@@ -1,6 +1,11 @@
-// App.jsx
+// src/App.jsx
 import React, { useEffect } from "react";
-import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-dom";
+import {
+  BrowserRouter as Router,
+  Routes,
+  Route,
+  Navigate,
+} from "react-router-dom";
 import { useDispatch, useSelector } from "react-redux";
 import { ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
@@ -13,7 +18,6 @@ import Footer from "./components/layout/Footer";
 import HeroSection from "./components/home/HeroSection";
 import FeaturesSection from "./components/home/FeaturesSection";
 import HowItWorks from "./components/home/HowItWorks";
-import Features from "./components/Feature/Feature";
 import PopularRoutes from "./components/home/PopularRoutes";
 import HelpCenter from "./components/home/HelpCenter";
 
@@ -38,15 +42,15 @@ import LoginPage from "./components/pages/LoginPage";
 import UnauthPage from "./components/pages/UnAuthPage";
 
 // Utils/Redux
-import { checkAuth } from "./components/Feature/auth/authSlice"; 
-import CheckAuth from "./components/utils/ProtectedRoute";
+import { checkAuth } from "./authSetup";
+import CheckAuth from "./utils/ProtectedRoute"; // Adjust path if needed
 
 function App() {
   const dispatch = useDispatch();
   const { isAuthenticated, user } = useSelector((state) => state.auth);
 
+  // Check authentication on first load
   useEffect(() => {
-    // On initial load, check if user is still authenticated
     dispatch(checkAuth());
   }, [dispatch]);
 
@@ -64,7 +68,6 @@ function App() {
                 <HeroSection />
                 <FeaturesSection />
                 <HowItWorks />
-                <Features />
                 <PopularRoutes />
                 <Footer />
               </>
@@ -76,21 +79,29 @@ function App() {
           <Route
             path="/login"
             element={
-              isAuthenticated
-                ? user?.role === "admin"
-                  ? <Navigate to="/admin" />
-                  : <Navigate to="/" />
-                : <LoginPage />
+              isAuthenticated ? (
+                user?.role === "admin" ? (
+                  <Navigate to="/admin" />
+                ) : (
+                  <Navigate to="/" />
+                )
+              ) : (
+                <LoginPage />
+              )
             }
           />
           <Route
             path="/register"
             element={
-              isAuthenticated
-                ? user?.role === "admin"
-                  ? <Navigate to="/admin" />
-                  : <Navigate to="/" />
-                : <RegisterPage />
+              isAuthenticated ? (
+                user?.role === "admin" ? (
+                  <Navigate to="/admin" />
+                ) : (
+                  <Navigate to="/" />
+                )
+              ) : (
+                <RegisterPage />
+              )
             }
           />
 

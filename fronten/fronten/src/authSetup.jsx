@@ -1,7 +1,9 @@
-// authSlice.js
-import { createSlice, createAsyncThunk } from "@reduxjs/toolkit";
-// import authService from "../../services/authService";
-import * as authService from "../../services/authService"; 
+import {
+  configureStore,
+  createSlice,
+  createAsyncThunk,
+} from "@reduxjs/toolkit";
+import authService from "./services/authService";
 
 //  THUNK FOR LOGIN USER
 export const loginUser = createAsyncThunk(
@@ -34,9 +36,9 @@ export const checkAuth = createAsyncThunk(
   "auth/checkAuth",
   async (_, { rejectWithValue }) => {
     try {
-      console.log("ENTERED THE CHECK AUTH");
+      console.log("ENTERED THE CHECK AUTH ");
       const response = await authService.checkAuth();
-      console.log("The response in checkAuth is", response);
+      console.log("The resposne in the check auth is", response);
       return response;
     } catch (error) {
       return rejectWithValue(
@@ -46,12 +48,12 @@ export const checkAuth = createAsyncThunk(
   }
 );
 
-// THUNK FOR LOGOUT
 export const logoutUser = createAsyncThunk(
   "auth/logout",
   async (_, { rejectWithValue }) => {
     try {
       const response = await authService.logout();
+
       return response;
     } catch (error) {
       return rejectWithValue(error.response?.data || "Logout failed");
@@ -59,17 +61,15 @@ export const logoutUser = createAsyncThunk(
   }
 );
 
-// THUNK FOR REFRESHING ACCESS TOKEN
 export const refreshAccessToken = createAsyncThunk(
   "auth/refresh_token",
   async (_, { rejectWithValue }) => {
     try {
       const response = await authService.refreshAccessTokenService();
+
       return response.data;
     } catch (error) {
-      return rejectWithValue(
-        error.response?.data || "Failed to refresh token"
-      );
+      return rejectWithValue(error.response?.data || "Failed to refresh token");
     }
   }
 );
@@ -80,6 +80,7 @@ const initialState = {
   user: null,
 };
 
+// Auth slice
 const authSlice = createSlice({
   name: "auth",
   initialState,
@@ -92,7 +93,9 @@ const authSlice = createSlice({
   },
   extraReducers: (builder) => {
     builder
-      // LOGIN
+
+      // Handling login user
+
       .addCase(loginUser.pending, (state) => {
         state.isLoading = true;
       })
@@ -108,7 +111,8 @@ const authSlice = createSlice({
         state.user = null;
       })
 
-      // REGISTER
+      //handling register user
+
       .addCase(registerUser.pending, (state) => {
         state.isLoading = true;
       })
@@ -123,7 +127,7 @@ const authSlice = createSlice({
         state.user = null;
       })
 
-      // CHECK AUTH
+      // Handling checkAuth
       .addCase(checkAuth.pending, (state) => {
         state.isLoading = true;
       })
@@ -134,24 +138,24 @@ const authSlice = createSlice({
           : null;
         state.isLoading = false;
       })
-      .addCase(checkAuth.rejected, (state) => {
+      .addCase(checkAuth.rejected, (state, action) => {
         state.isLoading = false;
         state.isAuthenticated = false;
         state.user = null;
       })
 
-      // LOGOUT
+      // Handling logoutUser
       .addCase(logoutUser.fulfilled, (state) => {
         state.isAuthenticated = false;
         state.user = null;
         state.isLoading = false;
       })
 
-      // REFRESH ACCESS TOKEN
+      // refreshing the access token
       .addCase(refreshAccessToken.pending, (state) => {
         state.isLoading = true;
       })
-      .addCase(refreshAccessToken.fulfilled, (state) => {
+      .addCase(refreshAccessToken.fulfilled, (state, action) => {
         state.isLoading = false;
         state.isAuthenticated = true;
       })
@@ -162,5 +166,12 @@ const authSlice = createSlice({
   },
 });
 
+
 export const { resetAuthState } = authSlice.actions;
-export default authSlice.reducer;
+
+// Create and export the store in the same file
+export const store = configureStore({
+  reducer: {
+    auth: authSlice.reducer,
+  },
+});

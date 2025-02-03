@@ -19,8 +19,8 @@ router.post("/logout", userLogout);
 
 router.post("/refresh-token", refreshAccessToken);
 router.get("/checkAuth", protectRoute, async (req, res) => {
-  try {
-    const user = req.user;
+  // try {
+  //   const user = req.user;
 
     if (!user) {
       return res

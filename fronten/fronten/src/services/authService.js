@@ -1,5 +1,5 @@
 import axios from "axios";
-import { Base_Backend_Url } from "../../../constant";
+import { Base_Backend_Url } from "../../constant";
 import formatError from "../utils/errorUtils";
 import axiosInstance from "../utils/axiosInstance";
 
@@ -52,8 +52,8 @@ const logout = async () => {
     );
     throw new Error(
       error.response?.data?.ErrorMessage[0].message ||
-        error.message ||
-        "Logout failed due to internal server error"
+      error.message ||
+      "Logout failed due to internal server error"
     );
   }
 };
