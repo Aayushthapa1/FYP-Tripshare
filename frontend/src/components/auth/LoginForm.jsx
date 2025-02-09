@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { Mail, Lock } from "lucide-react";
-import { Toaster } from 'sonner';
+import { Toaster,toast } from 'sonner';
 import { loginUser } from "../../authSetup";
 import { useDispatch, useSelector } from "react-redux";
 import { useNavigate } from "react-router-dom";
@@ -29,7 +29,7 @@ const LoginForm = () => {
     setLoading(true);
 
     if (!email || !password) {
-      Toaster.error("Please enter your email and password to login");
+      toast.error("Please enter your email and password to login");
     }
 
     try {
@@ -44,18 +44,18 @@ const LoginForm = () => {
         const errorMessage =
           response.payload.details?.ErrorMessage?.[0]?.message ||
           "Server Error. Please try again.";
-          Toaster.error(errorMessage);
+          toast.error(errorMessage);
       }
     } catch (error) {
       console.error("Login error:", error);
 
       if (error.response) {
-        Toaster.error(
+        toast.error(
           error.response.data?.ErrorMessage?.[0]?.message ||
             "An unexpected error occurred."
         );
       } else {
-        Toaster.error("Network error, please try again.");
+        toast.error("Network error, please try again.");
       }
     } finally {
       setLoading(false);
@@ -64,6 +64,12 @@ const LoginForm = () => {
 
   return (
     <div className="w-full">
+    <Toaster position="top-right" />
+    {loading && (
+        <div className="absolute inset-0 flex items-center justify-center bg-white bg-opacity-70 rounded-xl">
+          <div className="loader ease-linear border-4 border-t-4 border-green-500 h-10 w-10 rounded-full animate-spin"></div>
+        </div>
+      )}
       <form
         className="space-y-6"
         onChange={handleChange}

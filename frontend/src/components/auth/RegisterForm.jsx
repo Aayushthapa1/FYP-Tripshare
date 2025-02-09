@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import { User, Mail, Home, Lock, UserCircle } from "lucide-react";
 import { useDispatch } from "react-redux";
 import { useNavigate } from "react-router-dom";
-import { Toaster,toast } from 'sonner';
+import { Toaster,toast } from "sonner";
 import { registerUser } from "../../authSetup";
 
 const RegisterForm = () => {
@@ -87,9 +87,9 @@ const RegisterForm = () => {
       console.log("The response in the register form:", response);
 
       // Check the success criteria from your API response
-      if (response?.StatusCode === 200 && response?.IsSuccess === true) {
-        navigate("/login");
+      if (response?.StatusCode === 200 && response?.IsSuccess === true) {;
         toast.success("Registration successful!");
+        setTimeout(() => navigate("/login"), 2000);
       } else {
         console.log("Registration failed. Error response:", response);
         toast.error(
@@ -117,6 +117,11 @@ const RegisterForm = () => {
     
     <div className="w-full max-w-lg mx-auto bg-white p-8 rounded-xl shadow-lg">
       <Toaster position="top-right" />
+      {loading && (
+        <div className="absolute inset-0 flex items-center justify-center bg-white bg-opacity-70 rounded-xl">
+          <div className="loader ease-linear border-4 border-t-4 border-green-500 h-10 w-10 rounded-full animate-spin"></div>
+        </div>
+      )}
       <form className="space-y-6" onSubmit={handleSubmit}>
         {/* Full Name */}
         <div className="relative group">
@@ -253,7 +258,7 @@ const RegisterForm = () => {
           )}
         </button>
       </form>
-      
+      <Toaster position="top-right" />
     </div>
   );
 };

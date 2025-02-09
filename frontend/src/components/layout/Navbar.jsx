@@ -1,4 +1,4 @@
-// src/components/layout/Navbar.jsx
+
 import React, { useState, useEffect } from "react";
 import { Car, Menu, X, User } from "lucide-react";
 import NavLinks from "./NavLinks";
@@ -55,9 +55,24 @@ export default function Navbar() {
             </button>
             {isUserMenuOpen && (
               <div className="absolute right-0 mt-2 w-48 bg-white shadow-lg rounded-lg py-2">
-                <a href="/profile" className="block px-4 py-2 text-gray-800 hover:bg-gray-200">Profile</a>
-                <a href="/settings" className="block px-4 py-2 text-gray-800 hover:bg-gray-200">Settings</a>
-                <a href="/logout" className="block px-4 py-2 text-gray-800 hover:bg-gray-200">Logout</a>
+                <a
+                  href="/profile"
+                  className="block px-4 py-2 text-gray-800 hover:bg-gray-200"
+                >
+                  Profile
+                </a>
+                <a
+                  href="/driverregistration"
+                  className="block px-4 py-2 text-gray-800 hover:bg-gray-200"
+                >
+                  Driver Registration
+                </a>
+                <a
+                  href="/logout"
+                  className="block px-4 py-2 text-gray-800 hover:bg-gray-200"
+                >
+                  Logout
+                </a>
               </div>
             )}
           </div>
