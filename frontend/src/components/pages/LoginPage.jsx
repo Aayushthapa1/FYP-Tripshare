@@ -1,7 +1,17 @@
-import React from "react";
+import React, { useEffect } from "react";
 import LoginForm from "../auth/LoginForm";
+import { useSelector } from "react-redux";
+import { useNavigate } from "react-router-dom";
 
 const LoginPage = () => {
+  const navigate = useNavigate();
+  const { isAuthenticated } = useSelector((state) => state?.auth);
+
+  useEffect(() => {
+    if (!isAuthenticated) {
+      navigate("/login"); // Redirect to login if not authenticated
+    }
+  }, [isAuthenticated, navigate]);
   return (
     <div className="min-h-screen bg-gradient-to-br from-green-50 to-gray-100 flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
       <div className="flex flex-col md:flex-row bg-white h-auto md:h-[600px] w-full max-w-4xl rounded-3xl shadow-2xl overflow-hidden">

@@ -258,7 +258,6 @@ const RegisterForm = () => {
           )}
         </button>
       </form>
-      <Toaster position="top-right" />
     </div>
   );
 };

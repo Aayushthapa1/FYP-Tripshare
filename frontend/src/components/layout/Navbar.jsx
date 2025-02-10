@@ -1,14 +1,15 @@
-
 import React, { useState, useEffect } from "react";
 import { Car, Menu, X, User } from "lucide-react";
 import NavLinks from "./NavLinks";
-import AuthButtons from "./AuthButtons";
 import MobileMenu from "./MobileMenu";
 
 export default function Navbar() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isScrolled, setIsScrolled] = useState(false);
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
+  const [isAuthenticated, setIsAuthenticated] = useState(
+    localStorage.getItem("isAuthenticated") === "true"
+  );
 
   useEffect(() => {
     const handleScroll = () => {
@@ -17,6 +18,16 @@ export default function Navbar() {
     window.addEventListener("scroll", handleScroll);
     return () => window.removeEventListener("scroll", handleScroll);
   }, []);
+
+  const handleLogin = () => {
+    localStorage.setItem("isAuthenticated", "true");
+    setIsAuthenticated(true);
+  };
+
+  const handleLogout = () => {
+    localStorage.removeItem("isAuthenticated");
+    setIsAuthenticated(false);
+  };
 
   return (
     <nav
@@ -43,59 +54,79 @@ export default function Navbar() {
           </div>
 
           {/* Middle: Desktop Nav Links */}
-          <NavLinks />
-
-          {/* Right: User Button */}
-          <div className="relative">
-            <button
-              onClick={() => setIsUserMenuOpen(!isUserMenuOpen)}
-              className="flex items-center space-x-2 p-2 text-gray-700 hover:text-green-600 transition-colors"
-            >
-              <User className="h-6 w-6" />
-            </button>
-            {isUserMenuOpen && (
-              <div className="absolute right-0 mt-2 w-48 bg-white shadow-lg rounded-lg py-2">
-                <a
-                  href="/profile"
-                  className="block px-4 py-2 text-gray-800 hover:bg-gray-200"
-                >
-                  Profile
-                </a>
-                <a
-                  href="/driverregistration"
-                  className="block px-4 py-2 text-gray-800 hover:bg-gray-200"
-                >
-                  Driver Registration
-                </a>
-                <a
-                  href="/logout"
-                  className="block px-4 py-2 text-gray-800 hover:bg-gray-200"
-                >
-                  Logout
-                </a>
-              </div>
-            )}
+          <div className="flex-1">
+            <NavLinks />
           </div>
 
-          {/* Mobile menu toggle button */}
-          <button
-            className="md:hidden p-2"
-            onClick={() => setIsMenuOpen(!isMenuOpen)}
-          >
-            {isMenuOpen ? (
-              <X
-                className={`h-6 w-6 ${
-                  isScrolled ? "text-gray-600" : "text-white"
-                }`}
-              />
-            ) : (
-              <Menu
-                className={`h-6 w-6 ${
-                  isScrolled ? "text-gray-600" : "text-white"
-                }`}
-              />
-            )}
-          </button>
+          {/* Right: User Button and Mobile Menu */}
+          <div className="flex items-center space-x-4">
+            <div className="relative">
+              <button
+                onClick={() => setIsUserMenuOpen(!isUserMenuOpen)}
+                className={`flex items-center space-x-2 p-2 transition-colors ${
+                  isScrolled ? "text-gray-700" : "text-white"
+                } hover:text-green-600`}
+              >
+                <User className="h-6 w-6" />
+              </button>
+              {isUserMenuOpen && (
+                <div className="absolute right-0 mt-2 w-48 bg-white shadow-lg rounded-lg py-2">
+                  {isAuthenticated ? (
+                    <>
+                      <a
+                        href="/profile"
+                        className="block px-4 py-2 text-gray-800 hover:bg-gray-200"
+                      >
+                        Profile
+                      </a>
+                      <button
+                        onClick={handleLogout}
+                        className="block w-full text-left px-4 py-2 text-gray-800 hover:bg-gray-200"
+                      >
+                        Logout
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <a
+                        href="/login"
+                        className="block px-4 py-2 text-gray-800 hover:bg-gray-200"
+                        onClick={handleLogin}
+                      >
+                        Login
+                      </a>
+                      <a
+                        href="/register"
+                        className="block px-4 py-2 text-gray-800 hover:bg-gray-200"
+                      >
+                        Register
+                      </a>
+                    </>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Mobile Menu Button */}
+            <button
+              className="md:hidden p-2"
+              onClick={() => setIsMenuOpen(!isMenuOpen)}
+            >
+              {isMenuOpen ? (
+                <X
+                  className={`h-6 w-6 ${
+                    isScrolled ? "text-gray-600" : "text-white"
+                  }`}
+                />
+              ) : (
+                <Menu
+                  className={`h-6 w-6 ${
+                    isScrolled ? "text-gray-600" : "text-white"
+                  }`}
+                />
+              )}
+            </button>
+          </div>
         </div>
       </div>
 

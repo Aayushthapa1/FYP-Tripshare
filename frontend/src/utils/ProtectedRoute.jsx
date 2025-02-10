@@ -9,6 +9,7 @@ function CheckAuth({ role, children }) {
   if (!isAuthenticated) {
     return <Navigate to="/login" state={{ from: location }} />;
   }
+  
 
   if (role === "admin") {
     // Admin trying to access user pages

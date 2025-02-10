@@ -4,13 +4,11 @@ import { fileURLToPath } from "url";
 
 // __filename and __dirname aren't available by default with ESM,
 // so we recreate them to build a reliable path to the .env file.
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
 
-// Load .env from one directory up
-dotenv.config({
-  path: path.join(__dirname, "../.env")
-});
+
+
+
+dotenv.config({ path: "./.env" });
 
 // Build and freeze your config object
 const _config = Object.freeze({
@@ -24,5 +22,7 @@ const _config = Object.freeze({
   cloudinaryAPISecret: process.env.CLOUDINARY_API_SECRET,
   nodeEnv: process.env.NODE_ENV
 });
-
-export default _config;
+console.log("console in the config file",process.env.JWT_SECRET_KEY)
+console.log("the port is ", process.env.PORT)
+// export default _config;
+export default _config ;

@@ -49,6 +49,8 @@ import CheckAuth from "./utils/ProtectedRoute"; // Adjust path if needed
 function App() {
   const dispatch = useDispatch();
   const { isAuthenticated, user } = useSelector((state) => state.auth);
+  console.log("user", user)
+  console.log("", isAuthenticated);
 
   // Check authentication on first load
   useEffect(() => {
@@ -70,43 +72,46 @@ function App() {
                 <FeaturesSection />
                 <HowItWorks />
                 <PopularRoutes />
-                
+
                 <Footer />
               </>
             }
           />
           <Route path="/contact" element={<HelpCenter />} />
-          <Route path="/driverregistration" element={<DriverRegistrationForm />} />
+          <Route
+            path="/driverregistration"
+            element={<DriverRegistrationForm />}
+          />
 
           {/* Auth Routes */}
           <Route
-            path="/login"
-            element={
-              isAuthenticated ? (
-                user?.role === "admin" ? (
-                  <Navigate to="/admin" />
-                ) : (
-                  <Navigate to="/" />
-                )
+          path="/register"
+          element={
+            isAuthenticated ? (
+              user?.role === "admin" ? (
+                <Navigate to="/admin" />
               ) : (
-                <LoginPage />
+                <Navigate to="/" />
               )
-            }
-          />
-          <Route
-            path="/register"
-            element={
-              isAuthenticated ? (
-                user?.role === "admin" ? (
-                  <Navigate to="/admin" />
-                ) : (
-                  <Navigate to="/" />
-                )
+            ) : (
+              <RegisterPage />
+            )
+          }
+        />
+        <Route
+          path="/login"
+          element={
+            isAuthenticated ? (
+              user?.role === "admin" ? (
+                <Navigate to="/admin" />
               ) : (
-                <RegisterPage />
+                <Navigate to="/" />
               )
-            }
-          />
+            ) : (
+              <LoginPage />
+            )
+          }
+        />
 
           {/* Admin Routes (Protected) */}
           <Route

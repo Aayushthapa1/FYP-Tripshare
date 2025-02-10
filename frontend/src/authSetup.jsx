@@ -11,6 +11,7 @@ export const loginUser = createAsyncThunk(
   async (credentials, { rejectWithValue }) => {
     try {
       const response = await authService.login(credentials);
+      console.log("RESPONSE IN ATUTH SETUP", response);
       return response;
     } catch (error) {
       return rejectWithValue(error || "Login failed");
@@ -100,6 +101,7 @@ const authSlice = createSlice({
         state.isLoading = true;
       })
       .addCase(loginUser.fulfilled, (state, action) => {
+        console.log("enteres the login user ulfilled")
         state.isAuthenticated = true;
         state.user = action.payload.IsSuccess
           ? action.payload.Result?.user_data

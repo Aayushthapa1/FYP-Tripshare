@@ -1,9 +1,10 @@
 import jwt from "jsonwebtoken";
-import _config from "./config.js";
+import _config from "./config.js"
 
 export const generateAccessToken = (userId) => {
   try {
-    const jwtSecret = _config.jwt_key;
+    const jwtSecret = _config.jwtKey;
+    console.log("the jwt key in the generate func",jwtSecret)
     if (!jwtSecret) throw new Error("JWT Secret is not defined!");
     return jwt.sign({ sub: userId }, jwtSecret, { expiresIn: "30m" });
   } catch (error) {
@@ -13,7 +14,7 @@ export const generateAccessToken = (userId) => {
 
 export const generateRefreshToken = (userId) => {
   try {
-    const refreshTokenSecret = _config.refresh_token;
+    const refreshTokenSecret = _config.refreshToken;
     if (!refreshTokenSecret)
       throw new Error("Refresh Token Secret is not defined!");
     return jwt.sign({ sub: userId }, refreshTokenSecret, { expiresIn: "24h" });

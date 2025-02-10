@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { Mail, Lock } from "lucide-react";
 import { Toaster,toast } from 'sonner';
 import { loginUser } from "../../authSetup";
@@ -15,6 +15,14 @@ const LoginForm = () => {
   const { email, password } = credentials;
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+ 
+    const { isAuthenticated } = useSelector((state) => state?.auth);
+  
+    useEffect(() => {
+      if (!isAuthenticated) {
+        navigate("/login"); // Redirect to login if not authenticated
+      }
+    }, [isAuthenticated, navigate]);
 
   const handleChange = (e) => {
     setCredentials({ ...credentials, [e.target.name]: e.target.value });
@@ -38,8 +46,8 @@ const LoginForm = () => {
       console.log("The response in the login form is", response);
 
       if (response.payload.status === 200) {
-        console.log("The response is", response);
-        navigate("/profile-setup"); // Redirect to profile setup after login
+        toast.success("Login successful!");
+        navigate("/driverregistration"); // Redirect to profile setup after login
       } else {
         const errorMessage =
           response.payload.details?.ErrorMessage?.[0]?.message ||

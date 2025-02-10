@@ -4,6 +4,7 @@ import _config from "./utils/config.js";
 import connectToDB from "./utils/connectToDB.js";
 
 const { port } = _config;
+console.log(`Port ${port}`);
 
 const startServer = async () => {
   try {
