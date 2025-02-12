@@ -13,6 +13,7 @@ import "react-toastify/dist/ReactToastify.css";
 // Layout / Shared
 import Navbar from "./components/layout/Navbar";
 import Footer from "./components/layout/Footer";
+import UserInfoModal from "./components/layout/UserInfoModal";
 
 // Public/Home
 import HeroSection from "./components/home/HeroSection";
@@ -21,7 +22,7 @@ import HowItWorks from "./components/home/HowItWorks";
 import PopularRoutes from "./components/home/PopularRoutes";
 import HelpCenter from "./components/home/HelpCenter";
 import DriverRegistrationForm from "./components/home/DriverRegistrationForm";
-
+import ScrollToTopButton from "./components/scrollToTop";
 // Admin
 import AdminLayout from "./components/admin/components/AdminLayout";
 import AdminDashboard from "./components/admin/pages/AdminDashboard";
@@ -68,11 +69,12 @@ function App() {
             element={
               <>
                 <Navbar />
+                <UserInfoModal />
                 <HeroSection />
                 <FeaturesSection />
                 <HowItWorks />
                 <PopularRoutes />
-
+                <ScrollToTopButton />
                 <Footer />
               </>
             }

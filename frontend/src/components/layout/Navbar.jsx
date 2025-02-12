@@ -1,15 +1,18 @@
 import React, { useState, useEffect } from "react";
-import { Car, Menu, X, User } from "lucide-react";
+import { Car, Menu, X, User, LogOut, UserCircle } from "lucide-react";
 import NavLinks from "./NavLinks";
 import MobileMenu from "./MobileMenu";
+import Button from "../button.jsx";
 
 export default function Navbar() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isScrolled, setIsScrolled] = useState(false);
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
-  const [isAuthenticated, setIsAuthenticated] = useState(
-    localStorage.getItem("isAuthenticated") === "true"
-  );
+  const [isAuthenticated, setIsAuthenticated] = useState(true); // Set to true for testing
+  const [userInfo, setUserInfo] = useState({
+    name: "Aayush Thapa",
+    email: "aayush134056@gmail.com"
+  }); // Sample user data
 
   useEffect(() => {
     const handleScroll = () => {
@@ -19,14 +22,18 @@ export default function Navbar() {
     return () => window.removeEventListener("scroll", handleScroll);
   }, []);
 
-  const handleLogin = () => {
-    localStorage.setItem("isAuthenticated", "true");
-    setIsAuthenticated(true);
-  };
-
   const handleLogout = () => {
-    localStorage.removeItem("isAuthenticated");
+    localStorage.removeItem("token");
+    localStorage.removeItem("userInfo");
+    document.cookie.split(";").forEach(cookie => {
+      document.cookie = cookie
+        .replace(/^ +/, "")
+        .replace(/=.*/, `=;expires=${new Date(0).toUTCString()};path=/`);
+    });
     setIsAuthenticated(false);
+    setUserInfo(null);
+    setIsUserMenuOpen(false);
+    window.location.href = "/";
   };
 
   return (
@@ -54,58 +61,78 @@ export default function Navbar() {
           </div>
 
           {/* Middle: Desktop Nav Links */}
-          <div className="flex-1">
+          <div className="hidden md:flex flex-1 justify-center">
             <NavLinks />
           </div>
 
-          {/* Right: User Button and Mobile Menu */}
+          {/* Right: Auth Buttons or User Menu */}
           <div className="flex items-center space-x-4">
-            <div className="relative">
-              <button
-                onClick={() => setIsUserMenuOpen(!isUserMenuOpen)}
-                className={`flex items-center space-x-2 p-2 transition-colors ${
-                  isScrolled ? "text-gray-700" : "text-white"
-                } hover:text-green-600`}
-              >
-                <User className="h-6 w-6" />
-              </button>
-              {isUserMenuOpen && (
-                <div className="absolute right-0 mt-2 w-48 bg-white shadow-lg rounded-lg py-2">
-                  {isAuthenticated ? (
-                    <>
-                      <a
-                        href="/profile"
-                        className="block px-4 py-2 text-gray-800 hover:bg-gray-200"
-                      >
-                        Profile
-                      </a>
-                      <button
-                        onClick={handleLogout}
-                        className="block w-full text-left px-4 py-2 text-gray-800 hover:bg-gray-200"
-                      >
-                        Logout
-                      </button>
-                    </>
-                  ) : (
-                    <>
-                      <a
-                        href="/login"
-                        className="block px-4 py-2 text-gray-800 hover:bg-gray-200"
-                        onClick={handleLogin}
-                      >
-                        Login
-                      </a>
-                      <a
-                        href="/register"
-                        className="block px-4 py-2 text-gray-800 hover:bg-gray-200"
-                      >
-                        Register
-                      </a>
-                    </>
-                  )}
-                </div>
-              )}
-            </div>
+            {!isAuthenticated ? (
+              <div className="hidden md:flex items-center space-x-4">
+                <Button
+                  WholeClassName="bg-white/10 hover:bg-white/20"
+                  className="text-white"
+                  hovered="text-white"
+                  notHovered="text-white"
+                  onClick={() => window.location.href = "/login"}
+                >
+                  Login
+                </Button>
+                <Button
+                  WholeClassName="bg-green-500 hover:bg-green-600"
+                  className="text-white"
+                  hovered="text-white"
+                  notHovered="text-white"
+                  onClick={() => window.location.href = "/register"}
+                >
+                  Register
+                </Button>
+              </div>
+            ) : (
+              <div className="relative">
+                <button
+                  onClick={() => setIsUserMenuOpen(!isUserMenuOpen)}
+                  className={`flex items-center space-x-2 p-2 rounded-full transition-colors ${
+                    isScrolled ? "hover:bg-gray-100" : "hover:bg-white/10"
+                  }`}
+                >
+                  <UserCircle className={`h-6 w-6 ${
+                    isScrolled ? "text-gray-700" : "text-white"
+                  }`} />
+                </button>
+                {isUserMenuOpen && (
+                  <div className="absolute right-0 mt-2 w-48 bg-white rounded-xl shadow-lg py-2 border border-gray-100">
+                    <div className="px-4 py-2 border-b border-gray-100">
+                      <p className="text-sm font-medium text-gray-900">
+                        {userInfo?.name || "User"}
+                      </p>
+                      <p className="text-sm text-gray-500">
+                        {userInfo?.email || "user@example.com"}
+                      </p>
+                    </div>
+                    <a
+                      href="/profile"
+                      className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
+                    >
+                      Profile Settings
+                    </a>
+                    <a
+                      href="/trips"
+                      className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
+                    >
+                      My Trips
+                    </a>
+                    <button
+                      onClick={handleLogout}
+                      className="flex items-center w-full px-4 py-2 text-sm text-red-600 hover:bg-gray-50"
+                    >
+                      <LogOut className="h-4 w-4 mr-2" />
+                      Logout
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* Mobile Menu Button */}
             <button
@@ -131,7 +158,13 @@ export default function Navbar() {
       </div>
 
       {/* Mobile Menu */}
-      <MobileMenu isOpen={isMenuOpen} />
+      <MobileMenu 
+        isOpen={isMenuOpen} 
+        isAuthenticated={isAuthenticated}
+        onLogin={() => window.location.href = "/login"}
+        onRegister={() => window.location.href = "/register"}
+        onLogout={handleLogout}
+      />
     </nav>
   );
 }
