@@ -38,6 +38,8 @@ import BookRide from "./components/user/pages/BookRide";
 import RiderDashboard from "./components/user/pages/RiderDashboard";
 import NotFound from "./components/user/pages/NotFound";
 
+//payment
+import PaymentForm from "./components/payment/PaymentForm";
 // Auth
 import RegisterPage from "./components/pages/RegisterPage";
 import LoginPage from "./components/pages/LoginPage";
@@ -75,6 +77,7 @@ function App() {
                 <HowItWorks />
                 <PopularRoutes />
                 <ScrollToTopButton />
+                
                 <Footer />
               </>
             }
@@ -84,6 +87,7 @@ function App() {
             path="/driverregistration"
             element={<DriverRegistrationForm />}
           />
+          <Route path="/payment" element={<PaymentForm />} />
 
           {/* Auth Routes */}
           <Route

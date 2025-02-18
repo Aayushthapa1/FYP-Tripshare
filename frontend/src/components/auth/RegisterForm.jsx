@@ -1,32 +1,31 @@
 import React, { useState } from "react";
-import { User, Mail, Home, Lock, UserCircle } from "lucide-react";
+import { User, Mail, Home, Lock, UserCircle, Phone, Users } from "lucide-react";
 import { useDispatch } from "react-redux";
 import { useNavigate } from "react-router-dom";
-import { Toaster,toast } from "sonner";
+import { Toaster, toast } from "sonner";
 import { registerUser } from "../../authSetup";
 
 const RegisterForm = () => {
   const dispatch = useDispatch();
   const navigate = useNavigate();
 
-  // Local form state
   const [formData, setFormData] = useState({
     fullName: "",
     userName: "",
     address: "",
     email: "",
     password: "",
+    phoneNumber: "",
+    role: "user" // Default role
   });
 
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
 
-  // Toggle password visibility
   const togglePasswordVisibility = () => {
     setShowPassword((prev) => !prev);
   };
 
-  // Handle each input's change event
   const handleChange = (e) => {
     setFormData((prev) => ({
       ...prev,
@@ -34,15 +33,13 @@ const RegisterForm = () => {
     }));
   };
 
-  // Basic form validation
   const validateForm = (data) => {
-    const { fullName, userName, address, email, password } = data;
+    const { fullName, userName, address, email, password, phoneNumber, role } = data;
     let isValid = true;
     const errors = [];
 
     const isEmpty = (field) => !field || field.trim().length === 0;
 
-    // Check if ALL fields are empty
     if (Object.values(data).every(isEmpty)) {
       errors.push("Please fill out the form.");
     }
@@ -64,15 +61,24 @@ const RegisterForm = () => {
       errors.push("Password must be at least 6 characters long.");
     }
 
+    // Phone number validation
+    const phonePattern = /^[0-9]{10}$/;
+    if (!phoneNumber || !phonePattern.test(phoneNumber)) {
+      errors.push("Please enter a valid 10-digit phone number.");
+    }
+
+    if (!["user", "driver"].includes(role)) {
+      errors.push("Please select a valid role.");
+    }
+
     if (errors.length > 0) {
-      errors.forEach((err) =>  toast.error(err));
+      errors.forEach((err) => toast.error(err));
       isValid = false;
     }
 
     return isValid;
   };
 
-  // Submit form data
   const handleSubmit = async (e) => {
     e.preventDefault();
 
@@ -86,8 +92,7 @@ const RegisterForm = () => {
       const response = await dispatch(registerUser(formData)).unwrap();
       console.log("The response in the register form:", response);
 
-      // Check the success criteria from your API response
-      if (response?.StatusCode === 200 && response?.IsSuccess === true) {;
+      if (response?.StatusCode === 200 && response?.IsSuccess === true) {
         toast.success("Registration successful!");
         setTimeout(() => navigate("/login"), 2000);
       } else {
@@ -99,8 +104,6 @@ const RegisterForm = () => {
       }
     } catch (error) {
       console.error("Error during registration:", error);
-
-      // If error came from the API
       if (error.response && error.response.data) {
         toast.error(error.response.data.message || "An error occurred.");
       } else if (error.message) {
@@ -114,7 +117,6 @@ const RegisterForm = () => {
   };
 
   return (
-    
     <div className="w-full max-w-lg mx-auto bg-white p-8 rounded-xl shadow-lg">
       <Toaster position="top-right" />
       {loading && (
@@ -123,6 +125,7 @@ const RegisterForm = () => {
         </div>
       )}
       <form className="space-y-6" onSubmit={handleSubmit}>
+        {/* Existing fields remain the same */}
         {/* Full Name */}
         <div className="relative group">
           <div className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-green-600 transition-colors">
@@ -154,6 +157,24 @@ const RegisterForm = () => {
             className="w-full px-10 py-3 bg-gray-50 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all duration-200 text-gray-800 placeholder-gray-400"
             placeholder="Username"
             required
+          />
+        </div>
+
+        {/* Phone Number - New Field */}
+        <div className="relative group">
+          <div className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-green-600 transition-colors">
+            <Phone size={20} />
+          </div>
+          <input
+            type="tel"
+            id="phoneNumber"
+            name="phoneNumber"
+            value={formData.phoneNumber}
+            onChange={handleChange}
+            className="w-full px-10 py-3 bg-gray-50 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all duration-200 text-gray-800 placeholder-gray-400"
+            placeholder="Phone Number"
+            required
+            pattern="[0-9]{10}"
           />
         </div>
 
@@ -189,6 +210,24 @@ const RegisterForm = () => {
             placeholder="Email"
             required
           />
+        </div>
+
+        {/* Role Selection - New Field */}
+        <div className="relative group">
+          <div className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-green-600 transition-colors">
+            <Users size={20} />
+          </div>
+          <select
+            id="role"
+            name="role"
+            value={formData.role}
+            onChange={handleChange}
+            className="w-full px-10 py-3 bg-gray-50 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all duration-200 text-gray-800"
+            required
+          >
+            <option value="user">Passenger</option>
+            <option value="driver">Driver</option>
+          </select>
         </div>
 
         {/* Password */}
