@@ -10,6 +10,7 @@ import authRoute from "./routes/auth.route.js";
 import userRoute from "./routes/user.route.js";
 import tripRoute from "./routes/tripRoute.js";
 import driverRoute from "./routes/driverRoute.js";
+import handleRideRoute from "./routes/handleRideRoute.js";
 
 const app = express();
 
@@ -34,6 +35,7 @@ app.use("/api/trips", tripRoute);
 app.use("/api/auth", authRoute);
 app.use("/api/users", userRoute);
 app.use("/api/drivers", driverRoute);
+app.use ("/api/rides", handleRideRoute);
 
 // Root route
 app.get("/", (req, res) => {

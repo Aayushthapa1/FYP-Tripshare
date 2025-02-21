@@ -5,7 +5,6 @@ const tripSchema = new mongoose.Schema(
     driver: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
-      required: true,
     },
     departureLocation: {
       type: String,
@@ -18,6 +17,12 @@ const tripSchema = new mongoose.Schema(
     departureDate: {
       type: Date,
       required: true,
+      validate: {
+        validator: function (value) {
+          return value > new Date(); // Ensure departureDate is in the future
+        },
+        message: "Departure date must be in the future",
+      },
     },
     departureTime: {
       type: String,
@@ -26,11 +31,12 @@ const tripSchema = new mongoose.Schema(
     price: {
       type: Number,
       required: true,
+      min: 0, // Ensure price is non-negative
     },
     availableSeats: {
       type: Number,
       required: true,
-      min: 1,
+      min: 1, // Ensure at least 1 seat is available
     },
     status: {
       type: String,
@@ -41,9 +47,18 @@ const tripSchema = new mongoose.Schema(
       type: String,
     },
     vehicleDetails: {
-      model: String,
-      color: String,
-      plateNumber: String,
+      model: {
+        type: String,
+        required: true,
+      },
+      color: {
+        type: String,
+        required: true,
+      },
+      plateNumber: {
+        type: String,
+        required: true,
+      },
     },
     preferences: {
       smoking: {
@@ -59,13 +74,23 @@ const tripSchema = new mongoose.Schema(
         default: false,
       },
     },
-    bookedSeats: [{
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "User"
-    }],
+    bookedSeats: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "Nepride",
+        validate: {
+          validator: function (value) {
+            return !this.bookedSeats.includes(value); // Ensure no duplicate users
+          },
+          message: "User has already booked a seat",
+        },
+      },
+    ],
   },
-  { timestamps: true }
+  { timestamps: true } // Automatically manage createdAt and updatedAt fields
 );
 
+// Define the Trip model using the schema
 const Trip = mongoose.model("Trip", tripSchema);
+
 export default Trip;
