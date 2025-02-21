@@ -19,18 +19,26 @@ const userModelSchema = new mongoose.Schema(
       unique: true,
       required: true,
     },
+    phoneNumber: {
+      type: String,
+      unique: true,
+      required: true,
+    },
     password: {
       type: String,
       required: true,
     },
     role: {
       type: String,
-      enum: ["user", "admin"],
-      default: "user",
+      enum: ["user", "driver", "admin"],
+      required: true
     },
+    resetPasswordOTP: { type: String },
+    resetPasswordOTPExpires: { type: Date },
   },
   { timestamps: true }
 );
 
 const UserModel = mongoose.model("User", userModelSchema);
+
 export default UserModel;

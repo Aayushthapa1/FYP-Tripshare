@@ -2,6 +2,7 @@ import axios from "axios";
 import { refreshAccessToken } from "../authSetup";
 import { Base_Backend_Url } from "../../constant";
 import Cookies from "js-cookie";
+import {store} from "../authSetup";
 
 const axiosInstance = axios.create({
   baseURL: Base_Backend_Url,

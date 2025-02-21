@@ -29,6 +29,13 @@ export const registerUserSchema = Joi.object({
     "any.required": `"email" is a required field`,
   }),
 
+  phoneNumber: Joi.string().pattern(/^[0-9]{10}$/).required().messages({
+    "string.base": `"phone number" should be a type of 'text'`,
+    "string.empty": `"phone number" cannot be an empty field`,
+    "string.pattern.base": `"phone number" must be a valid 10-digit number`,
+    "any.required": `"phone number" is a required field`,
+  }),
+
   password: Joi.string().min(6).required().messages({
     "string.base": `"password" should be a type of 'text'`,
     "string.empty": `"password" cannot be an empty field`,
@@ -36,9 +43,9 @@ export const registerUserSchema = Joi.object({
     "any.required": `"password" is a required field`,
   }),
 
-  role: Joi.string().valid("user", "admin").default("user").messages({
+  role: Joi.string().valid("user", "driver", "admin").default("user").messages({
     "string.base": `"role" should be a type of 'text'`,
-    "any.only": `"role" must be one of ['user', 'admin']`,
+    "any.only": `"role" must be one of ['user', 'driver', 'admin']`,
   }),
 });
 
@@ -57,41 +64,3 @@ export const loginUserSchema = Joi.object({
     "any.required": `"password" is a required field`,
   }),
 });
-
-// Product validation schema
-export const validateProduct = Joi.object({
-  name: Joi.string().min(3).max(100).required().messages({
-    "string.base": `"name" should be a type of 'text'`,
-    "string.empty": `"name" cannot be an empty field`,
-    "string.min": `"name" should have a minimum length of {#limit}`,
-    "any.required": `"name" is a required field`,
-  }),
-
-  description: Joi.string().min(10).max(500).required().messages({
-    "string.base": `"description" should be a type of 'text'`,
-    "string.empty": `"description" cannot be an empty field`,
-    "string.min": `"description" should have a minimum length of {#limit}`,
-    "any.required": `"description" is a required field`,
-  }),
-
-  price: Joi.number().positive().required().messages({
-    "number.base": `"price" should be a type of 'number'`,
-    "number.positive": `"price" should be a positive number`,
-    "any.required": `"price" is a required field`,
-  }),
-
-  category: Joi.string().min(3).max(50).required().messages({
-    "string.base": `"category" should be a type of 'text'`,
-    "string.empty": `"category" cannot be an empty field`,
-    "string.min": `"category" should have a minimum length of {#limit}`,
-    "any.required": `"category" is a required field`,
-  }),
-
-  stock: Joi.number().integer().min(0).required().messages({
-    "number.base": `"stock" should be a type of 'number'`,
-    "number.integer": `"stock" should be an integer`,
-    "number.min": `"stock" cannot be less than {#limit}`,
-    "any.required": `"stock" is a required field`,
-  }),
-});
-

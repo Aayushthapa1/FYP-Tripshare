@@ -76,20 +76,25 @@ export const checkAuth = async () => {
 export const refreshAccessTokenService = async () => {
   try {
     const response = await axios.post(
+
       `${Base_Backend_Url}/api/auth/refresh-token`,
       {},
       {
         withCredentials: true,
       }
     );
-
+    console.log(response)
     return response.data;
   } catch (error) {
+    console.log(error);
     throw new Error(
       error.response?.data || "SERVER ERROR WHILE REFRESHING ACCES TOEKEN"
     );
+   
   }
 };
+
+
 
 const authService = {
   register,

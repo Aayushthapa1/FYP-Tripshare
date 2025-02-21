@@ -2,12 +2,6 @@ import dotenv from "dotenv";
 import path from "path";
 import { fileURLToPath } from "url";
 
-// __filename and __dirname aren't available by default with ESM,
-// so we recreate them to build a reliable path to the .env file.
-
-
-
-
 dotenv.config({ path: "./.env" });
 
 // Build and freeze your config object

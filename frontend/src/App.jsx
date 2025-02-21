@@ -21,7 +21,7 @@ import FeaturesSection from "./components/home/FeaturesSection";
 import HowItWorks from "./components/home/HowItWorks";
 import PopularRoutes from "./components/home/PopularRoutes";
 import HelpCenter from "./components/home/HelpCenter";
-import DriverRegistrationForm from "./components/home/DriverRegistrationForm";
+// import DriverRegistrationForm from "./components/home/DriverRegistrationForm";
 import ScrollToTopButton from "./components/scrollToTop";
 // Admin
 import AdminLayout from "./components/admin/components/AdminLayout";
@@ -40,6 +40,13 @@ import NotFound from "./components/user/pages/NotFound";
 
 //payment
 import PaymentForm from "./components/payment/PaymentForm";
+
+//trips
+import TripForm from "./components/trip/tripForm";
+
+//drivers
+import DriverDashboard from "./components/driver/driverDashboard";
+import DriverSchedules from "./components/driver/driverSchedules";
 // Auth
 import RegisterPage from "./components/pages/RegisterPage";
 import LoginPage from "./components/pages/LoginPage";
@@ -83,11 +90,14 @@ function App() {
             }
           />
           <Route path="/contact" element={<HelpCenter />} />
-          <Route
+          {/* <Route
             path="/driverregistration"
             element={<DriverRegistrationForm />}
-          />
+          /> */}
           <Route path="/payment" element={<PaymentForm />} />
+          <Route path="/driverdashboard" element={<DriverDashboard />} />
+          <Route path="/driverschedules" element={<DriverSchedules />} />
+          <Route path="/tripform" element={<TripForm/>} />
 
           {/* Auth Routes */}
           <Route
