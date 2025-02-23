@@ -1,6 +1,7 @@
 import DriverModel from '../models/driverModel.js';
 import upload from '../config/multerConfig.js';
 
+
 // Save Personal Information
 export const savePersonalInformation = async (req, res) => {
     upload.single('photo')(req, res, async (err) => {
@@ -8,11 +9,11 @@ export const savePersonalInformation = async (req, res) => {
             return res.status(400).json({ message: err.message });
         }
 
-        const { fullName, address, email, gender, dob, citizenshipNumber } = req.body;
+        const { fullName, address, email, gender, dob, citizenshipNumber, userId } = req.body;
 
         // Validate required fields
-        if (!fullName || !address || !email || !gender || !dob || !citizenshipNumber || !req.file) {
-            return res.status(400).json({ message: 'All fields are required, including the photo.' });
+        if (!fullName || !address || !email || !gender || !dob || !citizenshipNumber || !req.file || !userId) {
+            return res.status(400).json({ message: 'All fields are required, including the photo and user ID.' });
         }
 
         const photo = `/uploads/${req.file.filename}`; // Path to the uploaded photo
@@ -36,6 +37,8 @@ export const savePersonalInformation = async (req, res) => {
                 dob,
                 citizenshipNumber,
                 photo,
+                user: userId, // Link to Nepride user
+                status: 'pending', // Default status
             });
 
             return res.status(201).json({
@@ -89,7 +92,6 @@ export const saveLicenseInformation = async (req, res) => {
         }
     });
 };
-
 // Save Vehicle Information
 export const saveVehicleInformation = async (req, res) => {
     upload.fields([
@@ -98,7 +100,7 @@ export const saveVehicleInformation = async (req, res) => {
         { name: 'ownerDetailPhoto', maxCount: 1 },
         { name: 'renewalDetailPhoto', maxCount: 1 },
     ])(req, res, async (err) => {
- if (err) {
+        if (err) {
             return res.status(400).json({ message: err.message });
         }
 
@@ -148,12 +150,11 @@ export const saveVehicleInformation = async (req, res) => {
         }
     });
 };
-
 // controllers/driverController.js
 
 export const getAllDrivers = async (req, res) => {
     try {
-        const drivers = await DriverModel.find();
+        const drivers = await DriverModel.find().populate('user');
         return res.status(200).json(drivers);
     } catch (error) {
         return res.status(500).json({ message: 'Something went wrong.', error: error.message });
@@ -188,7 +189,7 @@ export const updateDriverVerification = async (req, res) => {
             from: process.env.EMAIL,
             to: driver.email,
             subject: 'Driver Verification Status',
-            text: `Your driver application has been ${isVerified ? 'accepted' : 'rejected'}.`,
+            text: `Dear ${driver.fullName},\n\nYour driver application has been ${isVerified ? 'accepted' : 'rejected'}.\n\nThank you for your application.\n\nBest regards,\nThe Team`,
         };
 
         transporter.sendMail(mailOptions, (error, info) => {
@@ -207,3 +208,25 @@ export const updateDriverVerification = async (req, res) => {
         return res.status(500).json({ message: 'Something went wrong.', error: error.message });
     }
 };
+
+// Submit KYC
+export const submitKYC = async (req, res) => {
+    try {
+      const { userId, ...kycData } = req.body;
+      const driver = await DriverModel.findOne({ user: userId });
+  
+      if (!driver) {
+        return res.status(404).json({ message: "Driver not found." });
+      }
+  
+      driver.kyc = { ...kycData, status: "pending" };
+      await driver.save();
+  
+      return res.status(201).json({
+        message: "KYC submitted successfully.",
+        driver,
+      });
+    } catch (error) {
+      return res.status(500).json({ message: "Something went wrong.", error: error.message });
+    }
+  };

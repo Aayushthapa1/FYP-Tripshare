@@ -11,14 +11,14 @@ function CheckAuth({ role, children }) {
   }
   
 
-  if (role === "admin") {
+  if (role === "Admin") {
     // Admin trying to access user pages
-    if (user?.role === "admin" && !location.pathname.includes("/admin")) {
+    if (user?.role === "Admin" && !location.pathname.includes("/admin")) {
       return <Navigate to="/login" />;
     }
   }
   // Redirect non-admin users from admin routes
-  if (role === "admin" && user?.role !== "admin") {
+  if (role === "Admin" && user?.role !== "Admin") {
     return <Navigate to="/unauth-page" />;
   }
 

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Car, Menu, X, User, LogOut, UserCircle } from "lucide-react";
+import { Car, Menu, X, UserCircle, Search, Plus } from "lucide-react";
 import NavLinks from "./NavLinks";
 import MobileMenu from "./MobileMenu";
 import Button from "../button.jsx";
@@ -8,11 +8,11 @@ export default function Navbar() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isScrolled, setIsScrolled] = useState(false);
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
-  const [isAuthenticated, setIsAuthenticated] = useState(true); // Set to true for testing
+  const [isAuthenticated, setIsAuthenticated] = useState(true);
   const [userInfo, setUserInfo] = useState({
-    name: "Aayush Thapa",
-    email: "aayush134056@gmail.com"
-  }); // Sample user data
+    name: "",
+    email: "",
+  });
 
   useEffect(() => {
     const handleScroll = () => {
@@ -25,7 +25,7 @@ export default function Navbar() {
   const handleLogout = () => {
     localStorage.removeItem("token");
     localStorage.removeItem("userInfo");
-    document.cookie.split(";").forEach(cookie => {
+    document.cookie.split(";").forEach((cookie) => {
       document.cookie = cookie
         .replace(/^ +/, "")
         .replace(/=.*/, `=;expires=${new Date(0).toUTCString()};path=/`);
@@ -37,68 +37,48 @@ export default function Navbar() {
   };
 
   return (
-    <nav
-      className={`fixed w-full z-50 transition-all duration-300 ${
-        isScrolled ? "bg-white/95 backdrop-blur-sm shadow-sm" : "bg-transparent"
-      }`}
-    >
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex justify-between items-center h-20">
+    <nav className="fixed w-full z-50 bg-white border-b border-gray-200">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="flex justify-between items-center h-16">
           {/* Left: Logo */}
           <div className="flex items-center space-x-2">
-            <Car
-              className={`h-8 w-8 transition-colors duration-300 ${
-                isScrolled ? "text-green-500" : "text-white"
-              }`}
-            />
-            <span
-              className={`text-2xl font-bold transition-colors duration-300 ${
-                isScrolled ? "text-gray-900" : "text-white"
-              }`}
-            >
-              TripShare
-            </span>
+            <Car className="h-8 w-8 text-green-500" />
+            <span className="text-2xl font-bold text-gray-900">TripShare</span>
           </div>
 
-          {/* Middle: Desktop Nav Links */}
-          <div className="hidden md:flex flex-1 justify-center">
+          {/* Middle: Nav Links */}
+          <div className="hidden md:flex items-center space-x-8">
             <NavLinks />
           </div>
 
-          {/* Right: Auth Buttons or User Menu */}
+          {/* Right: Search, Publish, and User Menu */}
           <div className="flex items-center space-x-4">
-            {!isAuthenticated ? (
-              <div className="hidden md:flex items-center space-x-4">
-                <Button
-                  WholeClassName="bg-white/10 hover:bg-white/20"
-                  className="text-white"
-                  hovered="text-white"
-                  notHovered="text-white"
-                  onClick={() => window.location.href = "/login"}
-                >
-                  Login
-                </Button>
-                <Button
-                  WholeClassName="bg-green-500 hover:bg-green-600"
-                  className="text-white"
-                  hovered="text-white"
-                  notHovered="text-white"
-                  onClick={() => window.location.href = "/register"}
-                >
-                  Register
-                </Button>
-              </div>
-            ) : (
+            {/* Search Button */}
+            <button className="hidden md:flex items-center space-x-2 text-gray-600 hover:text-gray-900">
+              <Search className="h-5 w-5" />
+              <span>Search</span>
+            </button>
+
+            {/* Publish a Ride Button */}
+            <Button
+              WholeClassName="hidden md:flex items-center space-x-2 bg-blue-500 hover:bg-blue-600 px-4 py-2 rounded-lg"
+              className="text-white"
+              hovered="text-white"
+              notHovered="text-white"
+              onClick={() => (window.location.href = "/publish")}
+            >
+              <Plus className="h-5 w-5" />
+              <span>Publish a ride</span>
+            </Button>
+
+            {/* User Menu */}
+            {isAuthenticated ? (
               <div className="relative">
                 <button
                   onClick={() => setIsUserMenuOpen(!isUserMenuOpen)}
-                  className={`flex items-center space-x-2 p-2 rounded-full transition-colors ${
-                    isScrolled ? "hover:bg-gray-100" : "hover:bg-white/10"
-                  }`}
+                  className="flex items-center space-x-2 p-2 rounded-full hover:bg-gray-100"
                 >
-                  <UserCircle className={`h-6 w-6 ${
-                    isScrolled ? "text-gray-700" : "text-white"
-                  }`} />
+                  <UserCircle className="h-6 w-6 text-gray-700" />
                 </button>
                 {isUserMenuOpen && (
                   <div className="absolute right-0 mt-2 w-48 bg-white rounded-xl shadow-lg py-2 border border-gray-100">
@@ -132,6 +112,24 @@ export default function Navbar() {
                   </div>
                 )}
               </div>
+            ) : (
+              <div className="hidden md:flex items-center space-x-4">
+                <Button
+                  WholeClassName="text-gray-600 hover:text-gray-900"
+                  onClick={() => (window.location.href = "/login")}
+                >
+                  Login
+                </Button>
+                <Button
+                  WholeClassName="bg-blue-500 hover:bg-blue-600 px-4 py-2 rounded-lg"
+                  className="text-white"
+                  hovered="text-white"
+                  notHovered="text-white"
+                  onClick={() => (window.location.href = "/register")}
+                >
+                  Register
+                </Button>
+              </div>
             )}
 
             {/* Mobile Menu Button */}
@@ -140,17 +138,9 @@ export default function Navbar() {
               onClick={() => setIsMenuOpen(!isMenuOpen)}
             >
               {isMenuOpen ? (
-                <X
-                  className={`h-6 w-6 ${
-                    isScrolled ? "text-gray-600" : "text-white"
-                  }`}
-                />
+                <X className="h-6 w-6 text-gray-600" />
               ) : (
-                <Menu
-                  className={`h-6 w-6 ${
-                    isScrolled ? "text-gray-600" : "text-white"
-                  }`}
-                />
+                <Menu className="h-6 w-6 text-gray-600" />
               )}
             </button>
           </div>
@@ -158,11 +148,11 @@ export default function Navbar() {
       </div>
 
       {/* Mobile Menu */}
-      <MobileMenu 
-        isOpen={isMenuOpen} 
+      <MobileMenu
+        isOpen={isMenuOpen}
         isAuthenticated={isAuthenticated}
-        onLogin={() => window.location.href = "/login"}
-        onRegister={() => window.location.href = "/register"}
+        onLogin={() => (window.location.href = "/login")}
+        onRegister={() => (window.location.href = "/register")}
         onLogout={handleLogout}
       />
     </nav>

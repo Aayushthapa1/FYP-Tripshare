@@ -14,6 +14,7 @@ import handleRideRoute from "./routes/handleRideRoute.js";
 
 const app = express();
 
+
 // MIDDLEWARES
 app.use(
   cors({

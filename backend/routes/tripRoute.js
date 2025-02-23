@@ -14,7 +14,7 @@ import { authorizeRole } from "../middlewares/roleAuth.js";
 const router = express.Router();
 
 // Create a trip (only drivers can create trips)
-router.post("/create", protectRoute, authorizeRole("driver"), createTrip);
+router.post("/create",  createTrip);
 
 // Get all trips (public route)
 router.get("/all", getAllTrips);

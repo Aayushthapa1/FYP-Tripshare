@@ -1,4 +1,4 @@
-import mongoose from 'mongoose';
+import mongoose from "mongoose";
 
 const DriverSchema = new mongoose.Schema(
   {
@@ -6,29 +6,40 @@ const DriverSchema = new mongoose.Schema(
     fullName: { type: String, required: true },
     address: { type: String, required: true },
     email: { type: String, required: true, unique: true },
-    gender: { type: String, enum: ['Male', 'Female'], required: true },
-    dob: { type: String, required: true }, // Date of Birth
+    gender: { type: String, enum: ["Male", "Female"], required: true },
+    dob: { type: String, required: true },
     citizenshipNumber: { type: String, required: true, unique: true },
-    photo: { type: String, required: true }, // URL to the uploaded photo
+    photo: { type: String, required: true },
 
     // License Information
     licenseNumber: { type: String, unique: true },
-    frontPhoto: { type: String }, // URL to the uploaded photo
-    backPhoto: { type: String }, // URL to the uploaded photo
+    frontPhoto: { type: String },
+    backPhoto: { type: String },
 
     // Vehicle Information
-    vehicleType: { type: String, enum: ['Car', 'Bike', 'Electric'] },
+    vehicleType: { type: String, enum: ["Car", "Bike", "Electric"] },
     numberPlate: { type: String, unique: true },
     productionYear: { type: String },
-    vehiclePhoto: { type: String }, // URL to the uploaded photo
-    vehicleDetailPhoto: { type: String }, // URL to the uploaded photo
-    ownerDetailPhoto: { type: String }, // URL to the uploaded photo
-    renewalDetailPhoto: { type: String }, // URL to the uploaded photo
+    vehiclePhoto: { type: String },
+    vehicleDetailPhoto: { type: String },
+    ownerDetailPhoto: { type: String },
+    renewalDetailPhoto: { type: String },
 
-    // Additional Fields
-    isVerified: { type: Boolean, default: false }, // Admin verification status
+    // Approval Status
+    status: {
+      type: String,
+      enum: ["pending", "approved", "rejected"],
+      default: "pending",
+    },
+
+    // Reference 
+    user: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "TripShare",
+      required: true,
+    },
   },
   { timestamps: true }
 );
 
-export default mongoose.model('Driver', DriverSchema);
+export default mongoose.model("Driver", DriverSchema);

@@ -2,6 +2,7 @@ import Trip from "../models/TripModel.js";
 import { createResponse } from "../utils/responseHelper.js";
 // Create a new trip
 export const createTrip = async (req, res, next) => {
+  console.log("the req is",req)
   try {
     const {
       departureLocation,
@@ -32,9 +33,9 @@ export const createTrip = async (req, res, next) => {
           ])
         );
     }
-
+console.log("The request . user is",req.user)
     const newTrip = await Trip.create({
-      driver: req.user._id,
+    
       departureLocation,
       destinationLocation,
       departureDate,
@@ -53,6 +54,8 @@ export const createTrip = async (req, res, next) => {
       })
     );
   } catch (error) {
+    console.log("the req body is",req)
+    console.log("the error in creating trip",error)
     next(error);
   }
 };

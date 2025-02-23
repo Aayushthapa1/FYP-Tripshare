@@ -13,6 +13,7 @@ import "react-toastify/dist/ReactToastify.css";
 // Layout / Shared
 import Navbar from "./components/layout/Navbar";
 import Footer from "./components/layout/Footer";
+// import MultiStepForm from "./components/layout/MultiStepForm";
 import UserInfoModal from "./components/layout/UserInfoModal";
 
 // Public/Home
@@ -59,7 +60,7 @@ import CheckAuth from "./utils/ProtectedRoute"; // Adjust path if needed
 function App() {
   const dispatch = useDispatch();
   const { isAuthenticated, user } = useSelector((state) => state.auth);
-  console.log("user", user)
+  console.log("user", user);
   console.log("", isAuthenticated);
 
   // Check authentication on first load
@@ -78,13 +79,14 @@ function App() {
             element={
               <>
                 <Navbar />
+                {/* <MultiStepForm/> */}
                 <UserInfoModal />
                 <HeroSection />
                 <FeaturesSection />
                 <HowItWorks />
                 <PopularRoutes />
                 <ScrollToTopButton />
-                
+
                 <Footer />
               </>
             }
@@ -97,43 +99,43 @@ function App() {
           <Route path="/payment" element={<PaymentForm />} />
           <Route path="/driverdashboard" element={<DriverDashboard />} />
           <Route path="/driverschedules" element={<DriverSchedules />} />
-          <Route path="/tripform" element={<TripForm/>} />
+          <Route path="/tripform" element={<TripForm />} />
 
           {/* Auth Routes */}
           <Route
-          path="/register"
-          element={
-            isAuthenticated ? (
-              user?.role === "admin" ? (
-                <Navigate to="/admin" />
+            path="/register"
+            element={
+              isAuthenticated ? (
+                user?.role === "Admin" ? (
+                  <Navigate to="/admin" />
+                ) : (
+                  <Navigate to="/" />
+                )
               ) : (
-                <Navigate to="/" />
+                <RegisterPage />
               )
-            ) : (
-              <RegisterPage />
-            )
-          }
-        />
-        <Route
-          path="/login"
-          element={
-            isAuthenticated ? (
-              user?.role === "admin" ? (
-                <Navigate to="/admin" />
+            }
+          />
+          <Route
+            path="/login"
+            element={
+              isAuthenticated ? (
+                user?.role === "Admin" ? (
+                  <Navigate to="/admin" />
+                ) : (
+                  <Navigate to="/" />
+                )
               ) : (
-                <Navigate to="/" />
+                <LoginPage />
               )
-            ) : (
-              <LoginPage />
-            )
-          }
-        />
+            }
+          />
 
           {/* Admin Routes (Protected) */}
           <Route
             path="/admin"
             element={
-              <CheckAuth role="admin">
+              <CheckAuth role="Admin">
                 <AdminLayout />
               </CheckAuth>
             }

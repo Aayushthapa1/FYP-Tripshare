@@ -84,6 +84,7 @@ export const userRegister = async (req, res, next) => {
 
 export const userLogin = async (req, res, next) => {
   try {
+    console.log("The req body is", req.body);
     await loginUserSchema.validateAsync(req.body);
     const { email, password } = req.body;
 

@@ -2,14 +2,12 @@ import React from 'react';
 
 const links = [
   { href: '#', label: 'Home' },
-  { href: '#features', label: 'Features' },
-  { href: '#about', label: 'About Us' },
-  { href: '#contact', label: 'Contact' },
+  { href: 'Contact Us', label: 'Contact Us' },
 ];
 
 export default function NavLinks() {
   return (
-    <div className="hidden md:flex items-center justify-center space-x-8">
+    <div className="hidden md:flex items-center mr-6  justify-center space-x-16">
       {links.map((link) => (
         <a
           key={link.label}

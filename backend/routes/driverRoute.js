@@ -21,5 +21,4 @@ router.post('/vehicleinfo', saveVehicleInformation);
 router.get('/drivers', getAllDrivers); // Fetch all drivers
 router.put('/drivers/:driverId/verify', updateDriverVerification); // Update verification status
 
-
 export default router;

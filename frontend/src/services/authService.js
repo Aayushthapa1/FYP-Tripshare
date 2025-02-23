@@ -62,13 +62,11 @@ const logout = async () => {
 export const checkAuth = async () => {
   try {
     console.log("ENETERD THE CHECK AUTH SERVICE");
-    const response = await axios.get(`${Base_Backend_Url}/api/auth/checkAuth`, {
-      withCredentials: true,
-    });
+    const response = await axiosInstance.get(`/api/auth/checkAuth`);
 
     return response.data;
   } catch (error) {
-    console.error("CheckAuth error:", error.message);
+    console.error("CheckAuth error:", error);
     throw new Error(error.response?.data || "Authentication check failed");
   }
 };

@@ -67,6 +67,7 @@ export const refreshAccessToken = createAsyncThunk(
   async (_, { rejectWithValue }) => {
     try {
       const response = await authService.refreshAccessTokenService();
+      console.log("Th refresh access token servuce is", response)
 
       return response.data;
     } catch (error) {

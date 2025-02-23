@@ -20,7 +20,7 @@ router.post("/refresh-token", refreshAccessToken);
 router.get("/checkAuth", protectRoute, async (req, res) => {
   try {
     const user = req.user;
-
+console.log("The user is ", user)
     if (!user) {
       return res
         .status(400)

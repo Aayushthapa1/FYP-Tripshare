@@ -17,7 +17,7 @@ const refreshAccessToken = async (req, res) => {
 
   try {
     console.log("ENTERED THE TRY CATCH");
-    const decoded = jwt.verify(refreshToken, _config.refresh_token);
+    const decoded = jwt.verify(refreshToken, _config.refreshToken);
 
     const newAccessToken = generateAccessToken(decoded.sub);
     console.log("FOUND THE NEW ACCESS_TOKEN", newAccessToken);

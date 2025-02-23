@@ -1,13 +1,12 @@
-import React, { useState, useEffect } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import React, { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { ArrowLeft, Calendar, Clock, MapPin } from "lucide-react";
 import { Toaster, toast } from "sonner";
 import axiosInstance from "../../utils/axiosInstance";
-import tripService from "../../services/tripService";
+import tripService from "../../services/tripService"
 
 const TripForm = () => {
   const navigate = useNavigate();
-  const { tripId } = useParams();
   const [loading, setLoading] = useState(false);
 
   const [formData, setFormData] = useState({
@@ -17,7 +16,6 @@ const TripForm = () => {
     departureTime: "",
     price: "",
     availableSeats: "",
-    description: "",
     vehicleDetails: {
       model: "",
       color: "",
@@ -28,88 +26,24 @@ const TripForm = () => {
       pets: false,
       music: false,
     },
+    description: "",
   });
-
-  useEffect(() => {
-    if (tripId) {
-      fetchTripDetails();
-    } else {
-      // Call createTrips when initializing the form for a new trip
-      initializeNewTrip();
-    }
-  }, [tripId]);
-
-  const initializeNewTrip = async () => {
-    try {
-      const response = await tripService.createTrips();
-      // If needed, you can initialize the form with any default data returned from the API
-      console.log("New trip initialization data:", response);
-    } catch (error) {
-      console.error("Error initializing new trip:", error);
-      toast.error("Failed to initialize new trip form");
-    }
-  };
-
-  const fetchTripDetails = async () => {
-    try {
-      const response = await axiosInstance.get(`/api/trips/${tripId}`);
-
-      if (response.status === 401) {
-        toast.error("Session expired. Please log in again.");
-        navigate("/login");
-        return;
-      }
-
-      const data = response.data;
-
-      if (data.IsSuccess) {
-        const trip = data.Data.trip;
-        setFormData({
-          departureLocation: trip.departureLocation,
-          destinationLocation: trip.destinationLocation,
-          departureDate: new Date(trip.departureDate)
-            .toISOString()
-            .split("T")[0],
-          departureTime: trip.departureTime,
-          price: trip.price,
-          availableSeats: trip.availableSeats,
-          description: trip.description || "",
-          vehicleDetails: trip.vehicleDetails || {
-            model: "",
-            color: "",
-            plateNumber: "",
-          },
-          preferences: trip.preferences || {
-            smoking: false,
-            pets: false,
-            music: false,
-          },
-        });
-      }
-    } catch (error) {
-      console.error("Error fetching trip details:", error);
-      toast.error("Failed to fetch trip details");
-      navigate("/driver/schedules");
-    }
-  };
 
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
-
-    if (name.includes(".")) {
-      const [parent, child] = name.split(".");
+    if (type === "checkbox") {
       setFormData((prev) => ({
         ...prev,
-        [parent]: {
-          ...prev[parent],
-          [child]: type === "checkbox" ? checked : value,
-        },
+        preferences: { ...prev.preferences, [name]: checked },
+      }));
+    } else if (name.includes("vehicleDetails")) {
+      const field = name.split(".")[1];
+      setFormData((prev) => ({
+        ...prev,
+        vehicleDetails: { ...prev.vehicleDetails, [field]: value },
       }));
     } else {
-      setFormData((prev) => ({
-        ...prev,
-        [name]: value,
-      }));
+      setFormData((prev) => ({ ...prev, [name]: value }));
     }
   };
 
@@ -118,31 +52,16 @@ const TripForm = () => {
     setLoading(true);
 
     try {
-      const url = tripId ? `/api/trips/${tripId}` : "/api/trips/create";
-      const method = tripId ? "PUT" : "POST";
-
-      const response = await axiosInstance[method.toLowerCase()](url, formData);
-
-      // Handle unauthorized access
-      if (response.status === 401) {
-        toast.error("Session expired. Please log in again.");
-        navigate("/login");
-        return;
-      }
-
-      const data = response.data;
-
-      if (data.IsSuccess) {
-        toast.success(
-          tripId ? "Trip updated successfully" : "Trip created successfully"
-        );
+      const response = await tripService.createTrips(formData);
+      if (response.data.IsSuccess) {
+        toast.success("Trip created successfully");
         navigate("/driver/schedules");
       } else {
-        toast.error(data.ErrorMessage?.[0]?.message || "Failed to save trip");
+        toast.error(response.data.ErrorMessage?.[0]?.message || "Failed to create trip");
       }
     } catch (error) {
-      console.error("Error saving trip:", error);
-      toast.error("Error saving trip");
+      console.error("Error creating trip:", error);
+      toast.error("Error creating trip");
     } finally {
       setLoading(false);
     }
@@ -160,28 +79,17 @@ const TripForm = () => {
         >
           <ArrowLeft size={20} />
         </button>
-        <h1 className="text-2xl font-bold text-gray-800">
-          {tripId ? "Edit Trip" : "Create New Trip"}
-        </h1>
+        <h1 className="text-2xl font-bold text-gray-800">Create New Trip</h1>
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-6">
-        {/* Trip Details Section */}
         <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
-          <h2 className="text-lg font-semibold text-gray-800 mb-4">
-            Trip Details
-          </h2>
-
+          <h2 className="text-lg font-semibold text-gray-800 mb-4">Trip Details</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-1">
-              <label className="block text-sm font-medium text-gray-700">
-                From
-              </label>
+              <label className="block text-sm font-medium text-gray-700">From</label>
               <div className="relative">
-                <MapPin
-                  className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
-                  size={18}
-                />
+                <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
                 <input
                   type="text"
                   name="departureLocation"
@@ -193,16 +101,10 @@ const TripForm = () => {
                 />
               </div>
             </div>
-
             <div className="space-y-1">
-              <label className="block text-sm font-medium text-gray-700">
-                To
-              </label>
+              <label className="block text-sm font-medium text-gray-700">To</label>
               <div className="relative">
-                <MapPin
-                  className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
-                  size={18}
-                />
+                <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
                 <input
                   type="text"
                   name="destinationLocation"
@@ -214,16 +116,10 @@ const TripForm = () => {
                 />
               </div>
             </div>
-
             <div className="space-y-1">
-              <label className="block text-sm font-medium text-gray-700">
-                Date
-              </label>
+              <label className="block text-sm font-medium text-gray-700">Date</label>
               <div className="relative">
-                <Calendar
-                  className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
-                  size={18}
-                />
+                <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
                 <input
                   type="date"
                   name="departureDate"
@@ -235,16 +131,10 @@ const TripForm = () => {
                 />
               </div>
             </div>
-
             <div className="space-y-1">
-              <label className="block text-sm font-medium text-gray-700">
-                Time
-              </label>
+              <label className="block text-sm font-medium text-gray-700">Time</label>
               <div className="relative">
-                <Clock
-                  className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
-                  size={18}
-                />
+                <Clock className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
                 <input
                   type="time"
                   name="departureTime"
@@ -255,11 +145,8 @@ const TripForm = () => {
                 />
               </div>
             </div>
-
             <div className="space-y-1">
-              <label className="block text-sm font-medium text-gray-700">
-                Price (₹)
-              </label>
+              <label className="block text-sm font-medium text-gray-700">Price (₹)</label>
               <input
                 type="number"
                 name="price"
@@ -270,11 +157,8 @@ const TripForm = () => {
                 required
               />
             </div>
-
             <div className="space-y-1">
-              <label className="block text-sm font-medium text-gray-700">
-                Available Seats
-              </label>
+              <label className="block text-sm font-medium text-gray-700">Available Seats</label>
               <input
                 type="number"
                 name="availableSeats"
@@ -291,15 +175,10 @@ const TripForm = () => {
 
         {/* Vehicle Details Section */}
         <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
-          <h2 className="text-lg font-semibold text-gray-800 mb-4">
-            Vehicle Details
-          </h2>
-
+          <h2 className="text-lg font-semibold text-gray-800 mb-4">Vehicle Details</h2>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="space-y-1">
-              <label className="block text-sm font-medium text-gray-700">
-                Vehicle Model
-              </label>
+              <label className="block text-sm font-medium text-gray-700">Vehicle Model</label>
               <input
                 type="text"
                 name="vehicleDetails.model"
@@ -309,11 +188,8 @@ const TripForm = () => {
                 required
               />
             </div>
-
             <div className="space-y-1">
-              <label className="block text-sm font-medium text-gray-700">
-                Color
-              </label>
+              <label className="block text-sm font-medium text-gray-700">Color</label>
               <input
                 type="text"
                 name="vehicleDetails.color"
@@ -323,11 +199,8 @@ const TripForm = () => {
                 required
               />
             </div>
-
             <div className="space-y-1">
-              <label className="block text-sm font-medium text-gray-700">
-                Plate Number
-              </label>
+              <label className="block text-sm font-medium text-gray-700">Plate Number</label>
               <input
                 type="text"
                 name="vehicleDetails.plateNumber"
@@ -342,37 +215,32 @@ const TripForm = () => {
 
         {/* Preferences Section */}
         <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
-          <h2 className="text-lg font-semibold text-gray-800 mb-4">
-            Preferences
-          </h2>
-
+          <h2 className="text-lg font-semibold text-gray-800 mb-4">Preferences</h2>
           <div className="flex gap-6">
             <label className="flex items-center gap-2">
               <input
                 type="checkbox"
-                name="preferences.smoking"
+                name="smoking"
                 checked={formData.preferences.smoking}
                 onChange={handleChange}
                 className="w-4 h-4 text-green-600 rounded focus:ring-green-500"
               />
               <span className="text-gray-700">Smoking allowed</span>
             </label>
-
             <label className="flex items-center gap-2">
               <input
                 type="checkbox"
-                name="preferences.pets"
+                name="pets"
                 checked={formData.preferences.pets}
                 onChange={handleChange}
                 className="w-4 h-4 text-green-600 rounded focus:ring-green-500"
               />
               <span className="text-gray-700">Pets allowed</span>
             </label>
-
             <label className="flex items-center gap-2">
               <input
                 type="checkbox"
-                name="preferences.music"
+                name="music"
                 checked={formData.preferences.music}
                 onChange={handleChange}
                 className="w-4 h-4 text-green-600 rounded focus:ring-green-500"
@@ -382,12 +250,10 @@ const TripForm = () => {
           </div>
         </div>
 
-        {/* Description */}
+        {/* Description Section */}
         <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
           <div className="space-y-1">
-            <label className="block text-sm font-medium text-gray-700">
-              Additional Information
-            </label>
+            <label className="block text-sm font-medium text-gray-700">Additional Information</label>
             <textarea
               name="description"
               value={formData.description}
@@ -401,19 +267,10 @@ const TripForm = () => {
 
         <button
           type="submit"
+          className="w-full bg-green-600 text-white py-2 px-4 rounded-lg hover:bg-green-700 transition"
           disabled={loading}
-          className="w-full py-3 bg-green-600 hover:bg-green-700 text-white font-medium rounded-lg transition-colors flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          {loading ? (
-            <>
-              <div className="w-5 h-5 border-t-2 border-b-2 border-white rounded-full animate-spin mr-2" />
-              {tripId ? "Updating Trip..." : "Creating Trip..."}
-            </>
-          ) : tripId ? (
-            "Update Trip"
-          ) : (
-            "Create Trip"
-          )}
+          {loading ? "Creating..." : "Create Trip"}
         </button>
       </form>
     </div>

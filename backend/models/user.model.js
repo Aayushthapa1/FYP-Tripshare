@@ -31,10 +31,18 @@ const userModelSchema = new mongoose.Schema(
     role: {
       type: String,
       enum: ["user", "driver", "admin"],
-      required: true
+      required: true,
     },
-    resetPasswordOTP: { type: String },
-    resetPasswordOTPExpires: { type: Date },
+    resetPasswordOTP: {
+      type: String,
+    },
+    resetPasswordOTPExpires: {
+      type: Date,
+    },
+    driverDetails: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Driver",
+    },
   },
   { timestamps: true }
 );
