@@ -10,6 +10,7 @@ import {
   Settings as SettingsIcon,
   User,
   LogOut as LogOutIcon,
+  ClipboardList,
 } from "lucide-react";
 import { NavLink, useNavigate } from "react-router-dom";
 
@@ -17,18 +18,15 @@ function AdminSidebar({ isOpen, onClose }) {
   const navigate = useNavigate();
 
   const handleLogout = () => {
-    // TODO: Implement your actual logout logic.
-    // e.g. clear tokens from localStorage, call logout API, etc.
     localStorage.removeItem("authToken");
-    navigate("/"); // Redirect to homepage (or a login page).
+    navigate("/");
   };
 
   return (
     <aside
       className={`bg-white border-r border-gray-200 h-screen w-64 fixed top-0 left-0 z-20 transform 
       ${isOpen ? "translate-x-0" : "-translate-x-full"} 
-      md:translate-x-0 transition-transform duration-200 ease-in-out
-      flex flex-col`}
+      md:translate-x-0 transition-transform duration-200 ease-in-out flex flex-col`}
     >
       <div className="p-4 border-b">
         <h2 className="text-xl font-bold">Menu</h2>
@@ -51,6 +49,38 @@ function AdminSidebar({ isOpen, onClose }) {
         >
           <LayoutDashboard className="w-5 h-5" />
           <span>Dashboard</span>
+        </NavLink>
+
+        {/* KYC Verification */}
+        <NavLink
+          to="/admin/kyc"
+          className={({ isActive }) =>
+            `flex items-center space-x-2 p-2 rounded 
+             ${
+               isActive
+                 ? "bg-gray-200 text-green-700 font-medium"
+                 : "text-gray-700 hover:bg-gray-100"
+             }`
+          }
+        >
+          <ClipboardList className="w-5 h-5" />
+          <span>KYC Verification</span>
+        </NavLink>
+
+        {/* Driver List */}
+        <NavLink
+          to="/admin/drivers"
+          className={({ isActive }) =>
+            `flex items-center space-x-2 p-2 rounded 
+             ${
+               isActive
+                 ? "bg-gray-200 text-green-700 font-medium"
+                 : "text-gray-700 hover:bg-gray-100"
+             }`
+          }
+        >
+          <Users className="w-5 h-5" />
+          <span>Drivers</span>
         </NavLink>
 
         {/* Users */}

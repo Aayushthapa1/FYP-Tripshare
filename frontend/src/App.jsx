@@ -32,6 +32,8 @@ import ManageRides from "./components/admin/pages/ManageRides";
 import ManagePayments from "./components/admin/pages/ManagePayments";
 import ManageDisputes from "./components/admin/pages/ManageDisputes";
 import AdminSettings from "./components/admin/pages/AdminSettings";
+import KycVerification from "./components/admin/pages/KycVerification";
+import DriverList from "./components/admin/pages/DriverList";
 
 // User
 import UserLayout from "./components/pages/UserLayout";
@@ -146,6 +148,8 @@ function App() {
             <Route path="payments" element={<ManagePayments />} />
             <Route path="disputes" element={<ManageDisputes />} />
             <Route path="settings" element={<AdminSettings />} />
+            <Route path="kyc" element={<KycVerification />} />
+            <Route path="drivers" element={<DriverList />} />
           </Route>
 
           {/* User Routes (Protected) */}

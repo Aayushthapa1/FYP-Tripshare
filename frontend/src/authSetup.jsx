@@ -4,22 +4,25 @@ import {
   createAsyncThunk,
 } from "@reduxjs/toolkit";
 import authService from "./services/authService";
+import { driverReducer } from "./components/Slices/driverSlice";
 
-//  THUNK FOR LOGIN USER
+// Thunk for logging in a user
 export const loginUser = createAsyncThunk(
   "auth/login",
   async (credentials, { rejectWithValue }) => {
     try {
       const response = await authService.login(credentials);
-      console.log("RESPONSE IN ATUTH SETUP", response);
+      if (!response.IsSuccess) {
+        return rejectWithValue(response.Error || "Login failed");
+      }
       return response;
     } catch (error) {
-      return rejectWithValue(error || "Login failed");
+      return rejectWithValue(error.message || "Login failed");
     }
   }
 );
 
-// THUNK FOR REGISTER USER
+// Thunk for registering a user
 export const registerUser = createAsyncThunk(
   "auth/register",
   async (userData, { rejectWithValue }) => {
@@ -27,59 +30,56 @@ export const registerUser = createAsyncThunk(
       const response = await authService.register(userData);
       return response;
     } catch (error) {
-      return rejectWithValue(error || "Registration failed");
+      return rejectWithValue(error.message || "Registration failed");
     }
   }
 );
 
-// THUNK FOR CHECKING AUTHENTICATION
+// Thunk for checking authentication
 export const checkAuth = createAsyncThunk(
   "auth/checkAuth",
   async (_, { rejectWithValue }) => {
     try {
-      console.log("ENTERED THE CHECK AUTH ");
       const response = await authService.checkAuth();
-      console.log("The resposne in the check auth is", response);
       return response;
     } catch (error) {
-      return rejectWithValue(
-        error.response?.data || "Authentication check failed"
-      );
+      return rejectWithValue(error.message || "Authentication check failed");
     }
   }
 );
 
+// Thunk for logging out a user
 export const logoutUser = createAsyncThunk(
   "auth/logout",
   async (_, { rejectWithValue }) => {
     try {
       const response = await authService.logout();
-
       return response;
     } catch (error) {
-      return rejectWithValue(error.response?.data || "Logout failed");
+      return rejectWithValue(error.message || "Logout failed");
     }
   }
 );
 
+// Thunk for refreshing the access token
 export const refreshAccessToken = createAsyncThunk(
   "auth/refresh_token",
   async (_, { rejectWithValue }) => {
     try {
       const response = await authService.refreshAccessTokenService();
-      console.log("Th refresh access token servuce is", response)
-
       return response.data;
     } catch (error) {
-      return rejectWithValue(error.response?.data || "Failed to refresh token");
+      return rejectWithValue(error.message || "Failed to refresh token");
     }
   }
 );
 
+// Initial state
 const initialState = {
   isAuthenticated: false,
   isLoading: false,
   user: null,
+  error: null,
 };
 
 // Auth slice
@@ -91,48 +91,51 @@ const authSlice = createSlice({
       state.isAuthenticated = false;
       state.isLoading = false;
       state.user = null;
+      state.error = null;
     },
   },
   extraReducers: (builder) => {
     builder
-
       // Handling login user
-
       .addCase(loginUser.pending, (state) => {
         state.isLoading = true;
+        state.error = null;
       })
       .addCase(loginUser.fulfilled, (state, action) => {
-        console.log("enteres the login user ulfilled")
-        state.isAuthenticated = true;
+        state.isAuthenticated = action.payload.IsSuccess;
         state.user = action.payload.IsSuccess
           ? action.payload.Result?.user_data
           : null;
         state.isLoading = false;
       })
-      .addCase(loginUser.rejected, (state) => {
+      .addCase(loginUser.rejected, (state, action) => {
+        state.error = action.payload;
         state.isLoading = false;
         state.user = null;
+        state.isAuthenticated = false;
       })
 
-      //handling register user
-
+      // Handling register user
       .addCase(registerUser.pending, (state) => {
         state.isLoading = true;
+        state.error = null;
       })
       .addCase(registerUser.fulfilled, (state) => {
         state.isAuthenticated = false;
         state.isLoading = false;
         state.user = null;
       })
-      .addCase(registerUser.rejected, (state) => {
+      .addCase(registerUser.rejected, (state, action) => {
         state.isLoading = false;
         state.isAuthenticated = false;
         state.user = null;
+        state.error = action.payload;
       })
 
       // Handling checkAuth
       .addCase(checkAuth.pending, (state) => {
         state.isLoading = true;
+        state.error = null;
       })
       .addCase(checkAuth.fulfilled, (state, action) => {
         state.isAuthenticated = action.payload.IsSuccess;
@@ -145,6 +148,7 @@ const authSlice = createSlice({
         state.isLoading = false;
         state.isAuthenticated = false;
         state.user = null;
+        state.error = action.payload;
       })
 
       // Handling logoutUser
@@ -152,13 +156,15 @@ const authSlice = createSlice({
         state.isAuthenticated = false;
         state.user = null;
         state.isLoading = false;
+        state.error = null;
       })
 
-      // refreshing the access token
+      // Handling refreshAccessToken
       .addCase(refreshAccessToken.pending, (state) => {
         state.isLoading = true;
+        state.error = null;
       })
-      .addCase(refreshAccessToken.fulfilled, (state, action) => {
+      .addCase(refreshAccessToken.fulfilled, (state) => {
         state.isLoading = false;
         state.isAuthenticated = true;
       })
@@ -169,12 +175,12 @@ const authSlice = createSlice({
   },
 });
 
-
 export const { resetAuthState } = authSlice.actions;
 
-// Create and export the store in the same file
+// Create and export the store
 export const store = configureStore({
   reducer: {
     auth: authSlice.reducer,
+    driver: driverReducer,
   },
 });
