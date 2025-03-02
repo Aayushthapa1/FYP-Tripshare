@@ -1,78 +1,70 @@
-import React, { useState } from "react";
+// Button.jsx
+import React from 'react';
 
-const Button = ({
-  children,
-  className,
-  onClick,
-  WholeClassName,
-  leftArrow,
-  rightArrow,
-  hovered,
-  notHovered,
+/**
+ * Button component - A versatile button component using Tailwind CSS
+ * 
+ * @param {ReactNode} children - Button content
+ * @param {Function} onClick - Click handler function
+ * @param {string} variant - 'primary' | 'secondary' | 'outline' | 'ghost'
+ * @param {string} size - 'small' | 'medium' | 'large'
+ * @param {boolean} disabled - Whether the button is disabled
+ * @param {boolean} fullWidth - Whether the button should take full width
+ * @param {string} type - Button type attribute ('button', 'submit', 'reset')
+ * @param {string} className - Additional custom classes
+ * @returns {JSX.Element}
+ */
+const Button = ({ 
+  children, 
+  onClick, 
+  variant = 'primary', 
+  size = 'medium',
+  disabled = false,
+  fullWidth = false,
+  type = 'button',
+  className = ''
 }) => {
-  const [isButtonHovered, setIsButtonHovered] = useState(false);
-
-  const handleButtonHover = () => {
-    setIsButtonHovered(true);
+  // Define variant classes using Tailwind
+  const variantClasses = {
+    primary: "bg-blue-600 text-white hover:bg-blue-700 focus:ring-blue-500",
+    secondary: "bg-gray-200 text-gray-800 hover:bg-gray-300 focus:ring-gray-500",
+    outline: "bg-transparent border border-gray-300 text-gray-700 hover:bg-gray-50 focus:ring-gray-400",
+    ghost: "bg-transparent text-gray-700 hover:bg-gray-100 focus:ring-gray-400"
   };
 
-  const handleButtonLeave = () => {
-    setIsButtonHovered(false);
+  // Define size classes using Tailwind
+  const sizeClasses = {
+    small: "text-xs px-3 py-2",
+    medium: "text-sm px-4 py-2",
+    large: "text-base px-6 py-3"
   };
+
+  // Combine all classes
+  const buttonClasses = `
+    font-medium 
+    rounded-md 
+    transition-all 
+    duration-200 
+    focus:outline-none 
+    focus:ring-2 
+    focus:ring-offset-2
+    ${variantClasses[variant]} 
+    ${sizeClasses[size]} 
+    ${disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'} 
+    ${fullWidth ? 'w-full' : ''}
+    ${className}
+  `.trim().replace(/\s+/g, ' ');
 
   return (
-    <div
-      className={`overflow-hidden transition-all duration-500  pr-3 py-px rounded-xl bg-red-  ${
-        isButtonHovered ? "w-52 " : "w-48"
-      } ${WholeClassName}`}
-      onClick={onClick}
+    <button
+      type={type}
+      onClick={disabled ? undefined : onClick}
+      disabled={disabled}
+      className={buttonClasses}
+      aria-disabled={disabled}
     >
-      <button
-        className={`transition-all py-2 duration-500 relative -left-[45px] text-nowrap
-           ${isButtonHovered ? "translate-x-14" : "translate-x-0"}`}
-        onMouseEnter={handleButtonHover}
-        onMouseLeave={handleButtonLeave}
-      >
-        <span
-          className={`${leftArrow} px-4 py-2 relative -left-2 rounded-xl transition-opacity duration-500 ${
-            isButtonHovered ? "opacity-100" : "opacity-0"
-          }`}
-        >
-          &#8594;
-        </span>
-        <span
-          className={` py-2 rounded-xl transition-all duration-500 overflow-hidden ${
-            isButtonHovered ? ` ${hovered} ` : `  ${notHovered} `
-          } ${className}`}
-        >
-          {children}
-          <span
-            className={`top-[14px] right-14 duration-500 ease group-hover:translate-x-12 ${
-              isButtonHovered ? "pr-0" : "pr-2"
-            }`}
-          >
-            <svg
-              className={`h-5 ${rightArrow} absolute top-[10px]  pr-4 duration-500 ${
-                isButtonHovered
-                  ? "w-0 translate-x-1  opacity-0"
-                  : "w-20 opacity-100"
-              }`}
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-              xmlns="http://www.w3.org/2000/svg"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth="2"
-                d="M14 5l7 7m0 0l-7 7m7-7H3"
-              ></path>
-            </svg>
-          </span>
-        </span>
-      </button>
-    </div>
+      {children}
+    </button>
   );
 };
 

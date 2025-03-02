@@ -90,9 +90,10 @@ export const fetchKYCData = createAsyncThunk(
   async (_, { rejectWithValue }) => {
     try {
       const response = await driverService.getKYCData();
+      console.log("KYC Data Response:", response); 
       return response;
     } catch (error) {
-      return rejectWithValue(error.response.data);
+      return rejectWithValue(error.response?.data || "Failed to fetch data");
     }
   }
 );

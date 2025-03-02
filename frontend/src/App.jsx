@@ -14,7 +14,7 @@ import "react-toastify/dist/ReactToastify.css";
 import Navbar from "./components/layout/Navbar";
 import Footer from "./components/layout/Footer";
 // import MultiStepForm from "./components/layout/MultiStepForm";
-import UserInfoModal from "./components/layout/UserInfoModal";
+
 
 // Public/Home
 import HeroSection from "./components/home/HeroSection";
@@ -47,9 +47,8 @@ import PaymentForm from "./components/payment/PaymentForm";
 //trips
 import TripForm from "./components/trip/tripForm";
 
-//drivers
-import DriverDashboard from "./components/driver/driverDashboard";
-import DriverSchedules from "./components/driver/driverSchedules";
+
+
 // Auth
 import RegisterPage from "./components/pages/RegisterPage";
 import LoginPage from "./components/pages/LoginPage";
@@ -82,7 +81,6 @@ function App() {
               <>
                 <Navbar />
                 {/* <MultiStepForm/> */}
-                <UserInfoModal />
                 <HeroSection />
                 <FeaturesSection />
                 <HowItWorks />
@@ -94,13 +92,7 @@ function App() {
             }
           />
           <Route path="/contact" element={<HelpCenter />} />
-          {/* <Route
-            path="/driverregistration"
-            element={<DriverRegistrationForm />}
-          /> */}
           <Route path="/payment" element={<PaymentForm />} />
-          <Route path="/driverdashboard" element={<DriverDashboard />} />
-          <Route path="/driverschedules" element={<DriverSchedules />} />
           <Route path="/tripform" element={<TripForm />} />
 
           {/* Auth Routes */}
