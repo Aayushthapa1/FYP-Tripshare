@@ -37,8 +37,8 @@ const submitKYC = async (userId, kycData) => {
     const response = await axios.post(`${API_URL}/kyc`, { userId, ...kycData });
     return response.data;
 };
-const getKYCData = async () => {
-    const response = await axios.get(`${API_URL}/kyc`);
+const getPendingKYC = async () => {
+    const response = await axios.get(`${API_URL}/kycpending`);
     return response.data;
 };
 
@@ -49,5 +49,5 @@ export default {
     getAllDrivers,
     updateVerification,
     submitKYC,
-    getKYCData,
+    getPendingKYC,
 };

@@ -47,6 +47,9 @@ import PaymentForm from "./components/payment/PaymentForm";
 //trips
 import TripForm from "./components/trip/tripForm";
 
+//DRIVER
+import KYCForm from "./components/driver/KYCForm";
+
 
 
 // Auth
@@ -140,7 +143,7 @@ function App() {
             <Route path="payments" element={<ManagePayments />} />
             <Route path="disputes" element={<ManageDisputes />} />
             <Route path="settings" element={<AdminSettings />} />
-            <Route path="kyc" element={<KycVerification />} />
+            <Route path="kycform" element={<KYCForm />} />
             <Route path="drivers" element={<DriverList />} />
           </Route>
 
@@ -159,6 +162,7 @@ function App() {
             path="/driver"
             element={
               <CheckAuth role="user">
+          
                 <UserLayout>
                   <RiderDashboard />
                 </UserLayout>

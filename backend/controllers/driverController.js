@@ -1,6 +1,14 @@
 import DriverModel from '../models/driverModel.js';
 import upload from '../config/multerConfig.js';
+import nodemailer from 'nodemailer';
 
+const transporter = nodemailer.createTransport({
+    service: 'gmail',
+    auth: {
+        user: process.env.EMAIL,
+        pass: process.env.EMAIL_PASSWORD,
+    },
+});
 
 // Save Personal Information
 export const savePersonalInformation = async (req, res) => {
@@ -154,73 +162,76 @@ export const saveVehicleInformation = async (req, res) => {
 
 export const getAllDrivers = async (req, res) => {
     try {
-        const drivers = await DriverModel.find().populate('user');
-        return res.status(200).json(drivers);
+      const drivers = await DriverModel.find().populate("user");
+      return res.status(200).json(drivers);
     } catch (error) {
-        return res.status(500).json({ message: 'Something went wrong.', error: error.message });
+      return res.status(500).json({ message: "Something went wrong.", error: error.message });
     }
-};
+  };
 
-import nodemailer from 'nodemailer';
 
-const transporter = nodemailer.createTransport({
-    service: 'gmail',
-    auth: {
-        user: process.env.EMAIL,
-        pass: process.env.EMAIL_PASSWORD,
-    },
-});
-
+// Update Verification
 export const updateDriverVerification = async (req, res) => {
     const { driverId } = req.params;
-    const { isVerified } = req.body;
-
+    const { status, rejectionReason } = req.body;
+  
     try {
-        const driver = await DriverModel.findById(driverId);
-        if (!driver) {
-            return res.status(404).json({ message: 'Driver not found.' });
+      const driver = await DriverModel.findById(driverId);
+      if (!driver) {
+        return res.status(404).json({ message: "Driver not found." });
+      }
+  
+      // Update status and rejection reason (if provided)
+      driver.status = status;
+      if (status === "rejected" || status === "needs_resubmission") {
+        driver.rejectionReason = rejectionReason;
+      }
+      await driver.save();
+  
+      // Send email notification
+      const mailOptions = {
+        from: process.env.EMAIL,
+        to: driver.email,
+        subject: "KYC Verification Status",
+        text: `Dear ${driver.fullName},\n\nYour KYC application has been ${status}.\n\n${
+          rejectionReason ? `Reason: ${rejectionReason}\n\n` : ""
+        }Thank you for your application.\n\nBest regards,\nThe Team`,
+      };
+  
+      transporter.sendMail(mailOptions, (error, info) => {
+        if (error) {
+          console.error("Error sending email:", error);
+        } else {
+          console.log("Email sent:", info.response);
         }
-
-        driver.isVerified = isVerified;
-        await driver.save();
-
-        // Send email notification
-        const mailOptions = {
-            from: process.env.EMAIL,
-            to: driver.email,
-            subject: 'Driver Verification Status',
-            text: `Dear ${driver.fullName},\n\nYour driver application has been ${isVerified ? 'accepted' : 'rejected'}.\n\nThank you for your application.\n\nBest regards,\nThe Team`,
-        };
-
-        transporter.sendMail(mailOptions, (error, info) => {
-            if (error) {
-                console.error('Error sending email:', error);
-            } else {
-                console.log('Email sent:', info.response);
-            }
-        });
-
-        return res.status(200).json({
-            message: `Driver ${isVerified ? 'accepted' : 'rejected'} successfully.`,
-            driver,
-        });
+      });
+  
+      return res.status(200).json({
+        message: `Driver KYC ${status} successfully.`,
+        driver,
+      });
     } catch (error) {
-        return res.status(500).json({ message: 'Something went wrong.', error: error.message });
+      return res.status(500).json({ message: "Something went wrong.", error: error.message });
     }
-};
+  };
 
 // Submit KYC
 export const submitKYC = async (req, res) => {
     try {
       const { userId, ...kycData } = req.body;
-      const driver = await DriverModel.findOne({ user: userId });
   
-      if (!driver) {
-        return res.status(404).json({ message: "Driver not found." });
+      // Check if the driver already exists
+      const existingDriver = await DriverModel.findOne({ user: userId });
+      if (existingDriver) {
+        return res.status(400).json({ message: "KYC already submitted." });
       }
   
-      driver.kyc = { ...kycData, status: "pending" };
-      await driver.save();
+      // Create a new driver record
+      const driver = await DriverModel.create({
+        ...kycData,
+        user: userId,
+        status: "pending", // Default status
+      });
   
       return res.status(201).json({
         message: "KYC submitted successfully.",
@@ -228,5 +239,15 @@ export const submitKYC = async (req, res) => {
       });
     } catch (error) {
       return res.status(500).json({ message: "Something went wrong.", error: error.message });
+    }
+  };
+
+  // Get pending KYC requests (for admin)
+export const getPendingKYC = async (req, res) => {
+    try {
+      const pendingKYCs = await DriverModel.find({ status: "pending" }).populate("user");
+      return res.status(200).json(pendingKYCs);
+    } catch (error) {
+      return res.status(500).json({ message: "Failed to fetch pending KYC requests.", error: error.message });
     }
   };

@@ -6,8 +6,8 @@ const DriverSchema = new mongoose.Schema(
     fullName: { type: String, required: true },
     address: { type: String, required: true },
     email: { type: String, required: true, unique: true },
-    gender: { type: String, enum: ["Male", "Female"], required: true },
-    dob: { type: String, required: true },
+    gender: { type: String, enum: ["Male", "Female", "Other"], required: true }, // Added "Other"
+    dob: { type: Date, required: true }, // Changed to Date type
     citizenshipNumber: { type: String, required: true, unique: true },
     photo: { type: String, required: true },
 
@@ -17,22 +17,23 @@ const DriverSchema = new mongoose.Schema(
     backPhoto: { type: String },
 
     // Vehicle Information
-    vehicleType: { type: String, enum: ["Car", "Bike", "Electric"] },
-    numberPlate: { type: String, unique: true },
-    productionYear: { type: String },
-    vehiclePhoto: { type: String },
-    vehicleDetailPhoto: { type: String },
-    ownerDetailPhoto: { type: String },
-    renewalDetailPhoto: { type: String },
+    vehicleType: { type: String, enum: ["Car", "Bike", "Electric"], required: true },
+    numberPlate: { type: String, unique: true, required: true },
+    productionYear: { type: Number, required: true }, // Changed to Number type
+    vehiclePhoto: { type: String, required: true },
+    vehicleDetailPhoto: { type: String, required: true },
+    ownerDetailPhoto: { type: String, required: true },
+    renewalDetailPhoto: { type: String, required: true },
 
-    // Approval Status
+    // KYC Status
     status: {
       type: String,
-      enum: ["pending", "approved", "rejected"],
+      enum: ["pending", "verified", "rejected", "needs_resubmission"], // Added "needs_resubmission"
       default: "pending",
     },
+    rejectionReason: { type: String }, // Added for storing rejection reasons
 
-    // Reference 
+    // Reference to User
     user: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "TripShare",

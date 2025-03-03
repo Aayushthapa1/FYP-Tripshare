@@ -5,6 +5,8 @@ import {
   saveVehicleInformation,
   getAllDrivers,
   updateDriverVerification,
+  submitKYC,
+  getPendingKYC,
 } from '../controllers/driverController.js';
 
 const router = express.Router();
@@ -18,7 +20,15 @@ router.post('/licenseinfo', saveLicenseInformation);
 // Save Vehicle Information
 router.post('/vehicleinfo', saveVehicleInformation);
 
-router.get('/drivers', getAllDrivers); // Fetch all drivers
+// Submit KYC
+router.post('/kyc', submitKYC);
+
+// Fetch all drivers
+router.get('/drivers', getAllDrivers);
+
+// Fetch pending KYC
+router.get('/kycpending', getPendingKYC);
+
 router.put('/drivers/:driverId/verify', updateDriverVerification); // Update verification status
 
 export default router;

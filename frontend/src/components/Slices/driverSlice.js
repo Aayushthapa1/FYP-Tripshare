@@ -73,7 +73,7 @@ export const updateDriverVerification = createAsyncThunk(
   }
 );
 
-export const submitDriverKYC = createAsyncThunk(
+export const submitKYC = createAsyncThunk(
   'driver/submitKYC',
   async ({ userId, kycData }, { rejectWithValue }) => {
     try {
@@ -186,17 +186,17 @@ const driverSlice = createSlice({
       })
 
       // Submit KYC
-      .addCase(submitDriverKYC.pending, (state) => {
+      .addCase(submitKYC.pending, (state) => {
         state.kycLoading = true;
         state.kycError = null;
       })
-      .addCase(submitDriverKYC.fulfilled, (state, action) => {
+      .addCase(submitKYC.fulfilled, (state, action) => {
         state.kycLoading = false;
         state.drivers = state.drivers.map(driver =>
           driver._id === action.payload._id ? action.payload : driver
         );
       })
-      .addCase(submitDriverKYC.rejected, (state, action) => {
+      .addCase(submitKYC.rejected, (state, action) => {
         state.kycLoading = false;
         state.kycError = action.payload?.message || 'Failed to submit KYC';
       })
