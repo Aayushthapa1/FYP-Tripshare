@@ -4,6 +4,13 @@ import {
   userRegister,
   userLogin,
   userLogout,
+  getUserProfile,
+  updateUserProfile,
+  getUsersByRole,
+  forgotPassword,
+  resetPassword
+
+
 } from "../controllers/user.controller.js";
 import protectRoute from "../middlewares/protectRoute.js";
 import refreshAccessToken from "../utils/refreshAccessToken.js";
@@ -17,6 +24,12 @@ router.post("/register", userRegister);
 router.post("/login", userLogin);
 router.post("/logout", userLogout);
 router.post("/refresh-token", refreshAccessToken);
+router.get("/profile", protectRoute, getUserProfile);
+router.put("/profile", protectRoute, updateUserProfile);
+router.get("/users/:role", protectRoute, getUsersByRole);
+router.post("/forgotpassword", forgotPassword);
+router.put("/resetpassword/:resetToken", resetPassword);
+
 router.get("/checkAuth", protectRoute, async (req, res) => {
   try {
     const user = req.user;

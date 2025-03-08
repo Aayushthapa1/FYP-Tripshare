@@ -1,8 +1,8 @@
 import Trip from "../models/TripModel.js";
 import { createResponse } from "../utils/responseHelper.js";
 // Create a new trip
+
 export const createTrip = async (req, res, next) => {
-  console.log("the req is",req)
   try {
     const {
       departureLocation,
@@ -23,25 +23,54 @@ export const createTrip = async (req, res, next) => {
       !departureDate ||
       !departureTime ||
       !price ||
-      !availableSeats
+      !availableSeats ||
+      !vehicleDetails?.model ||
+      !vehicleDetails?.color ||
+      !vehicleDetails?.plateNumber
     ) {
       return res
         .status(400)
         .json(
           createResponse(400, false, [
-            { message: "Please provide all required fields" },
+            { message: "Please provide all required fields including vehicle details" },
           ])
         );
     }
-console.log("The request . user is",req.user)
+
+    // Validate numerical values
+    const priceNum = Number(price);
+    const seatsNum = Number(availableSeats);
+    if (isNaN(priceNum)) {
+      return res
+        .status(400)
+        .json(createResponse(400, false, [{ message: "Price must be a number" }]));
+    }
+    if (isNaN(seatsNum)) {
+      return res
+        .status(400)
+        .json(createResponse(400, false, [{ message: "Available seats must be a number" }]));
+    }
+    if (seatsNum < 1) {
+      return res
+        .status(400)
+        .json(createResponse(400, false, [{ message: "Available seats must be at least 1" }]));
+    }
+
+    // Validate departure date
+    const departureDateObj = new Date(departureDate);
+    if (departureDateObj <= new Date()) {
+      return res
+        .status(400)
+        .json(createResponse(400, false, [{ message: "Departure date must be in the future" }]));
+    }
+
     const newTrip = await Trip.create({
-    
       departureLocation,
       destinationLocation,
-      departureDate,
+      departureDate: departureDateObj,
       departureTime,
-      price,
-      availableSeats,
+      price: priceNum,
+      availableSeats: seatsNum,
       description,
       vehicleDetails,
       preferences,
@@ -54,8 +83,6 @@ console.log("The request . user is",req.user)
       })
     );
   } catch (error) {
-    console.log("the req body is",req)
-    console.log("the error in creating trip",error)
     next(error);
   }
 };
@@ -120,99 +147,96 @@ export const getTripById = async (req, res, next) => {
 
 // Update trip
 export const updateTrip = async (req, res, next) => {
-    try {
-      const { departureTime, price } = req.body;
-  
-      // Ensure price is a number if it exists
-      if (price) {
-        req.body.price = Number(price);
-      }
-  
-      // Find the trip by ID first
-      const trip = await Trip.findById(req.params.tripId);
-  
-      // If the trip doesn't exist, return an error
-      if (!trip) {
-        return res.status(404).json({
-          message: "Trip not found",
-        });
-      }
-  
-      // If the trip exists, update it
-      const updatedTrip = await Trip.findByIdAndUpdate(
-        req.params.tripId,
-        req.body,
-        { new: true }
-      );
-  
-      return res.status(200).json({
+  console.log("entered the uodate trip")
+
+  try {
+    const trip = await Trip.findById(req.params.tripId);
+    console.log("The trip is", trip)
+    if (!trip) {
+      return res
+        .status(404)
+        .json(createResponse(404, false, [{ message: "Trip not found" }]));
+    }
+
+    // Check if the user is the trip driver
+    // if (trip.driver.toString() !== req.user._id.toString()) {
+    //   return res
+    //     .status(403)
+    //     .json(
+    //       createResponse(403, false, [
+    //         { message: "Not authorized to update this trip" },
+    //       ])
+    //     );
+    // }
+
+    const updatedTrip = await Trip.findByIdAndUpdate(
+      req.params.tripId,
+      req.body,
+      { new: true }
+    );
+
+    return res.status(200).json(
+      createResponse(200, true, [], {
         message: "Trip updated successfully",
         trip: updatedTrip,
-      });
-    } catch (error) {
-      console.error(error);
-      next(error);
-    }
-  };
+      })
+    );
+  } catch (error) {
+    next(error);
+  }
+};
   
 // Delete trip
 export const deleteTrip = async (req, res, next) => {
-    try {
-      // Find the trip by ID and populate the driver field
-      const trip = await Trip.findById(req.params.tripId).populate("driver");
-  
-      // Log the trip and user for debugging
-      console.log("Trip with populated driver:", trip);
-      console.log("Logged-in user:", req.user);
-  
-      // If the trip doesn't exist, return an error
-      if (!trip) {
-        return res
-          .status(404)
-          .json(createResponse(404, false, [{ message: "Trip not found" }]));
-      }
-  
-      // Ensure trip.driver is populated and valid
-      if (!trip.driver || !trip.driver._id) {
-        return res.status(400).json({
-          message: "Driver not associated with this trip",
-        });
-      }
-  
-      // Check if the user is the driver
-      if (trip.driver._id.toString() !== req.user._id.toString()) {
-        return res
-          .status(403)
-          .json(
-            createResponse(403, false, [
-              { message: "Not authorized to delete this trip" },
-            ])
-          );
-      }
-  
-      // Don't allow deletion if trip has bookings
-      if (trip.bookedSeats.length > 0) {
-        return res
-          .status(400)
-          .json(
-            createResponse(400, false, [
-              { message: "Cannot delete trip with existing bookings" },
-            ])
-          );
-      }
-  
-      // Delete the trip
-      await Trip.findByIdAndDelete(req.params.tripId);
-  
-      return res.status(200).json(
-        createResponse(200, true, [], {
-          message: "Trip deleted successfully",
-        })
-      );
-    } catch (error) {
-      next(error);
+  try {
+    const trip = await Trip.findById(req.params.tripId).populate("driver");
+    console.log(trip)
+
+    if (!trip) {
+      return res
+        .status(404)
+        .json(createResponse(404, false, [{ message: "Trip not found" }]));
     }
-  };
+
+    // if (!trip.driver || !trip.driver._id) {
+    //   return res.status(400).json(
+    //     createResponse(400, false, [
+    //       { message: "Driver not associated with this trip" }
+    //     ])
+    //   );
+    // }
+
+    // if (trip.driver._id.toString() !== req.user._id.toString()) {
+    //   return res
+    //     .status(403)
+    //     .json(
+    //       createResponse(403, false, [
+    //         { message: "Not authorized to delete this trip" },
+    //       ])
+    //     );
+    // }
+
+    if (trip.bookedSeats.length > 0) {
+      return res
+        .status(400)
+        .json(
+          createResponse(400, false, [
+            { message: "Cannot delete trip with existing bookings" },
+          ])
+        );
+    }
+
+    await Trip.findByIdAndDelete(req.params.tripId);
+    return res.status(200).json(
+      createResponse(200, true, [], {
+        message: "Trip deleted successfully",
+      })
+    );
+  } catch (error) {
+    next(error);
+  }
+};
+
 // Search trips
 export const searchTrips = async (req, res, next) => {
   try {

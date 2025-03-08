@@ -36,7 +36,7 @@ const DriverSchema = new mongoose.Schema(
     // Reference to User
     user: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: "TripShare",
+      ref: "User",
       required: true,
     },
   },

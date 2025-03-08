@@ -4,7 +4,7 @@ import _config from "./config.js"
 export const generateAccessToken = (userId) => {
   try {
     const jwtSecret = _config.jwtKey;
-    console.log("the jwt key in the generate func",jwtSecret)
+   
     if (!jwtSecret) throw new Error("JWT Secret is not defined!");
     return jwt.sign({ sub: userId }, jwtSecret, { expiresIn: "30m" });
   } catch (error) {

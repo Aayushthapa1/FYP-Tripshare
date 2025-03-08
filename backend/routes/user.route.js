@@ -13,7 +13,7 @@ const router = express.Router();
 router.get("/getUserProfile", protectRoute, getUserProfile);
 router.put("/updateUserProfile", protectRoute, updateUserProfile);
 router.get("/getUsersByRole/:role", protectRoute, getUsersByRole);
-router.post('/forgot-password', forgotPassword);
-router.post('/reset-password', resetPassword);
+router.post('/forgotpassword', forgotPassword);
+router.post('/resetpassword', resetPassword);
 
 export default router;

@@ -3,7 +3,10 @@ import _config from "./utils/config.js";
 import connectToDB from "./utils/connectToDB.js";
 import http from "http";
 import { Server } from "socket.io";
-import Ride from "./models/handleRideModel.js"; // Ensure the Ride model is imported
+import Ride from "./models/handleRideModel.js";
+import UserModel from "./models/user.model.js"
+import DriverModel from "./models/driverModel.js"
+ // Ensure the Ride model is imported
 
 const { port } = _config;
 console.log(`Port ${port}`);
@@ -19,66 +22,125 @@ const startServer = async () => {
       },
     });
 
-    // 🟢 Socket.IO connection
     io.on("connection", (socket) => {
       console.log(`✅ A user connected: ${socket.id}`);
-
-      // 🟢 Handle driver going online
-      socket.on("driver-online", (driverId) => {
-        console.log(`✅ Driver ${driverId} is online and joined room driver-${driverId}`);
-        socket.join(`driver-${driverId}`); // Driver joins a specific room
+    
+      socket.on("join", (room) => {
+        socket.join(room);
+        console.log(`User joined room: ${room}`);
       });
-
-      // 🟢 Handle passenger requesting a ride
+    
+      socket.on("driver-online", (driverId) => {
+        console.log(
+          `✅ Driver ${driverId} is online and joined room driver-${driverId}`
+        );
+        socket.join(`driver-${driverId}`);
+        io.emit("driver-available", { driverId, status: "online" });
+      });
+    
+      socket.on("driver-offline", (driverId) => {
+        console.log(`🚫 Driver ${driverId} is offline`);
+        socket.leave(`driver-${driverId}`);
+        io.emit("driver-available", { driverId, status: "offline" });
+      });
+    
       socket.on("request-ride", async (data) => {
-        console.log("🔍 Received ride request event on server:", data);
-
         try {
           const ride = await Ride.create({
-            driverId: data.driverId,
             passengerId: data.passengerId,
             pickupLocation: data.pickupLocation,
             dropoffLocation: data.dropoffLocation,
+            pickupLocationName: data.pickupLocationName,
+            dropoffLocationName: data.dropoffLocationName,
             status: "requested",
+            distance: data.distance,
+            estimatedTime: data.estimatedTime,
           });
-
-          console.log("✅ Ride saved in DB:", ride);
-
-          // Notify the driver about the ride request
-          io.to(`driver-${data.driverId}`).emit("ride-request", ride);
-          console.log(`📩 Ride request sent to driver-${data.driverId}`);
+    
+          const passenger = await UserModel.findById(data.passengerId).select(
+            "phone username"
+          );
+          const rideWithPassenger = {
+            ...ride._doc,
+            passenger: { phone: passenger.phone, username: passenger.username },
+          };
+    
+          io.emit("ride-request", rideWithPassenger);
+          socket.emit("ride-notification", {
+            message: "Ride request sent to nearby drivers",
+          });
         } catch (error) {
           console.error("❌ Error saving ride:", error);
         }
       });
-
-      // 🟢 Handle driver accepting/rejecting a ride
+    
       socket.on("ride-response", async (data) => {
-        console.log("🔍 Ride response received:", data);
-
         try {
+          console.log(
+            `Ride response received: rideId=${data.rideId}, driverId=${data.driverId}, status=${data.status}`
+          );
           const ride = await Ride.findById(data.rideId);
           if (!ride) {
-            console.log("❌ Ride not found");
+            console.error(`Ride ${data.rideId} not found`);
             return;
           }
-
+    
+          // Fetch the driver by the `user` field (which references UserModel)
+          const driver = await DriverModel.findOne({ user: data.driverId });
+          if (!driver) {
+            console.error(
+              `Driver ${data.driverId} not found in drivers collection`
+            );
+          } else {
+            console.log(`Driver ${data.driverId} found: ${driver.fullName}`);
+          }
+    
+          ride.driverId = data.driverId; // This should be the `user` field from the Driver model
           ride.status = data.status;
           await ride.save();
-
-          // Notify the passenger
+    
+          // Emit the ride-status event to the passenger's room
           io.to(`passenger-${ride.passengerId}`).emit("ride-status", {
             rideId: ride._id,
             status: ride.status,
+            driverId: data.driverId,
           });
-
-          console.log(`📩 Ride status update sent to passenger-${ride.passengerId}`);
+    
+          // Emit a notification to the driver
+          io.to(`driver-${data.driverId}`).emit("ride-notification", {
+            message: `Ride ${data.status}`,
+          });
+    
+          if (data.status === "rejected") {
+            // If the ride is rejected, re-emit the ride request to other drivers
+            io.emit("ride-request", ride);
+          }
         } catch (error) {
           console.error("❌ Error updating ride:", error);
         }
       });
-
-      // 🟢 Handle disconnection
+    
+      socket.on("ride-status-update", async (data) => {
+        try {
+          const ride = await Ride.findById(data.rideId);
+          if (!ride) return;
+    
+          ride.status = data.status;
+          await ride.save();
+    
+          io.to(`passenger-${ride.passengerId}`).emit("ride-status", {
+            rideId: ride._id,
+            status: ride.status,
+          });
+    
+          io.to(`driver-${ride.driverId}`).emit("ride-notification", {
+            message: `Ride status updated to ${data.status}`,
+          });
+        } catch (error) {
+          console.error("❌ Error updating ride status:", error);
+        }
+      });
+    
       socket.on("disconnect", () => {
         console.log(`⚠️ A user disconnected: ${socket.id}`);
       });

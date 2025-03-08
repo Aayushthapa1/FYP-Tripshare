@@ -6,8 +6,6 @@ import { generateAccessToken } from "./generateAuthToken.js";
 const refreshAccessToken = async (req, res) => {
   console.log("entered the refreshaccess token request in the backend");
   const refreshToken = req?.cookies?.refreshToken;
-  console.log(" FOUND THE REFRESH MAAL The refresh token is", refreshToken);
-
   if (!refreshToken) {
     console.log("no refresh token");
     return res

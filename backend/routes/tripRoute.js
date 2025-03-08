@@ -29,9 +29,9 @@ router.get("/my-trips", protectRoute, authorizeRole("driver"), getDriverTrips);
 router.get("/:tripId", getTripById);
 
 // Update trip (driver only)
-router.put("/:tripId", protectRoute, authorizeRole("driver"), updateTrip);
+router.put("/:tripId", updateTrip);
 
 // Delete trip (driver only)
-router.delete("/:tripId", protectRoute, authorizeRole("driver"), deleteTrip);
+router.delete("/:tripId",  deleteTrip);
 
 export default router;

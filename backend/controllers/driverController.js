@@ -1,6 +1,7 @@
-import DriverModel from '../models/driverModel.js';
+
 import upload from '../config/multerConfig.js';
 import nodemailer from 'nodemailer';
+import Driver from "../models/driverModel.js"
 
 const transporter = nodemailer.createTransport({
     service: 'gmail',
@@ -245,9 +246,12 @@ export const submitKYC = async (req, res) => {
   // Get pending KYC requests (for admin)
 export const getPendingKYC = async (req, res) => {
     try {
-      const pendingKYCs = await DriverModel.find({ status: "pending" }).populate("user");
+      console.log("Fetching pending KYCs...");
+      const pendingKYCs = await Driver.find({ status: "pending" }).populate("user");
+      console.log("Pending KYCs:", pendingKYCs);
       return res.status(200).json(pendingKYCs);
     } catch (error) {
+      console.error("Error fetching pending KYCs:", error);
       return res.status(500).json({ message: "Failed to fetch pending KYC requests.", error: error.message });
     }
   };
