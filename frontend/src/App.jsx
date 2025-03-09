@@ -13,6 +13,7 @@ import "react-toastify/dist/ReactToastify.css";
 // Layout / Shared
 import Navbar from "./components/layout/Navbar";
 import Footer from "./components/layout/Footer";
+import UserProfile from "./components/user/userProfile";
 // import MultiStepForm from "./components/layout/MultiStepForm";
 
 
@@ -46,6 +47,7 @@ import PaymentForm from "./components/payment/PaymentForm";
 
 //trips
 import TripForm from "./components/trip/tripForm";
+import TripList from "./components/trip/tripList";
 
 //DRIVER
 import KYCForm from "./components/driver/KYCForm";
@@ -58,7 +60,7 @@ import LoginPage from "./components/pages/LoginPage";
 import UnauthPage from "./components/pages/UnAuthPage";
 
 // Utils/Redux
-import { checkAuth } from "./authSetup";
+import { checkAuth } from "./components/Slices/authSlice";
 import CheckAuth from "./utils/ProtectedRoute"; // Adjust path if needed
 
 function App() {
@@ -90,13 +92,23 @@ function App() {
                 <PopularRoutes />
                 <ScrollToTopButton />
 
+
                 <Footer />
               </>
             }
           />
           <Route path="/contact" element={<HelpCenter />} />
           <Route path="/payment" element={<PaymentForm />} />
-          <Route path="/tripform" element={<TripForm />} />
+          <Route path="/profile/:userId" element={<UserProfile />} />
+          <Route
+            path="/tripform"
+            element={
+              <CheckAuth role="driver">
+                <TripForm />
+              </CheckAuth>
+            }
+          />
+          <Route path="/trips" element={<TripList />} />
 
           {/* Auth Routes */}
           <Route
@@ -143,8 +155,9 @@ function App() {
             <Route path="payments" element={<ManagePayments />} />
             <Route path="disputes" element={<ManageDisputes />} />
             <Route path="settings" element={<AdminSettings />} />
-            <Route path="kycform" element={<KYCForm />} />
+            
             <Route path="drivers" element={<DriverList />} />
+            <Route path="kyc" element={<KycVerification />} />
           </Route>
 
           {/* User Routes (Protected) */}
@@ -169,9 +182,17 @@ function App() {
               </CheckAuth>
             }
           />
+          <Route 
+            path="/kycform"
+            element={
+             
+                <KYCForm />
+        
+            }
+          />
 
           {/* Misc */}
-          <Route path="/unauth-page" element={<UnauthPage />} />
+          < Route path="/unauth-page" element={<UnauthPage />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </Router>

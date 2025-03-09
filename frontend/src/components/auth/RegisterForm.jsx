@@ -3,7 +3,7 @@ import { User, Mail, Home, Lock, UserCircle, Phone, Users } from "lucide-react";
 import { useDispatch } from "react-redux";
 import { useNavigate } from "react-router-dom";
 import { Toaster, toast } from "sonner";
-import { registerUser } from "../../authSetup";
+import { registerUser } from "../Slices/authSlice";
 
 const RegisterForm = () => {
   const dispatch = useDispatch();

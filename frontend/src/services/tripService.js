@@ -1,35 +1,70 @@
-import axios from "axios";
-import { Base_Backend_Url } from "../../constant";
-import formatError from "../utils/errorUtils";
+
 import axiosInstance from "../utils/axiosInstance";
+import formatError from "../utils/errorUtils";
 
-export const createTrips = async (formData) => {
+export const createTrip = async (formData) => {
   try {
-    console.log("ENTER THE details");
-    const response = await axios.post(
-      `http://localhost:3301/api/trips/create`, // Full URL with the backend server's port
-      formData,
-      {
-        withCredentials: true, // Ensure credentials are sent with the request
-      }
+    const response = await axiosInstance.post(
+      "/api/trips/create",
+      formData
     );
-    
-    console.log("The response in create trips:", response);
-    
-    console.log("The response in create trips:", response);
-    
-
     return response.data;
   } catch (error) {
-    console.log("error in trip service", error);
-    console.error("CheckAuth error:", error.message);
-    throw new Error(error.response?.data || "Trip form failed");
+    const formattedError = formatError(error);
+    console.error("Create trip error:", formattedError);
+    throw new Error(formattedError);
   }
 };
 
+export const getTrips = async () => {
+  try {
+    const response = await axiosInstance.get("/api/trips/all");
+    return response.data;
+  } catch (error) {
+    const formattedError = formatError(error);
+    throw new Error(formattedError);
+  }
+};
 
-  const tripService = {
-    createTrips
-  };
-  
-  export default tripService;
+export const getTripById = async (tripId) => {
+  try {
+    const response = await axiosInstance.get(`/api/trips/${tripId}`);
+    return response.data;
+  } catch (error) {
+    const formattedError = formatError(error);
+    throw new Error(formattedError);
+  }
+};
+
+export const updateTrip = async (tripId, formData) => {
+  try {
+    const response = await axiosInstance.put(
+      `/api/trips/${tripId}`,
+      formData
+    );
+    return response.data;
+  } catch (error) {
+    const formattedError = formatError(error);
+    throw new Error(formattedError);
+  }
+};
+
+export const deleteTrip = async (tripId) => {
+  try {
+    const response = await axiosInstance.delete(`/api/trips/${tripId}`);
+    return response.data;
+  } catch (error) {
+    const formattedError = formatError(error);
+    throw new Error(formattedError);
+  }
+};
+
+const tripService = {
+  createTrip,
+  getTrips,
+  getTripById,
+  updateTrip,
+  deleteTrip
+};
+
+export default tripService;

@@ -1,7 +1,18 @@
 import React from "react";
 import RegisterForm from "../auth/RegisterForm";
+import { useSelector } from "react-redux";
+import { useNavigate } from "react-router-dom";
+import { useEffect } from "react";
 
 const RegisterPage = () => {
+  const navigate = useNavigate();
+  const { isAuthenticated } = useSelector((state) => state?.auth);
+
+  useEffect(() => {
+    if (!isAuthenticated) {
+      navigate("/login"); // Redirect to login if not authenticated
+    }
+  }, [isAuthenticated, navigate]);
   return (
     <div className="min-h-screen bg-gradient-to-br from-green-50 via-emerald-50 to-teal-50 flex items-center justify-center py-8 px-4 sm:px-6 lg:px-8">
       <div className="flex flex-col md:flex-row bg-white w-full max-w-4xl h-[750px] rounded-3xl shadow-[0_20px_50px_rgba(8,_112,_84,_0.15)] overflow-hidden">

@@ -4,8 +4,8 @@ import { Users, Car, DollarSign, AlertTriangle } from 'lucide-react';
 function AdminDashboard() {
   return (
     <div className="bg-gray-50">
-      <h2 className="text-2xl font-bold mb-4">Dashboard Overview</h2>
-      <p className="text-gray-500 mb-8">Welcome back, Admin</p>
+      <h2 className="text-2xl font-bold mb-2">Dashboard Overview</h2>
+      <p className="text-gray-500 mb-4">Welcome back, Admin ! </p>
 
       {/* Stat Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">

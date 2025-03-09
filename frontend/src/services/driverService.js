@@ -1,45 +1,87 @@
 import axios from 'axios';
 
-const API_URL = '/api/drivers';
 
 const savePersonalInfo = async (formData) => {
-    const response = await axios.post(`${API_URL}/personalinfo`, formData, {
-        headers: { 'Content-Type': 'multipart/form-data' },
-    });
-    return response.data;
+    try {
+        const response = await axiosInstance.post(`/api/personalinfo`, formData, {
+            headers: { 'Content-Type': 'multipart/form-data' },
+        });
+        return response.data;
+    } catch (error) {
+        console.error('Error saving personal info:', error);
+        throw new Error(error.response?.data?.message || 'Failed to save personal information');
+    }
 };
+
 
 const saveLicenseInfo = async (driverId, formData) => {
-    const response = await axios.post(`${API_URL}/licenseinfo`, formData, {
-        headers: { 'Content-Type': 'multipart/form-data' },
-    });
-    return response.data;
+    try {
+        const response = await axiosInstance.post(`/api/licenseinfo`, formData, {
+            headers: { 'Content-Type': 'multipart/form-data' },
+        });
+        return response.data;
+    } catch (error) {
+        console.error('Error saving license info:', error);
+        throw new Error(error.response?.data?.message || 'Failed to save license information');
+    }
 };
+
 
 const saveVehicleInfo = async (driverId, formData) => {
-    const response = await axios.post(`${API_URL}/vehicleinfo`, formData, {
-        headers: { 'Content-Type': 'multipart/form-data' },
-    });
-    return response.data;
+    try {
+        const response = await axiosInstance.post(`/api/vehicleinfo`, formData, {
+            headers: { 'Content-Type': 'multipart/form-data' },
+        });
+        return response.data;
+    } catch (error) {
+        console.error('Error saving vehicle info:', error);
+        throw new Error(error.response?.data?.message || 'Failed to save vehicle information');
+    }
 };
+
 
 const getAllDrivers = async () => {
-    const response = await axios.get(`${API_URL}/drivers`);
-    return response.data;
+    try {
+        const response = await axiosInstance.get(`/api/drivers`);
+        return response.data;
+    } catch (error) {
+        console.error('Error fetching drivers:', error);
+        throw new Error(error.response?.data?.message || 'Failed to fetch drivers');
+    }
 };
+
 
 const updateVerification = async (driverId, isVerified) => {
-    const response = await axios.put(`${API_URL}/drivers/${driverId}/verify`, { isVerified });
-    return response.data;
+    try {
+        const response = await axiosInstance.put(`/api/drivers/${driverId}/verify`, { isVerified });
+        return response.data;
+    } catch (error) {
+        console.error('Error updating verification status:', error);
+        throw new Error(error.response?.data?.message || 'Failed to update verification status');
+    }
 };
 
+
 const submitKYC = async (userId, kycData) => {
-    const response = await axios.post(`${API_URL}/kyc`, { userId, ...kycData });
-    return response.data;
+    try {
+        const response = await axiosInstance.post(`/api/kyc`, { userId, ...kycData });
+        return response.data;
+    } catch (error) {
+        console.error('Error submitting KYC:', error);
+        throw new Error(error.response?.data?.message || 'Failed to submit KYC');
+    }
 };
+
+
 const getPendingKYC = async () => {
-    const response = await axios.get(`${API_URL}/kycpending`);
-    return response.data;
+    try {
+        const response = await axiosInstance.get(`/api/drivers/kycpending`);
+        console.log('Pending KYC response:', response);
+        return response.data;
+    } catch (error) {
+        console.error('Error fetching pending KYC:', error);
+        throw new Error(error.response?.data?.message || 'Failed to fetch pending KYC');
+    }
 };
 
 export default {

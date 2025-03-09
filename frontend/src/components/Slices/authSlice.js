@@ -1,10 +1,10 @@
 import {
-  configureStore,
+
   createSlice,
   createAsyncThunk,
 } from "@reduxjs/toolkit";
-import authService from "./services/authService";
-import { driverReducer } from "./components/Slices/driverSlice";
+import authService from "../../services/authService";
+
 
 // Thunk for logging in a user
 export const loginUser = createAsyncThunk(
@@ -74,12 +74,40 @@ export const refreshAccessToken = createAsyncThunk(
   }
 );
 
+// Thunk for forgot password
+export const forgotPassword = createAsyncThunk(
+  "auth/forgotpassword",
+  async (email, { rejectWithValue }) => {
+    try {
+      const response = await authService.forgotpassword(email);
+      return response;
+    } catch (error) {
+      return rejectWithValue(error.message || "Forgot password failed");
+    }
+  }
+);
+
+// Thunk for resetting password
+export const resetPassword = createAsyncThunk(
+  "auth/resetpassword",
+  async (data, { rejectWithValue }) => {
+    try {
+      const response = await authService.resetpassword(data);
+      return response;
+    } catch (error) {
+      return rejectWithValue(error.message || "Reset password failed");
+    }
+  }
+);
+
+
 // Initial state
 const initialState = {
   isAuthenticated: false,
   isLoading: false,
   user: null,
   error: null,
+  token: null,
 };
 
 // Auth slice
@@ -172,15 +200,39 @@ const authSlice = createSlice({
         state.isLoading = false;
         state.error = action.payload;
       });
+
+    // Handling forgotPassword
+    builder.addCase(forgotPassword.pending, (state) => {
+      state.isLoading = true;
+      state.error = null;
+    })
+    .addCase(forgotPassword.fulfilled, (state) => {
+      state.isLoading = false;
+      state.error = null;
+    })
+    .addCase(forgotPassword.rejected, (state, action) => {
+      state.isLoading = false;
+      state.error = action.payload;
+    });
+
+    // Handling resetPassword
+    builder.addCase(resetPassword.pending, (state) => {
+      state.isLoading = true;
+      state.error = null;
+    })
+    .addCase(resetPassword.fulfilled, (state) => {
+      state.isLoading = false;
+      state.error = null;
+    })
+    .addCase(resetPassword.rejected, (state, action) => {
+      state.isLoading = false;
+      state.error = action.payload
+    }
+    );
+    
   },
 });
 
-export const { resetAuthState } = authSlice.actions;
 
-// Create and export the store
-export const store = configureStore({
-  reducer: {
-    auth: authSlice.reducer,
-    driver: driverReducer,
-  },
-});
+
+export default authSlice.reducer;

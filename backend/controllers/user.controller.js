@@ -168,6 +168,7 @@ export const userLogout = async (req, res, next) => {
 
 
 export const getUserProfile = async (req, res, next) => {
+  console.log("entered teh user profile")
   try {
     const user = await User.findById(req.user._id).select("-password");
 
@@ -193,7 +194,10 @@ export const getUserProfile = async (req, res, next) => {
 
 export const updateUserProfile = async (req, res, next) => {
   try {
-    const { fullName, email, address, userName, phoneNumber } = req.body;
+    const { fullName ,address, userName, phoneNumber } = req.body;
+    console.log("The req body is", req.body);
+
+    // Fetch the user based on the decoded ID from the protected route
     const user = await User.findById(req.user._id);
 
     if (!user) {
@@ -202,18 +206,14 @@ export const updateUserProfile = async (req, res, next) => {
       );
     }
 
-    if (email) {
-      return res.status(400).json(
-        createResponse(400, false, [{ message: "Email cannot be updated" }])
-      );
-    }
-
+  
+    // Phone number check
     if (phoneNumber && phoneNumber !== user.phoneNumber) {
       const phoneExists = await User.findOne({
         phoneNumber,
-        _id: { $ne: user._id }  // Exclude current user from check
+        _id: { $ne: user._id },  // Exclude current user from check
       });
-      
+
       if (phoneExists) {
         return res.status(409).json(
           createResponse(409, false, [{ message: "Phone number already exists" }])
@@ -222,11 +222,15 @@ export const updateUserProfile = async (req, res, next) => {
       user.phoneNumber = phoneNumber;
     }
 
+    // Update other fields if provided
     if (fullName) user.fullName = fullName;
     if (address) user.address = address;
     if (userName) user.userName = userName;
 
+    // Save the updated user object
     await user.save();
+
+    // Remove sensitive information (password) from the user object before sending it back
     const userObj = user.toObject();
     delete userObj.password;
 
@@ -237,9 +241,10 @@ export const updateUserProfile = async (req, res, next) => {
       })
     );
   } catch (error) {
-    next(error);
+    next(error);  // Forward error to centralized error handler
   }
 };
+
 
 
 // Add this new function to get users by role

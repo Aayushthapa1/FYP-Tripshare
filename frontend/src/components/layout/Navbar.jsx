@@ -3,6 +3,8 @@ import { Car, Menu, X, UserCircle, Search, Plus, LogOut } from "lucide-react";
 import NavLinks from "./NavLinks";
 import MobileMenu from "./MobileMenu";
 import Button from "../button.jsx";
+import { useNavigate } from "react-router-dom";
+import { useSelector } from "react-redux";
 
 export default function Navbar() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -13,6 +15,16 @@ export default function Navbar() {
     name: "",
     email: "",
   });
+  const navigate = useNavigate();
+
+  const handleNavigate = (path) => {
+    navigate(path);
+  };
+
+
+  const userId = useSelector((state)=>state?.auth?.user)?._id;
+  const user = useSelector((state)=>state?.user?.userData?.Result?.user_data?.userName);
+  console.log(userId);
 
   useEffect(() => {
     const handleScroll = () => {
@@ -33,7 +45,8 @@ export default function Navbar() {
     setIsAuthenticated(false);
     setUserInfo(null);
     setIsUserMenuOpen(false);
-    window.location.href = "/";
+    navigate("/"); 
+
   };
 
   return (
@@ -63,9 +76,9 @@ export default function Navbar() {
               <span>Search</span>
             </button>
 
-            {/* Publish a Ride Button - Improved version */}
+            {/* Publish a Ride Button */}
             <button
-              onClick={() => (window.location.href = "/publish")}
+              onClick={() => handleNavigate("/tripForm")} // Use navigate
               className="hidden md:inline-flex items-center justify-center px-4 py-2 rounded-lg bg-blue-600 text-white font-medium text-sm hover:bg-blue-700 transition-all duration-200 shadow-sm space-x-2"
             >
               <Plus className="h-4 w-4" />
@@ -84,25 +97,26 @@ export default function Navbar() {
                 {isUserMenuOpen && (
                   <div className="absolute right-0 mt-2 w-48 bg-white rounded-xl shadow-lg py-2 border border-gray-100">
                     <div className="px-4 py-2 border-b border-gray-100">
-                      <p className="text-sm font-medium text-gray-900">
-                        {userInfo?.name || "User"}
-                      </p>
-                      <p className="text-sm text-gray-500">
-                        {userInfo?.email || "user@example.com"}
-                      </p>
+                    <button
+  onClick={() => handleNavigate(`/profile/${userId}`)} // Navigate to profile page
+  className="text-sm font-medium text-gray-900 hover:text-blue-600 cursor-pointer"
+>
+  {user|| "User"}
+</button>
+                     
                     </div>
-                    <a
-                      href="/profile"
-                      className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
+                    <button
+                      onClick={() => handleNavigate("/kycform")} // Use navigate
+                      className="block w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 text-left"
                     >
                       Profile Settings
-                    </a>
-                    <a
-                      href="/trips"
-                      className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
+                    </button>
+                    <button
+                      onClick={() => handleNavigate("/trips")} // Use navigate
+                      className="block w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 text-left"
                     >
                       My Trips
-                    </a>
+                    </button>
                     <button
                       onClick={handleLogout}
                       className="flex items-center w-full px-4 py-2 text-sm text-red-600 hover:bg-gray-50"
@@ -117,7 +131,7 @@ export default function Navbar() {
               <div className="hidden md:flex items-center space-x-4">
                 <Button
                   WholeClassName="text-gray-600 hover:text-gray-900"
-                  onClick={() => (window.location.href = "/login")}
+                  onClick={() => handleNavigate("/login")} // Use navigate
                 >
                   Login
                 </Button>
@@ -126,7 +140,7 @@ export default function Navbar() {
                   className="text-white"
                   hovered="text-white"
                   notHovered="text-white"
-                  onClick={() => (window.location.href = "/register")}
+                  onClick={() => handleNavigate("/register")} // Use navigate
                 >
                   Register
                 </Button>
@@ -152,8 +166,8 @@ export default function Navbar() {
       <MobileMenu
         isOpen={isMenuOpen}
         isAuthenticated={isAuthenticated}
-        onLogin={() => (window.location.href = "/login")}
-        onRegister={() => (window.location.href = "/register")}
+        onLogin={() => handleNavigate("/login")} // Use navigate
+        onRegister={() => handleNavigate("/register")} // Use navigate
         onLogout={handleLogout}
       />
     </nav>

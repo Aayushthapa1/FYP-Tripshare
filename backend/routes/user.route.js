@@ -10,8 +10,8 @@ import {
 
 const router = express.Router();
 
-router.get("/getUserProfile", protectRoute, getUserProfile);
-router.put("/updateUserProfile", protectRoute, updateUserProfile);
+router.get("/:id", protectRoute, getUserProfile);
+router.put("/:id", protectRoute, updateUserProfile);
 router.get("/getUsersByRole/:role", protectRoute, getUsersByRole);
 router.post('/forgotpassword', forgotPassword);
 router.post('/resetpassword', resetPassword);

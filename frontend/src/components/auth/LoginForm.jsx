@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { Mail, Lock } from "lucide-react";
 import { Toaster,toast } from 'sonner';
-import { loginUser } from "../../authSetup";
+import { loginUser } from "../Slices/authSlice";
 import { useDispatch, useSelector } from "react-redux";
 import { useNavigate } from "react-router-dom";
 

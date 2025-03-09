@@ -17,9 +17,11 @@ const protectRoute = async (req, res, next) => {
           createResponse(401, false, ["No token provided, unauthorized access"])
         );
     }
-
+    const jwtSecret = _config.jwtKey;
+    console.log("The jwt key isssss is", jwtSecret);
     // Verify the token
-    const decoded = jwt.verify(token, _config.jwt_key);
+    const decoded = jwt.verify(token, jwtSecret);
+
     console.log("The decoded token is", decoded);
 
     // Find the user in the database
@@ -34,6 +36,7 @@ const protectRoute = async (req, res, next) => {
     req.user = user;
     next();
   } catch (error) {
+    console.log("The error is", error);
     if (error.name === "TokenExpiredError") {
       return res
         .status(401)

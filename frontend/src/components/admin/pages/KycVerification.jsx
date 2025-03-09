@@ -1,40 +1,47 @@
-import React, { useEffect } from "react";
-import { useDispatch, useSelector } from "react-redux";
-import {
-  fetchKYCData,
-  updateDriverVerification,
-} from "../../Slices/driverSlice";
-import AdminLayout from "../components/AdminLayout";
+import React, { useEffect, useState } from "react";
+import axios from "axios";
+import driverService from "../../../services/driverService";
+import { Base_Backend_Url } from "../../../../constant"; // Import the correct base URL
 
 const KycVerification = () => {
-  const dispatch = useDispatch();
-  const {
-    kycData = [],
-    kycLoading,
-    kycError,
-    verificationError,
-  } = useSelector((state) => state.driver);
+  const [kycData, setKycData] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [verificationError, setVerificationError] = useState(null);
+
+  const fetchKYCData = async () => {
+    try {
+      setLoading(true);
+      const response = await driverService.getPendingKYC(); // Adjust API endpoint if needed
+      setKycData(response);
+      console.log("the response is", response);
+      setLoading(false);
+    } catch (err) {
+      setError(err.message);
+      setLoading(false);
+    }
+  };
 
   const handleVerify = async (userId) => {
-    if (window.confirm("Are you sure you want to verify this user?")) {
-      console.log("Verifying user with ID:", userId); // Debugging
-      await dispatch(
-        updateDriverVerification({ driverId: userId, isVerified: true })
-      );
-      dispatch(fetchKYCData()); // Refresh the KYC data
+    try {
+      await axios.post("/api/kyc/verify", {
+        driverId: userId,
+        isVerified: true,
+      });
+      fetchKYCData(); // Refresh data after verification
+    } catch (err) {
+      setVerificationError(err.message);
     }
   };
 
   useEffect(() => {
-    dispatch(fetchKYCData());
-  }, [dispatch]);
+    fetchKYCData();
+  }, []);
 
-  if (kycLoading)
+  if (loading)
     return <div className="text-center py-6">Loading KYC data...</div>;
-  if (kycError)
-    return (
-      <div className="text-center text-red-500 py-6">Error: {kycError}</div>
-    );
+  if (error)
+    return <div className="text-center text-red-500 py-6">Error: {error}</div>;
   if (verificationError)
     return (
       <div className="text-center text-red-500 py-6">
@@ -43,66 +50,84 @@ const KycVerification = () => {
     );
 
   return (
-    <AdminLayout>
-      <div className="p-6">
-        <h1 className="text-2xl font-bold mb-6">KYC Verification</h1>
-        {kycData.length === 0 ? (
-          <div className="text-center text-gray-500 py-6">
-            No KYC data available.
-          </div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="min-w-full bg-white border border-gray-200">
-              <thead>
-                <tr className="bg-gray-100">
-                  <th className="py-3 px-4 border-b text-left">User ID</th>
-                  <th className="py-3 px-4 border-b text-left">Name</th>
-                  <th className="py-3 px-4 border-b text-left">Status</th>
-                  <th className="py-3 px-4 border-b text-left">
-                    Document Type
-                  </th>
-                  <th className="py-3 px-4 border-b text-left">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {kycData.map((kyc, index) => (
-                  <tr
-                    key={index}
-                    className="hover:bg-gray-50 transition-colors"
+    <div className="overflow-x-auto">
+      <table className="min-w-full bg-white border border-gray-200">
+        <thead>
+          <tr className="bg-gray-100 text-left">
+            <th className="py-3 px-4 border-b">User ID</th>
+            <th className="py-3 px-4 border-b">Name</th>
+            <th className="py-3 px-4 border-b">Status</th>
+            <th className="py-3 px-4 border-b">Document Type</th>
+            <th className="py-3 px-4 border-b">License Number</th>
+            <th className="py-3 px-4 border-b">Address</th>
+            <th className="py-3 px-4 border-b">Vehicle Type</th>
+            <th className="py-3 px-4 border-b">Profile Photo</th>
+            <th className="py-3 px-4 border-b">Vehicle Photo</th>
+            <th className="py-3 px-4 border-b">Owner Detail Photo</th>
+            <th className="py-3 px-4 border-b">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {kycData.map((kyc) => {
+            return (
+              <tr
+                key={kyc._id}
+                className="hover:bg-gray-50 transition-colors"
+              >
+                <td className="py-3 px-4 border-b">{kyc?.email}</td>
+                <td className="py-3 px-4 border-b">{kyc?.fullName}</td>
+                <td className="py-3 px-4 border-b">
+                  <span
+                    className={`px-2 py-1 text-sm rounded-full ${
+                      kyc?.status === "verified"
+                        ? "bg-green-100 text-green-700"
+                        : kyc?.status === "pending"
+                        ? "bg-yellow-100 text-yellow-700"
+                        : "bg-red-100 text-red-700"
+                    }`}
                   >
-                    <td className="py-3 px-4 border-b">{kyc.userId}</td>
-                    <td className="py-3 px-4 border-b">{kyc.fullName}</td>{" "}
-                    {/* Adjust if needed */}
-                    <td className="py-3 px-4 border-b">
-                      <span
-                        className={`px-2 py-1 text-sm rounded-full ${
-                          kyc.status === "verified"
-                            ? "bg-green-100 text-green-700"
-                            : kyc.status === "pending"
-                            ? "bg-yellow-100 text-yellow-700"
-                            : "bg-red-100 text-red-700"
-                        }`}
-                      >
-                        {kyc.status}
-                      </span>
-                    </td>
-                    <td className="py-3 px-4 border-b">{kyc.documentType}</td>
-                    <td className="py-3 px-4 border-b">
-                      <button
-                        className="bg-blue-500 text-white px-3 py-1 rounded hover:bg-blue-600 transition-colors"
-                        onClick={() => handleVerify(kyc.userId)}
-                      >
-                        Verify
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
-    </AdminLayout>
+                    {kyc?.status}
+                  </span>
+                </td>
+                
+                <td className="py-3 px-4 border-b">{kyc?.licenseNumber}</td>
+                <td className="py-3 px-4 border-b">{kyc?.address}</td>
+                <td className="py-3 px-4 border-b">{kyc?.vehicleType}</td>
+                <td className="py-3 px-4 border-b">
+                  <img
+                    src={kyc?.frontPhoto} // Profile Photo
+                    alt="Profile"
+                    className="w-16 h-16 rounded-full object-cover"
+                  />
+                </td>
+                <td className="py-3 px-4 border-b">
+                  <img
+                    src={kyc?.vehiclePhoto} // Vehicle Photo
+                    alt="Vehicle"
+                    className="w-16 h-16 rounded-full object-cover"
+                  />
+                </td>
+                <td className="py-3 px-4 border-b">
+                  <img
+                    src={`kyc?.ownerDetailPhoto}`} // Owner Detail Photo
+                    alt="Owner Detail"
+                    className="w-16 h-16 rounded-full object-cover"
+                  />
+                </td>
+                <td className="py-3 px-4 border-b">
+                  <button
+                    className="bg-blue-500 text-white px-3 py-1 rounded hover:bg-blue-600 transition-colors"
+                    onClick={() => handleVerify(kyc.userId)}
+                  >
+                    Verify
+                  </button>
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
   );
 };
 
