@@ -1,6 +1,7 @@
-import React, { useEffect, useState } from "react";
+
+import { useEffect, useState } from "react";
 import { Mail, Lock } from "lucide-react";
-import { Toaster,toast } from 'sonner';
+import { Toaster, toast } from "sonner";
 import { loginUser } from "../Slices/authSlice";
 import { useDispatch, useSelector } from "react-redux";
 import { useNavigate } from "react-router-dom";
@@ -15,14 +16,15 @@ const LoginForm = () => {
   const { email, password } = credentials;
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
- 
-    const { isAuthenticated } = useSelector((state) => state?.auth);
-  
-    useEffect(() => {
-      if (!isAuthenticated) {
-        navigate("/login"); // Redirect to login if not authenticated
-      }
-    }, [isAuthenticated, navigate]);
+
+  const { isAuthenticated, isLoading } = useSelector((state) => state?.auth);
+
+  useEffect(() => {
+    // Redirect to dashboard if authenticated
+    if (isAuthenticated) {
+      navigate("/dashboard");
+    }
+  }, [isAuthenticated, navigate]);
 
   const handleChange = (e) => {
     setCredentials({ ...credentials, [e.target.name]: e.target.value });
@@ -38,51 +40,71 @@ const LoginForm = () => {
 
     if (!email || !password) {
       toast.error("Please enter your email and password to login");
+      setLoading(false);
+      return;
     }
 
     try {
-      const response = await dispatch(loginUser(credentials));
+      console.log("Submitting login with credentials:", {
+        email,
+        password: "***",
+      });
+      const resultAction = await dispatch(loginUser(credentials));
 
-      console.log("The response in the login form is", response);
+      console.log("Login result action:", resultAction);
 
-      if (response.payload.status === 200) {
-        toast.success("Login successful!");
-        navigate("/driverregistration"); // Redirect to profile setup after login
-      } else {
-        const errorMessage =
-          response.payload.details?.ErrorMessage?.[0]?.message ||
-          "Server Error. Please try again.";
+      // Check if the action was fulfilled or rejected
+      if (loginUser.fulfilled.match(resultAction)) {
+        // Success case
+        const response = resultAction.payload;
+        console.log("Login success response:", response);
+
+        if (response && response.IsSuccess) {
+          toast.success("Login successful!");
+          navigate("/dashboard");
+        } else {
+          // API returned success: false
+          console.log("Login API returned IsSuccess=false");
+          const errorMessage =
+            response?.ErrorMessage ||
+            response?.message ||
+            "Login failed. Please try again.";
           toast.error(errorMessage);
+        }
+      } else if (loginUser.rejected.match(resultAction)) {
+        // Error case - handle the rejection
+        console.log(
+          "Login rejected:",
+          resultAction.payload,
+          resultAction.error
+        );
+        const error = resultAction.payload;
+
+        // Display formatted error message
+        const errorMessage =
+          error?.ErrorMessage?.[0]?.message ||
+          error?.message ||
+          "Login failed. Please check your credentials and try again.";
+
+        toast.error(errorMessage);
       }
     } catch (error) {
-      console.error("Login error:", error);
-
-      if (error.response) {
-        toast.error(
-          error.response.data?.ErrorMessage?.[0]?.message ||
-            "An unexpected error occurred."
-        );
-      } else {
-        toast.error("Network error, please try again.");
-      }
+      console.error("Login unexpected error:", error);
+      toast.error("An unexpected error occurred. Please try again.");
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="w-full">
-    <Toaster position="top-right" />
-    {loading && (
+    <div className="w-full relative">
+      <Toaster position="top-right" />
+      {(loading || isLoading) && (
         <div className="absolute inset-0 flex items-center justify-center bg-white bg-opacity-70 rounded-xl">
           <div className="loader ease-linear border-4 border-t-4 border-green-500 h-10 w-10 rounded-full animate-spin"></div>
         </div>
       )}
-      <form
-        className="space-y-6"
-        onChange={handleChange}
-        onSubmit={handleSubmit}
-      >
+      <form className="space-y-6" onSubmit={handleSubmit}>
         <div className="relative group">
           <div className="absolute left-3 top-1/2 -mt-2.5 text-gray-400 group-focus-within:text-green-600 transition-colors">
             <Mail size={20} />
@@ -92,6 +114,7 @@ const LoginForm = () => {
             id="email"
             name="email"
             value={credentials.email}
+            onChange={handleChange}
             className="w-full px-10 py-3 bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all duration-200 text-gray-800 placeholder-gray-400"
             placeholder="Email"
             required
@@ -108,6 +131,7 @@ const LoginForm = () => {
             id="password"
             name="password"
             value={credentials.password}
+            onChange={handleChange}
             className="w-full px-10 py-3 bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all duration-200 text-gray-800 placeholder-gray-400"
             placeholder="Password"
             required
@@ -162,9 +186,9 @@ const LoginForm = () => {
         <button
           type="submit"
           className="w-full py-3 px-4 bg-gradient-to-r from-green-600 to-green-700 text-white font-medium rounded-lg hover:from-green-700 hover:to-green-800 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 transform transition-all duration-200 hover:scale-[1.02] disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
-          disabled={loading}
+          disabled={loading || isLoading}
         >
-          {loading ? (
+          {loading || isLoading ? (
             <div className="flex items-center justify-center space-x-2">
               <div className="w-5 h-5 border-t-2 border-b-2 border-white rounded-full animate-spin"></div>
               <span>Signing in...</span>

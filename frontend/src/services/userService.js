@@ -1,6 +1,7 @@
 // services/userService.js
 
-import axiosInstance from '../utils/axiosInstance'; // Assuming you have an axios instance configured
+import axiosInstance from '../utils/axiosInstance'; 
+// Assuming you have an axios instance configured
 
 export const fetchUserProfile = async (userId) => {
   try {

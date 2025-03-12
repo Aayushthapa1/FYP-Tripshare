@@ -1,6 +1,6 @@
 import bcrypt from "bcryptjs";
 import cookie from "cookie";
-import User from "../models/user.model.js";
+import User from "../models/userModel.js";
 import {
   registerUserSchema,
   loginUserSchema,

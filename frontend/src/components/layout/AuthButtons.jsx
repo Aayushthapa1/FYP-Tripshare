@@ -60,11 +60,7 @@ export default function AuthButtons({ isScrolled }) {
         </div>
       )}
 
-      {/* Profile Modal */}
-      {/* <ProfileModal
-        isOpen={showProfileModal}
-        onClose={() => setShowProfileModal(false)}
-      /> */}
+     
     </>
   );
 }

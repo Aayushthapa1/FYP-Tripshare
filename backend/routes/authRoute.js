@@ -11,7 +11,7 @@ import {
   resetPassword
 
 
-} from "../controllers/user.controller.js";
+} from "../controllers/userController.js";
 import protectRoute from "../middlewares/protectRoute.js";
 import refreshAccessToken from "../utils/refreshAccessToken.js";
 import { createResponse } from "../utils/responseHelper.js";

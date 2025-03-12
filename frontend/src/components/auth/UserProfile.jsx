@@ -1,168 +1,336 @@
-import React, { useEffect, useState } from "react";
+
+import { useEffect, useState } from "react";
 import { useDispatch, useSelector } from "react-redux";
+import { useNavigate, useParams } from "react-router-dom";
 import {
   getUserProfile,
-  updateUserProfile,
-} from "../../features/user/userSlice";
+  updateUserProfileAction,
+} from "../Slices/userSlice.js";
+import {
+  User,
+  Mail,
+  Phone,
+  MapPin,
+  Edit,
+  Save,
+  X,
+  Home,
+  ChevronLeft,
+} from "lucide-react";
 
 const UserProfile = () => {
+  const navigate = useNavigate();
+  const { userId } = useParams(); // Get userId from URL
   const dispatch = useDispatch();
-  const [isEditing, setIsEditing] = useState(false);
+  const { loading, error } = useSelector((state) => state.user);
+  const userData = useSelector(
+    (state) => state.user?.userData?.Result?.user_data
+  );
 
-  useEffect(() => {
-    dispatch(getUserProfile());
-  }, [dispatch]);
-
-  const userDetails = useSelector((state) => state?.userProfile?.user);
-
+  // State for edit mode and form data
+  const [isEditMode, setIsEditMode] = useState(false);
   const [formData, setFormData] = useState({
     fullName: "",
-    userName: "",
+    email: "",
+    phoneNumber: "",
     address: "",
   });
 
-  // Update formData when userDetails is fetched
+  // Pre-fill form data when userData changes
   useEffect(() => {
-    if (userDetails) {
+    if (userData) {
       setFormData({
-        fullName: userDetails.fullName || "",
-        userName: userDetails.userName || "",
-        address: userDetails.address || "",
+        fullName: userData.fullName || "",
+        email: userData.email || "",
+        phoneNumber: userData.phoneNumber || "",
+        address: userData.address || "",
       });
     }
-  }, [userDetails]);
+  }, [userData]);
 
+  // Fetch user profile when userId changes
+  useEffect(() => {
+    if (userId) {
+      dispatch(getUserProfile(userId));
+    }
+  }, [dispatch, userId]);
+
+  // Handle form input changes
   const handleInputChange = (e) => {
     const { name, value } = e.target;
-    setFormData((prev) => ({
-      ...prev,
+    setFormData((prevData) => ({
+      ...prevData,
       [name]: value,
     }));
   };
 
-  const handleSave = async () => {
-    const response = await dispatch(updateUserProfile(formData)).unwrap();
-    console.log("The response is", response);
-    setIsEditing(false);
-    dispatch(getUserProfile());
-    console.log("Updated Data:", formData);
-    setIsEditing(false);
+  // Handle form submission
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    if (userId) {
+      dispatch(updateUserProfileAction({ userId, userData: formData }));
+      setIsEditMode(false); // Exit edit mode after saving
+    }
   };
 
-  if (!userDetails) {
-    return <div>Loading...</div>;
+  // Get user initials for avatar
+  const getInitials = () => {
+    if (userData?.fullName) {
+      const nameParts = userData.fullName.split(" ");
+      if (nameParts.length >= 2) {
+        return `${nameParts[0].charAt(0)}${nameParts[1].charAt(
+          0
+        )}`.toUpperCase();
+      }
+      return userData.fullName.charAt(0).toUpperCase();
+    }
+    return "U";
+  };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="flex flex-col items-center">
+          <div className="w-12 h-12 border-4 border-green-600 border-t-transparent rounded-full animate-spin"></div>
+          <p className="mt-4 text-gray-600 font-medium">Loading profile...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="bg-white p-8 rounded-xl shadow-lg max-w-md w-full">
+          <div className="flex flex-col items-center">
+            <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mb-4">
+              <X className="w-8 h-8 text-red-600" />
+            </div>
+            <h2 className="text-2xl font-bold text-gray-800 mb-2">
+              Error Loading Profile
+            </h2>
+            <p className="text-center text-gray-600 mb-6">{error}</p>
+            <button
+              onClick={() => navigate("/")}
+              className="px-6 py-2 bg-green-600 text-white font-medium rounded-lg hover:bg-green-700 transition-all duration-200 flex items-center"
+            >
+              <Home className="w-4 h-4 mr-2" /> Return Home
+            </button>
+          </div>
+        </div>
+      </div>
+    );
   }
 
   return (
-    <div className="container mx-auto px-4 py-8 max-w-md">
-      <div className="bg-white shadow-md rounded-lg overflow-hidden">
+    <div className="min-h-screen bg-gray-50 py-8 px-4 sm:px-6 lg:px-8">
+      {/* Navigation Header */}
+      <div className="max-w-4xl mx-auto mb-6">
+        <div className="flex items-center justify-between">
+          <button
+            onClick={() => navigate("/")}
+            className="flex items-center text-gray-600 hover:text-gray-900 transition-colors"
+          >
+            <ChevronLeft className="w-5 h-5 mr-1" />
+            <span className="font-medium">Back to Home</span>
+          </button>
+        </div>
+      </div>
+
+      <div className="max-w-4xl mx-auto bg-white rounded-xl shadow-md overflow-hidden">
         {/* Profile Header */}
-        <div className="bg-gray-50 px-6 py-4 border-b">
-          <div className="flex items-center">
-            <div className="w-16 h-16 bg-gray-200 rounded-full flex items-center justify-center mr-4">
-              <span className="text-2xl font-bold text-gray-600">
-                {userDetails?.fullName?.charAt(0)}
-              </span>
+        <div className="bg-gradient-to-r from-green-500 to-green-600 px-6 py-8 sm:px-8">
+          <div className="flex flex-col sm:flex-row items-center sm:items-start gap-6">
+            <div className="w-24 h-24 rounded-full bg-white flex items-center justify-center text-green-600 font-bold text-2xl shadow-md">
+              {getInitials()}
             </div>
-            <div>
-              <h2 className="text-xl font-semibold text-gray-800">
-                {userDetails?.fullName}
-              </h2>
-              <p className="text-gray-500 text-sm">@{userDetails?.userName}</p>
+            <div className="text-center sm:text-left">
+              <h1 className="text-2xl sm:text-3xl font-bold text-white">
+                {userData?.fullName || "User Profile"}
+              </h1>
+              <p className="text-blue-100 mt-1">
+                {userData?.role
+                  ? `${
+                      userData.role.charAt(0).toUpperCase() +
+                      userData.role.slice(1)
+                    }`
+                  : "User"}
+              </p>
             </div>
           </div>
         </div>
 
         {/* Profile Content */}
-        <div className="p-6">
-          {isEditing ? (
-            // Edit Mode
-            <div className="space-y-4">
-              <div>
-                <label className="block text-gray-700 mb-2">Full Name</label>
-                <input
-                  type="text"
-                  name="fullName"
-                  value={formData.fullName}
-                  onChange={handleInputChange}
-                  className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
+        <div className="p-6 sm:p-8">
+          {isEditMode ? (
+            // Edit Mode: Show Form
+            <form onSubmit={handleSubmit} className="space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-6">
+                <div className="space-y-2">
+                  <label className="flex items-center text-sm font-medium text-gray-700">
+                    <User className="w-4 h-4 mr-2 text-gray-500" />
+                    Full Name
+                  </label>
+                  <input
+                    type="text"
+                    name="fullName"
+                    value={formData.fullName}
+                    onChange={handleInputChange}
+                    className="block w-full px-4 py-3 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-colors"
+                    placeholder="Enter your full name"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="flex items-center text-sm font-medium text-gray-700">
+                    <Mail className="w-4 h-4 mr-2 text-gray-500" />
+                    Email
+                  </label>
+                  <input
+                    type="email"
+                    name="email"
+                    value={formData.email}
+                    onChange={handleInputChange}
+                    className="block w-full px-4 py-3 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-colors bg-gray-50 cursor-not-allowed"
+                    disabled // Email cannot be updated
+                  />
+                  <p className="text-xs text-gray-500 mt-1">
+                    Email cannot be changed
+                  </p>
+                </div>
+                <div className="space-y-2">
+                  <label className="flex items-center text-sm font-medium text-gray-700">
+                    <Phone className="w-4 h-4 mr-2 text-gray-500" />
+                    Phone Number
+                  </label>
+                  <input
+                    type="text"
+                    name="phoneNumber"
+                    value={formData.phoneNumber}
+                    onChange={handleInputChange}
+                    className="block w-full px-4 py-3 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-colors"
+                    placeholder="Enter your phone number"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="flex items-center text-sm font-medium text-gray-700">
+                    <MapPin className="w-4 h-4 mr-2 text-gray-500" />
+                    Address
+                  </label>
+                  <input
+                    type="text"
+                    name="address"
+                    value={formData.address}
+                    onChange={handleInputChange}
+                    className="block w-full px-4 py-3 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-colors"
+                    placeholder="Enter your address"
+                  />
+                </div>
               </div>
-              <div>
-                <label className="block text-gray-700 mb-2">Username</label>
-                <input
-                  type="text"
-                  name="userName"
-                  value={formData.userName}
-                  onChange={handleInputChange}
-                  className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-              <div>
-                <label className="block text-gray-700 mb-2">Address</label>
-                <textarea
-                  name="address"
-                  value={formData.address}
-                  onChange={handleInputChange}
-                  className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  rows={3}
-                />
-              </div>
-            </div>
-          ) : (
-            // View Mode
-            <div className="space-y-4">
-              <div className="bg-gray-50 p-3 rounded-md">
-                <span className="text-gray-600 text-sm block mb-1">
-                  Full Name
-                </span>
-                <p className="text-gray-800">{userDetails?.fullName}</p>
-              </div>
-              <div className="bg-gray-50 p-3 rounded-md">
-                <span className="text-gray-600 text-sm block mb-1">
-                  Username
-                </span>
-                <p className="text-gray-800">@{userDetails?.userName}</p>
-              </div>
-              <div className="bg-gray-50 p-3 rounded-md">
-                <span className="text-gray-600 text-sm block mb-1">Email</span>
-                <p className="text-gray-800">{userDetails?.email}</p>
-              </div>
-              <div className="bg-gray-50 p-3 rounded-md">
-                <span className="text-gray-600 text-sm block mb-1">
-                  Address
-                </span>
-                <p className="text-gray-800">{userDetails?.address}</p>
-              </div>
-            </div>
-          )}
 
-          {/* Action Buttons */}
-          <div className="mt-6">
-            {isEditing ? (
-              <div className="flex space-x-4">
+              {/* Save and Cancel Buttons */}
+              <div className="flex flex-col sm:flex-row gap-3 sm:justify-end pt-4 border-t border-gray-100">
                 <button
-                  onClick={handleSave}
-                  className="flex-1 bg-blue-600 text-white py-2 rounded-md hover:bg-blue-700 transition"
+                  type="button"
+                  onClick={() => setIsEditMode(false)}
+                  className="px-6 py-2.5 bg-white border border-gray-300 text-gray-700 font-medium rounded-lg hover:bg-gray-50 transition-all duration-200 flex items-center justify-center"
                 >
-                  Save Changes
-                </button>
-                <button
-                  onClick={() => setIsEditing(false)}
-                  className="flex-1 bg-gray-200 text-gray-700 py-2 rounded-md hover:bg-gray-300 transition"
-                >
+                  <X className="w-4 h-4 mr-2" />
                   Cancel
                 </button>
+                <button
+                  type="submit"
+                  className="px-6 py-2.5 bg-green-600 text-white font-medium rounded-lg hover:bg-green-700 transition-all duration-200 flex items-center justify-center"
+                >
+                  <Save className="w-4 h-4 mr-2" />
+                  Save Changes
+                </button>
               </div>
-            ) : (
-              <button
-                onClick={() => setIsEditing(true)}
-                className="w-full bg-gray-900 text-white py-2 rounded-md hover:bg-gray-800 transition"
-              >
-                Edit Profile
-              </button>
-            )}
-          </div>
+            </form>
+          ) : (
+            // View Mode: Show User Details
+            <>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-6">
+                <div className="space-y-2">
+                  <label className="flex items-center text-sm font-medium text-gray-500">
+                    <User className="w-4 h-4 mr-2" />
+                    Full Name
+                  </label>
+                  <p className="text-lg text-gray-900 font-medium">
+                    {userData?.fullName || "Not provided"}
+                  </p>
+                </div>
+                <div className="space-y-2">
+                  <label className="flex items-center text-sm font-medium text-gray-500">
+                    <Mail className="w-4 h-4 mr-2" />
+                    Email
+                  </label>
+                  <p className="text-lg text-gray-900 font-medium">
+                    {userData?.email || "Not provided"}
+                  </p>
+                </div>
+                <div className="space-y-2">
+                  <label className="flex items-center text-sm font-medium text-gray-500">
+                    <Phone className="w-4 h-4 mr-2" />
+                    Phone Number
+                  </label>
+                  <p className="text-lg text-gray-900 font-medium">
+                    {userData?.phoneNumber || "Not provided"}
+                  </p>
+                </div>
+                <div className="space-y-2">
+                  <label className="flex items-center text-sm font-medium text-gray-500">
+                    <MapPin className="w-4 h-4 mr-2" />
+                    Address
+                  </label>
+                  <p className="text-lg text-gray-900 font-medium">
+                    {userData?.address || "Not provided"}
+                  </p>
+                </div>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex flex-col sm:flex-row gap-3 sm:justify-end pt-6 mt-6 border-t border-gray-100">
+                <button
+                  onClick={() => setIsEditMode(true)}
+                  className="px-6 py-2.5 bg-green-600 text-white font-medium rounded-lg hover:bg-green-700 transition-all duration-200 flex items-center justify-center"
+                >
+                  <Edit className="w-4 h-4 mr-2" />
+                  Edit Profile
+                </button>
+                <button
+                  onClick={() => navigate("/")}
+                  className="px-6 py-2.5 bg-white border border-gray-300 text-gray-700 font-medium rounded-lg hover:bg-gray-50 transition-all duration-200 flex items-center justify-center"
+                >
+                  <Home className="w-4 h-4 mr-2" />
+                  Back to Home
+                </button>
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+
+      {/* Additional Navigation */}
+      <div className="max-w-4xl mx-auto mt-6 flex justify-center">
+        <div className="flex flex-wrap gap-3 justify-center">
+          <button
+            onClick={() => navigate("/trips")}
+            className="px-4 py-2 bg-white border border-gray-300 text-gray-700 font-medium rounded-lg hover:bg-gray-50 transition-all duration-200 text-sm"
+          >
+            View Trips
+          </button>
+          <button
+            onClick={() => navigate("/payment")}
+            className="px-4 py-2 bg-white border border-gray-300 text-gray-700 font-medium rounded-lg hover:bg-gray-50 transition-all duration-200 text-sm"
+          >
+            Payment Methods
+          </button>
+          <button
+            onClick={() => navigate("/contact")}
+            className="px-4 py-2 bg-white border border-gray-300 text-gray-700 font-medium rounded-lg hover:bg-gray-50 transition-all duration-200 text-sm"
+          >
+            Contact Support
+          </button>
         </div>
       </div>
     </div>

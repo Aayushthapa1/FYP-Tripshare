@@ -7,31 +7,45 @@ import {
   updateTrip,
   deleteTrip,
   searchTrips,
+  bookSeat
 } from "../controllers/tripController.js";
 import protectRoute from "../middlewares/protectRoute.js";
 import { authorizeRole } from "../middlewares/roleAuth.js";
 
 const router = express.Router();
 
-// Create a trip (only drivers can create trips)
-router.post("/create",  createTrip);
+const validateSearchParams = (req, res, next) => {
+  const { availableSeats } = req.query;
+  if (availableSeats && isNaN(availableSeats)) {
+    return res
+      .status(400)
+      .json({ error: "availableSeats must be a number" });
+  }
+  next();
+};
 
-// Get all trips (public route)
+// Create trip (driver only)
+router.post("/create", protectRoute, authorizeRole("driver"), createTrip);
+
+// Book seat (any logged-in user)
+router.post("/:tripId/book-seat", protectRoute, bookSeat);
+
+// List all trips (public)
 router.get("/all", getAllTrips);
 
-// Search trips (public route)
-router.get("/search", searchTrips);
+// Search trips (public)
+router.get("/search", validateSearchParams, searchTrips);
 
-// Get driver's trips (driver only)
+// My trips (driver only)
 router.get("/my-trips", protectRoute, authorizeRole("driver"), getDriverTrips);
 
-// Get single trip
+// Single trip (public)
 router.get("/:tripId", getTripById);
 
 // Update trip (driver only)
-router.put("/:tripId", updateTrip);
+router.put("/:tripId", protectRoute, authorizeRole("driver"), updateTrip);
 
 // Delete trip (driver only)
-router.delete("/:tripId",  deleteTrip);
+router.delete("/:tripId", protectRoute, authorizeRole("driver"), deleteTrip);
 
 export default router;

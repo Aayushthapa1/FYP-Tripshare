@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from "react";
 import driverService from "../../services/driverService";
-import { toast } from "react-toastify";
-import "react-toastify/dist/ReactToastify.css";
+import { Toaster, toast } from "sonner";
 
 const KYCForm = () => {
   const [activeTab, setActiveTab] = useState("personal");
@@ -145,6 +144,7 @@ const KYCForm = () => {
 
   return (
     <div className="max-w-4xl mx-auto p-6 bg-white shadow-lg rounded-lg">
+      <Toaster position="top-right" richColors />
       <h1 className="text-2xl font-bold mb-6 text-center">
         Driver Registration Form
       </h1>
@@ -450,6 +450,7 @@ const KYCForm = () => {
           </button>
         </div>
       </form>
+
     </div>
   );
 };

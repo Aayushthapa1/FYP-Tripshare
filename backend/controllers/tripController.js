@@ -1,9 +1,24 @@
 import Trip from "../models/TripModel.js";
+import User from "../models/UserModel.js"; // ensure correct import name/path
 import { createResponse } from "../utils/responseHelper.js";
-// Create a new trip
 
+/**
+ * CREATE a new trip (driver only)
+ */
 export const createTrip = async (req, res, next) => {
   try {
+    // The driver is the logged-in user
+    const userId = req.user._id;
+    console.log("Driver ID:", userId);
+
+    const user = await User.findById(userId);
+    if (!user) {
+      return res
+        .status(404)
+        .json(createResponse(404, false, [{ message: "Driver (User) not found" }]));
+    }
+
+    // Destructure input
     const {
       departureLocation,
       destinationLocation,
@@ -12,65 +27,23 @@ export const createTrip = async (req, res, next) => {
       price,
       availableSeats,
       description,
-      vehicleDetails,
-      preferences,
+      vehicleDetails, // { vehicleType, model, color, plateNumber }
+      preferences,    // { smoking, pets, music }
     } = req.body;
 
-    // Validate required fields
-    if (
-      !departureLocation ||
-      !destinationLocation ||
-      !departureDate ||
-      !departureTime ||
-      !price ||
-      !availableSeats ||
-      !vehicleDetails?.model ||
-      !vehicleDetails?.color ||
-      !vehicleDetails?.plateNumber
-    ) {
-      return res
-        .status(400)
-        .json(
-          createResponse(400, false, [
-            { message: "Please provide all required fields including vehicle details" },
-          ])
-        );
-    }
-
-    // Validate numerical values
-    const priceNum = Number(price);
-    const seatsNum = Number(availableSeats);
-    if (isNaN(priceNum)) {
-      return res
-        .status(400)
-        .json(createResponse(400, false, [{ message: "Price must be a number" }]));
-    }
-    if (isNaN(seatsNum)) {
-      return res
-        .status(400)
-        .json(createResponse(400, false, [{ message: "Available seats must be a number" }]));
-    }
-    if (seatsNum < 1) {
-      return res
-        .status(400)
-        .json(createResponse(400, false, [{ message: "Available seats must be at least 1" }]));
-    }
-
-    // Validate departure date
-    const departureDateObj = new Date(departureDate);
-    if (departureDateObj <= new Date()) {
-      return res
-        .status(400)
-        .json(createResponse(400, false, [{ message: "Departure date must be in the future" }]));
-    }
-
+    // Create
     const newTrip = await Trip.create({
+      driver: {
+        _id: user._id,
+        name: user.fullName || user.name || "Unnamed Driver",
+        phoneNumber: user.phoneNumber || "N/A",
+      },
       departureLocation,
       destinationLocation,
-      departureDate: departureDateObj,
+      departureDate,
       departureTime,
-      price: priceNum,
-      availableSeats: seatsNum,
+      price,
+      availableSeats,
       description,
       vehicleDetails,
       preferences,
@@ -83,174 +56,211 @@ export const createTrip = async (req, res, next) => {
       })
     );
   } catch (error) {
+    console.error("Error in createTrip:", error);
     next(error);
   }
 };
 
-// Get all trips
+/**
+ * BOOK a seat on a trip (any authenticated user except the driver)
+ */
+export const bookSeat = async (req, res, next) => {
+  try {
+    const userId = req.user._id;
+    const { tripId } = req.params;
+
+    const trip = await Trip.findById(tripId);
+    if (!trip) {
+      return res
+        .status(404)
+        .json(createResponse(404, false, [{ message: "Trip not found" }]));
+    }
+
+    // If you're the driver, can't book your own
+    if (trip.driver && trip.driver._id.toString() === userId.toString()) {
+      return res
+        .status(400)
+        .json(
+          createResponse(400, false, [{ message: "Driver cannot book own trip" }])
+        );
+    }
+
+    // Check seats
+    if (trip.availableSeats < 1) {
+      return res
+        .status(400)
+        .json(
+          createResponse(400, false, [{ message: "No seats left for this trip" }])
+        );
+    }
+
+    // Already booked?
+    const alreadyBooked = trip.bookedSeats.some(
+      (bookedUserId) => bookedUserId.toString() === userId.toString()
+    );
+    if (alreadyBooked) {
+      return res
+        .status(400)
+        .json(createResponse(400, false, [{ message: "Already booked" }]));
+    }
+
+    trip.bookedSeats.push(userId);
+    trip.availableSeats -= 1;
+    await trip.save();
+
+    return res
+      .status(200)
+      .json(createResponse(200, true, [], { message: "Seat booked", trip }));
+  } catch (error) {
+    console.error("Error in bookSeat:", error);
+    next(error);
+  }
+};
+
+/**
+ * GET all trips
+ */
 export const getAllTrips = async (req, res, next) => {
   try {
-    const trips = await Trip.find()
-      .populate("driver", "fullName phoneNumber")
-      .sort({ departureDate: 1 });
-
-    return res.status(200).json(
-      createResponse(200, true, [], {
-        trips,
-      })
-    );
+    const trips = await Trip.find().sort({ departureDate: 1 });
+    return res.status(200).json(createResponse(200, true, [], { trips }));
   } catch (error) {
+    console.error("Error in getAllTrips:", error);
     next(error);
   }
 };
 
-// Get trips by driver
-export const getDriverTrips = async (req, res, next) => {
-  try {
-    const trips = await Trip.find({ driver: req.user._id }).sort({
-      departureDate: 1,
-    });
-
-    return res.status(200).json(
-      createResponse(200, true, [], {
-        trips,
-      })
-    );
-  } catch (error) {
-    next(error);
-  }
-};
-
-// Get single trip
+/**
+ * GET single trip by ID
+ */
 export const getTripById = async (req, res, next) => {
   try {
-    const trip = await Trip.findById(req.params.tripId).populate(
-      "driver",
-      "fullName phoneNumber"
-    );
-
+    const { tripId } = req.params;
+    const trip = await Trip.findById(tripId);
     if (!trip) {
       return res
         .status(404)
         .json(createResponse(404, false, [{ message: "Trip not found" }]));
     }
-
-    return res.status(200).json(
-      createResponse(200, true, [], {
-        trip,
-      })
-    );
+    return res.status(200).json(createResponse(200, true, [], { trip }));
   } catch (error) {
+    console.error("Error in getTripById:", error);
     next(error);
   }
 };
 
-// Update trip
+/**
+ * UPDATE a trip (driver only)
+ */
 export const updateTrip = async (req, res, next) => {
-  console.log("entered the uodate trip")
-
   try {
-    const trip = await Trip.findById(req.params.tripId);
-    console.log("The trip is", trip)
+    const driverId = req.user._id;
+    const { tripId } = req.params;
+
+    const trip = await Trip.findById(tripId);
     if (!trip) {
       return res
         .status(404)
         .json(createResponse(404, false, [{ message: "Trip not found" }]));
     }
 
-    // Check if the user is the trip driver
-    // if (trip.driver.toString() !== req.user._id.toString()) {
-    //   return res
-    //     .status(403)
-    //     .json(
-    //       createResponse(403, false, [
-    //         { message: "Not authorized to update this trip" },
-    //       ])
-    //     );
-    // }
+    if (trip.driver._id.toString() !== driverId.toString()) {
+      return res
+        .status(403)
+        .json(createResponse(403, false, [{ message: "Not authorized" }]));
+    }
 
-    const updatedTrip = await Trip.findByIdAndUpdate(
-      req.params.tripId,
-      req.body,
-      { new: true }
-    );
+    // optionally block direct driver overrides
+    delete req.body.driver;
 
-    return res.status(200).json(
-      createResponse(200, true, [], {
-        message: "Trip updated successfully",
-        trip: updatedTrip,
-      })
-    );
+    if (req.body.departureDate) {
+      const newDate = new Date(req.body.departureDate);
+      if (newDate <= new Date()) {
+        return res
+          .status(400)
+          .json(createResponse(400, false, [
+            { message: "Departure date must be in the future" }
+          ]));
+      }
+    }
+
+    Object.assign(trip, req.body);
+    await trip.save();
+
+    return res
+      .status(200)
+      .json(
+        createResponse(200, true, [], { message: "Trip updated", trip })
+      );
   } catch (error) {
+    console.error("Error in updateTrip:", error);
     next(error);
   }
 };
-  
-// Delete trip
+
+/**
+ * DELETE a trip (driver only)
+ */
 export const deleteTrip = async (req, res, next) => {
   try {
-    const trip = await Trip.findById(req.params.tripId).populate("driver");
-    console.log(trip)
+    const driverId = req.user._id;
+    const { tripId } = req.params;
 
+    const trip = await Trip.findById(tripId);
     if (!trip) {
       return res
         .status(404)
         .json(createResponse(404, false, [{ message: "Trip not found" }]));
     }
 
-    // if (!trip.driver || !trip.driver._id) {
-    //   return res.status(400).json(
-    //     createResponse(400, false, [
-    //       { message: "Driver not associated with this trip" }
-    //     ])
-    //   );
-    // }
-
-    // if (trip.driver._id.toString() !== req.user._id.toString()) {
-    //   return res
-    //     .status(403)
-    //     .json(
-    //       createResponse(403, false, [
-    //         { message: "Not authorized to delete this trip" },
-    //       ])
-    //     );
-    // }
+    if (trip.driver._id.toString() !== driverId.toString()) {
+      return res
+        .status(403)
+        .json(createResponse(403, false, [{ message: "Not authorized" }]));
+    }
 
     if (trip.bookedSeats.length > 0) {
       return res
         .status(400)
         .json(
           createResponse(400, false, [
-            { message: "Cannot delete trip with existing bookings" },
+            { message: "Cannot delete trip with bookings" }
           ])
         );
     }
 
-    await Trip.findByIdAndDelete(req.params.tripId);
-    return res.status(200).json(
-      createResponse(200, true, [], {
-        message: "Trip deleted successfully",
-      })
-    );
+    await Trip.findByIdAndDelete(tripId);
+    return res
+      .status(200)
+      .json(createResponse(200, true, [], { message: "Trip deleted" }));
   } catch (error) {
+    console.error("Error in deleteTrip:", error);
     next(error);
   }
 };
 
-// Search trips
+/**
+ * GET trips for the driver
+ */
+export const getDriverTrips = async (req, res, next) => {
+  try {
+    const userId = req.user._id;
+    const trips = await Trip.find({ "driver._id": userId });
+    return res.status(200).json(createResponse(200, true, [], { trips }));
+  } catch (error) {
+    console.error("Error in getDriverTrips:", error);
+    next(error);
+  }
+};
+
+/**
+ * SEARCH trips
+ */
 export const searchTrips = async (req, res, next) => {
   try {
-    const {
-      departureLocation,
-      destinationLocation,
-      departureDate,
-      availableSeats,
-    } = req.query;
+    const { departureLocation, destinationLocation, departureDate, availableSeats } = req.query;
 
-    const query = {
-      status: "scheduled",
-    };
-
+    const query = {};
     if (departureLocation) {
       query.departureLocation = { $regex: departureLocation, $options: "i" };
     }
@@ -258,30 +268,19 @@ export const searchTrips = async (req, res, next) => {
       query.destinationLocation = { $regex: destinationLocation, $options: "i" };
     }
     if (departureDate) {
-      // Match trips on the same date regardless of time
       const date = new Date(departureDate);
-      const nextDate = new Date(date);
-      nextDate.setDate(nextDate.getDate() + 1);
-
-      query.departureDate = {
-        $gte: date,
-        $lt: nextDate,
-      };
+      const nextDay = new Date(date);
+      nextDay.setDate(nextDay.getDate() + 1);
+      query.departureDate = { $gte: date, $lt: nextDay };
     }
     if (availableSeats) {
       query.availableSeats = { $gte: parseInt(availableSeats) };
     }
 
-    const trips = await Trip.find(query)
-      .populate("driver", "fullName phoneNumber")
-      .sort({ departureDate: 1 });
-
-    return res.status(200).json(
-      createResponse(200, true, [], {
-        trips,
-      })
-    );
+    const trips = await Trip.find(query).sort({ departureDate: 1 });
+    return res.status(200).json(createResponse(200, true, [], { trips }));
   } catch (error) {
+    console.error("Error in searchTrips:", error);
     next(error);
   }
 };

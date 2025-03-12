@@ -4,7 +4,7 @@ import connectToDB from "./utils/connectToDB.js";
 import http from "http";
 import { Server } from "socket.io";
 import Ride from "./models/handleRideModel.js";
-import UserModel from "./models/user.model.js"
+import UserModel from "./models/userModel.js"
 import DriverModel from "./models/driverModel.js"
  // Ensure the Ride model is imported
 

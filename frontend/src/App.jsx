@@ -1,3 +1,4 @@
+
 // src/App.jsx
 import React, { useEffect } from "react";
 import {
@@ -8,12 +9,12 @@ import {
 } from "react-router-dom";
 import { useDispatch, useSelector } from "react-redux";
 import { ToastContainer } from "react-toastify";
-import "react-toastify/dist/ReactToastify.css";
+
 
 // Layout / Shared
 import Navbar from "./components/layout/Navbar";
 import Footer from "./components/layout/Footer";
-import UserProfile from "./components/user/userProfile";
+import UserProfile from "./components/auth/userProfile.jsx";
 // import MultiStepForm from "./components/layout/MultiStepForm";
 
 
@@ -201,3 +202,5 @@ function App() {
 }
 
 export default App;
+
+

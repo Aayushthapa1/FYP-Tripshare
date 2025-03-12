@@ -2,9 +2,21 @@ import mongoose from "mongoose";
 
 const tripSchema = new mongoose.Schema(
   {
+    // Everything about the driver stored here
     driver: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "User",
+      _id: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "User",
+        required: true,
+      },
+      name: {
+        type: String,
+        required: true,
+      },
+      phoneNumber: {
+        type: String,
+        required: true,
+      },
     },
     departureLocation: {
       type: String,
@@ -19,7 +31,8 @@ const tripSchema = new mongoose.Schema(
       required: true,
       validate: {
         validator: function (value) {
-          return value > new Date(); // Ensure departureDate is in the future
+          // Must be strictly in the future
+          return value > new Date();
         },
         message: "Departure date must be in the future",
       },
@@ -27,16 +40,23 @@ const tripSchema = new mongoose.Schema(
     departureTime: {
       type: String,
       required: true,
+      validate: {
+        // Simple HH:MM (24-hour) format check
+        validator: function (v) {
+          return /^([01]\d|2[0-3]):([0-5]\d)$/.test(v);
+        },
+        message: "Invalid Time Format (must be HH:MM)",
+      },
     },
     price: {
       type: Number,
       required: true,
-      min: 0, // Ensure price is non-negative
+      min: 0, // ensure non-negative
     },
     availableSeats: {
       type: Number,
       required: true,
-      min: 1, // Ensure at least 1 seat is available
+      min: 1,
     },
     status: {
       type: String,
@@ -45,8 +65,15 @@ const tripSchema = new mongoose.Schema(
     },
     description: {
       type: String,
+      default: "",
     },
+    // Extended vehicle details
     vehicleDetails: {
+      vehicleType: {
+        type: String,
+        enum: ["car", "bike", "van", "auto", "other"],
+        default: "car",
+      },
       model: {
         type: String,
         required: true,
@@ -74,23 +101,17 @@ const tripSchema = new mongoose.Schema(
         default: false,
       },
     },
+    // Array of user IDs who have booked seats
     bookedSeats: [
       {
         type: mongoose.Schema.Types.ObjectId,
-        ref: "Nepride",
-        validate: {
-          validator: function (value) {
-            return !this.bookedSeats.includes(value); // Ensure no duplicate users
-          },
-          message: "User has already booked a seat",
-        },
+        ref: "User",
       },
     ],
   },
-  { timestamps: true } // Automatically manage createdAt and updatedAt fields
+  { timestamps: true }
 );
 
-// Define the Trip model using the schema
 const Trip = mongoose.model("Trip", tripSchema);
 
 export default Trip;

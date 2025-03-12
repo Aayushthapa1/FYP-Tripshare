@@ -21,9 +21,10 @@ export default function Navbar() {
     navigate(path);
   };
 
-
-  const userId = useSelector((state)=>state?.auth?.user)?._id;
-  const user = useSelector((state)=>state?.user?.userData?.Result?.user_data?.userName);
+  const userId = useSelector((state) => state?.auth?.user)?._id;
+  const user = useSelector(
+    (state) => state?.user?.userData?.Result?.user_data?.userName
+  );
   console.log(userId);
 
   useEffect(() => {
@@ -45,8 +46,7 @@ export default function Navbar() {
     setIsAuthenticated(false);
     setUserInfo(null);
     setIsUserMenuOpen(false);
-    navigate("/"); 
-
+    navigate("/");
   };
 
   return (
@@ -79,7 +79,7 @@ export default function Navbar() {
             {/* Publish a Ride Button */}
             <button
               onClick={() => handleNavigate("/tripForm")} // Use navigate
-              className="hidden md:inline-flex items-center justify-center px-4 py-2 rounded-lg bg-blue-600 text-white font-medium text-sm hover:bg-blue-700 transition-all duration-200 shadow-sm space-x-2"
+              className="hidden md:inline-flex items-center justify-center px-4 py-2 rounded-lg bg-green-400 text-white font-medium text-sm hover:bg-blue-700 transition-all duration-200 shadow-sm space-x-2"
             >
               <Plus className="h-4 w-4" />
               <span>Publish a Ride</span>
@@ -97,13 +97,12 @@ export default function Navbar() {
                 {isUserMenuOpen && (
                   <div className="absolute right-0 mt-2 w-48 bg-white rounded-xl shadow-lg py-2 border border-gray-100">
                     <div className="px-4 py-2 border-b border-gray-100">
-                    <button
-  onClick={() => handleNavigate(`/profile/${userId}`)} // Navigate to profile page
-  className="text-sm font-medium text-gray-900 hover:text-blue-600 cursor-pointer"
->
-  {user|| "User"}
-</button>
-                     
+                      <button
+                        onClick={() => handleNavigate(`/profile/${userId}`)} // Navigate to profile page
+                        className="text-sm font-medium text-gray-900 hover:text-blue-600 cursor-pointer"
+                      >
+                        {user || "User"}
+                      </button>
                     </div>
                     <button
                       onClick={() => handleNavigate("/kycform")} // Use navigate

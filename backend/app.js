@@ -6,12 +6,12 @@ import _config from "./utils/config.js";
 import globalErrorHandler, {
   notFoundHandler,
 } from "./middlewares/globalErrorHandler.js";
-import authRoute from "./routes/auth.route.js";
+import authRoute from "./routes/authRoute.js";
 
 import tripRoute from "./routes/tripRoute.js";
 import driverRoute from "./routes/driverRoute.js";
 import handleRideRoute from "./routes/handleRideRoute.js";
-import userRoute from "./routes/user.route.js";
+import userRoute from "./routes/userRoute.js";
 
 const app = express();
 
