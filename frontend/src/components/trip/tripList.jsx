@@ -3,8 +3,8 @@ import { useDispatch, useSelector } from "react-redux";
 import {
   deleteTrip,
   updateTrip,
-  getTripById,
   getTrips,
+  getTripById,
   bookSeat,
 } from "../Slices/tripSlice";
 import { useNavigate } from "react-router-dom";
@@ -27,21 +27,34 @@ import {
   ChevronRight,
   ArrowLeft,
   Plus,
+  Save,
+  Filter,
+  Sliders,
+  CheckCircle,
+  XCircle,
 } from "lucide-react";
 
 const TripList = () => {
   const dispatch = useDispatch();
   const navigate = useNavigate();
 
-  // We'll assume there's an auth slice. Adjust if you store user differently.
+  // Auth user
   const { user } = useSelector((state) => state.auth) || {};
 
   const { trips = [], loading, error } = useSelector((state) => state.trip);
 
-  // For the modal
+  // State for "View Details" modal
   const [selectedTrip, setSelectedTrip] = useState(null);
+
+  // State for "Edit" modal
+  const [editingTrip, setEditingTrip] = useState(null);
+
+  // Local form data when editing
+  const [editFormData, setEditFormData] = useState(null);
+
   // For filtering
   const [statusFilter, setStatusFilter] = useState("all");
+
   // For mobile view
   const [isMobileView, setIsMobileView] = useState(window.innerWidth < 768);
 
@@ -56,37 +69,24 @@ const TripList = () => {
     return () => window.removeEventListener("resize", handleResize);
   }, [dispatch]);
 
-  // handleDelete remains the same
+  // --- ACTION HANDLERS ---
+
   const handleDelete = async (tripId) => {
     try {
       await dispatch(deleteTrip(tripId)).unwrap();
       toast.success("Trip deleted successfully");
-      dispatch(getTrips());
+      dispatch(getTrips()); // refresh
     } catch (err) {
       toast.error(err?.message || "Failed to delete trip");
     }
   };
 
-  // handleEditNavigation remains the same
-  const handleEditNavigation = async (tripId) => {
-    try {
-      await dispatch(getTripById(tripId)).unwrap();
-      navigate(`/trips/${tripId}`);
-    } catch (err) {
-      toast.error("Failed to fetch trip details");
-    }
-  };
-
-  // Toggle status
   const handleStatusUpdate = async (tripId, currentStatus) => {
     try {
       const newStatus =
         currentStatus === "scheduled" ? "cancelled" : "scheduled";
       await dispatch(
-        updateTrip({
-          tripId,
-          tripData: { status: newStatus },
-        })
+        updateTrip({ tripId, tripData: { status: newStatus } })
       ).unwrap();
       toast.success(`Trip status updated to "${newStatus}"`);
       dispatch(getTrips());
@@ -95,25 +95,93 @@ const TripList = () => {
     }
   };
 
-  // Book Ride if you're not the driver
+
+  // "View Details" modal
+  const handleViewDetails = (trip) => {
+    setSelectedTrip(trip);
+  };
+  const closeDetailsModal = () => {
+    setSelectedTrip(null);
+  };
+
+  // "Edit" modal
+  const handleEditClick = async (trip) => {
+    try {
+      // If you need fresh data from server:
+      await dispatch(getTripById(trip._id)).unwrap();
+      // But we can also just use the trip object if the store is up-to-date
+      setEditingTrip(trip);
+      // Initialize local form state
+      setEditFormData({ ...trip });
+    } catch (err) {
+      toast.error("Failed to fetch trip details");
+    }
+  };
+
+  const closeEditModal = () => {
+    setEditingTrip(null);
+    setEditFormData(null);
+  };
+
+  // Submit updated fields to the backend
+  const handleEditSubmit = async (e) => {
+    e.preventDefault();
+    if (!editingTrip || !editFormData) return;
+
+    try {
+      await dispatch(
+        updateTrip({
+          tripId: editingTrip._id,
+          tripData: editFormData,
+        })
+      ).unwrap();
+      toast.success("Trip updated successfully");
+      // close the edit modal
+      closeEditModal();
+      // refresh
+      dispatch(getTrips());
+    } catch (err) {
+      toast.error(err?.message || "Failed to update trip");
+    }
+  };
+
+  // EDIT FORM FIELD CHANGE
+  const handleEditFormChange = (e) => {
+    const { name, value, type, checked } = e.target;
+    setEditFormData((prev) => {
+      if (!prev) return prev;
+
+      if (type === "checkbox") {
+        // updating preferences
+        return {
+          ...prev,
+          preferences: { ...prev.preferences, [name]: checked },
+        };
+      } else if (name.startsWith("vehicleDetails.")) {
+        const field = name.split(".")[1];
+        return {
+          ...prev,
+          vehicleDetails: {
+            ...prev.vehicleDetails,
+            [field]: value,
+          },
+        };
+      } else {
+        return { ...prev, [name]: value };
+      }
+    });
+  };
+
   const handleBookRide = async (tripId) => {
     try {
       await dispatch(bookSeat(tripId)).unwrap();
       toast.success("Seat booked successfully");
+      dispatch(getTrips()); // so the seat count is updated
     } catch (err) {
       toast.error(err?.message || "Failed to book ride");
     }
   };
-
-  // Show "View Details" modal
-  const handleViewDetails = (trip) => {
-    setSelectedTrip(trip);
-  };
-
-  // Close the modal
-  const closeModal = () => {
-    setSelectedTrip(null);
-  };
+  
 
   // Filter trips by status
   const filteredTrips =
@@ -127,7 +195,8 @@ const TripList = () => {
     return new Date(dateString).toLocaleDateString("en-US", options);
   };
 
-  // Early returns with styled loading and error states
+  // --- RENDERING ---
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
@@ -336,7 +405,7 @@ const TripList = () => {
                             Status
                           </button>
                           <button
-                            onClick={() => handleEditNavigation(trip._id)}
+                            onClick={() => handleEditClick(trip)}
                             className="px-3 py-1.5 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center"
                           >
                             <Edit size={16} className="mr-1.5" /> Edit
@@ -401,7 +470,7 @@ const TripList = () => {
       {selectedTrip && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black bg-opacity-50 backdrop-blur-sm"
-          onClick={closeModal}
+          onClick={closeDetailsModal}
         >
           {/* Stop click from bubbling to background */}
           <div
@@ -552,7 +621,7 @@ const TripList = () => {
               {/* Buttons at the bottom */}
               <div className="mt-8 flex flex-wrap justify-end gap-3">
                 <button
-                  onClick={closeModal}
+                  onClick={closeDetailsModal}
                   className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors flex items-center"
                 >
                   <X size={16} className="mr-1.5" /> Close
@@ -561,7 +630,7 @@ const TripList = () => {
                 {selectedTrip.driver?._id !== user?._id && (
                   <button
                     onClick={() => {
-                      closeModal();
+                      closeDetailsModal();
                       handleBookRide(selectedTrip._id);
                     }}
                     className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center"
@@ -574,7 +643,313 @@ const TripList = () => {
 
             {/* "X" close icon top-right */}
             <button
-              onClick={closeModal}
+              onClick={closeDetailsModal}
+              className="absolute top-4 right-4 text-white hover:text-green-100 transition-colors"
+              aria-label="Close modal"
+            >
+              <X size={20} />
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL for "Edit Trip" */}
+      {editingTrip && editFormData && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black bg-opacity-50 backdrop-blur-sm"
+          onClick={closeEditModal}
+        >
+          <div
+            className="bg-white rounded-xl shadow-xl max-w-2xl w-full relative animate-fade-in overflow-y-auto max-h-[90vh]"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Modal Header */}
+            <div className="bg-green-600 text-white p-6 rounded-t-xl sticky top-0 z-10">
+              <h2 className="text-xl font-bold">Edit Trip</h2>
+              <p className="text-green-100 mt-1 flex items-center">
+                <MapPin size={16} className="mr-1.5" />
+                {editFormData.departureLocation} →{" "}
+                {editFormData.destinationLocation}
+              </p>
+            </div>
+
+            {/* Modal Body */}
+            <div className="p-6">
+              <form onSubmit={handleEditSubmit} className="space-y-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4">
+                  {/* departureLocation */}
+                  <div className="space-y-2">
+                    <label className="flex items-center text-sm font-medium text-gray-700">
+                      <MapPin size={14} className="mr-1.5 text-gray-500" /> From
+                    </label>
+                    <input
+                      type="text"
+                      name="departureLocation"
+                      value={editFormData.departureLocation}
+                      onChange={handleEditFormChange}
+                      className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-colors"
+                      placeholder="Departure location"
+                    />
+                  </div>
+
+                  {/* destinationLocation */}
+                  <div className="space-y-2">
+                    <label className="flex items-center text-sm font-medium text-gray-700">
+                      <MapPin size={14} className="mr-1.5 text-gray-500" /> To
+                    </label>
+                    <input
+                      type="text"
+                      name="destinationLocation"
+                      value={editFormData.destinationLocation}
+                      onChange={handleEditFormChange}
+                      className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-colors"
+                      placeholder="Destination location"
+                    />
+                  </div>
+
+                  {/* departureDate */}
+                  <div className="space-y-2">
+                    <label className="flex items-center text-sm font-medium text-gray-700">
+                      <Calendar size={14} className="mr-1.5 text-gray-500" />{" "}
+                      Date
+                    </label>
+                    <input
+                      type="date"
+                      name="departureDate"
+                      value={
+                        editFormData.departureDate
+                          ? editFormData.departureDate.split("T")[0]
+                          : ""
+                      }
+                      onChange={handleEditFormChange}
+                      className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-colors"
+                    />
+                  </div>
+
+                  {/* departureTime */}
+                  <div className="space-y-2">
+                    <label className="flex items-center text-sm font-medium text-gray-700">
+                      <Clock size={14} className="mr-1.5 text-gray-500" /> Time
+                    </label>
+                    <input
+                      type="time"
+                      name="departureTime"
+                      value={editFormData.departureTime}
+                      onChange={handleEditFormChange}
+                      className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-colors"
+                    />
+                  </div>
+
+                  {/* price */}
+                  <div className="space-y-2">
+                    <label className="flex items-center text-sm font-medium text-gray-700">
+                      <DollarSign size={14} className="mr-1.5 text-gray-500" />{" "}
+                      Price (₹)
+                    </label>
+                    <div className="relative">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">
+                        ₹
+                      </span>
+                      <input
+                        type="number"
+                        name="price"
+                        value={editFormData.price}
+                        onChange={handleEditFormChange}
+                        className="w-full pl-8 pr-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-colors"
+                        min="0"
+                      />
+                    </div>
+                  </div>
+
+                  {/* availableSeats */}
+                  <div className="space-y-2">
+                    <label className="flex items-center text-sm font-medium text-gray-700">
+                      <User size={14} className="mr-1.5 text-gray-500" />{" "}
+                      Available Seats
+                    </label>
+                    <input
+                      type="number"
+                      name="availableSeats"
+                      value={editFormData.availableSeats}
+                      onChange={handleEditFormChange}
+                      className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-colors"
+                      min="1"
+                    />
+                  </div>
+                </div>
+
+                {/* Vehicle details */}
+                {editFormData.vehicleDetails && (
+                  <div className="bg-gray-50 p-5 rounded-lg border border-gray-200">
+                    <h3 className="font-medium text-gray-800 mb-4 flex items-center">
+                      <Car size={16} className="mr-2 text-green-600" /> Vehicle
+                      Details
+                    </h3>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      <div className="space-y-2">
+                        <label className="block text-sm font-medium text-gray-700">
+                          Model
+                        </label>
+                        <input
+                          type="text"
+                          name="vehicleDetails.model"
+                          value={editFormData.vehicleDetails.model}
+                          onChange={handleEditFormChange}
+                          className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-colors"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <label className="block text-sm font-medium text-gray-700">
+                          Color
+                        </label>
+                        <input
+                          type="text"
+                          name="vehicleDetails.color"
+                          value={editFormData.vehicleDetails.color}
+                          onChange={handleEditFormChange}
+                          className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-colors"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <label className="block text-sm font-medium text-gray-700">
+                          Plate Number
+                        </label>
+                        <input
+                          type="text"
+                          name="vehicleDetails.plateNumber"
+                          value={editFormData.vehicleDetails.plateNumber}
+                          onChange={handleEditFormChange}
+                          className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-colors"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Preferences */}
+                {editFormData.preferences && (
+                  <div className="bg-gray-50 p-5 rounded-lg border border-gray-200">
+                    <h3 className="font-medium text-gray-800 mb-4 flex items-center">
+                      <Sliders size={16} className="mr-2 text-green-600" />{" "}
+                      Preferences
+                    </h3>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                      <div
+                        className={`flex items-center p-3 rounded-lg cursor-pointer border ${
+                          editFormData.preferences.smoking
+                            ? "border-green-500 bg-green-50"
+                            : "border-gray-300"
+                        }`}
+                        onClick={() => {
+                          setEditFormData({
+                            ...editFormData,
+                            preferences: {
+                              ...editFormData.preferences,
+                              smoking: !editFormData.preferences.smoking,
+                            },
+                          });
+                        }}
+                      >
+                        <input
+                          type="checkbox"
+                          name="smoking"
+                          checked={!!editFormData.preferences.smoking}
+                          onChange={handleEditFormChange}
+                          className="w-4 h-4 text-green-600 rounded focus:ring-green-500 mr-3"
+                        />
+                        <span>Smoking Allowed</span>
+                      </div>
+                      <div
+                        className={`flex items-center p-3 rounded-lg cursor-pointer border ${
+                          editFormData.preferences.pets
+                            ? "border-green-500 bg-green-50"
+                            : "border-gray-300"
+                        }`}
+                        onClick={() => {
+                          setEditFormData({
+                            ...editFormData,
+                            preferences: {
+                              ...editFormData.preferences,
+                              pets: !editFormData.preferences.pets,
+                            },
+                          });
+                        }}
+                      >
+                        <input
+                          type="checkbox"
+                          name="pets"
+                          checked={!!editFormData.preferences.pets}
+                          onChange={handleEditFormChange}
+                          className="w-4 h-4 text-green-600 rounded focus:ring-green-500 mr-3"
+                        />
+                        <span>Pets Allowed</span>
+                      </div>
+                      <div
+                        className={`flex items-center p-3 rounded-lg cursor-pointer border ${
+                          editFormData.preferences.music
+                            ? "border-green-500 bg-green-50"
+                            : "border-gray-300"
+                        }`}
+                        onClick={() => {
+                          setEditFormData({
+                            ...editFormData,
+                            preferences: {
+                              ...editFormData.preferences,
+                              music: !editFormData.preferences.music,
+                            },
+                          });
+                        }}
+                      >
+                        <input
+                          type="checkbox"
+                          name="music"
+                          checked={!!editFormData.preferences.music}
+                          onChange={handleEditFormChange}
+                          className="w-4 h-4 text-green-600 rounded focus:ring-green-500 mr-3"
+                        />
+                        <span>Music in Car</span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* description */}
+                <div className="space-y-2">
+                  <label className="flex items-center text-sm font-medium text-gray-700">
+                    <Info size={14} className="mr-1.5 text-gray-500" />{" "}
+                    Description
+                  </label>
+                  <textarea
+                    name="description"
+                    value={editFormData.description || ""}
+                    onChange={handleEditFormChange}
+                    rows="3"
+                    className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-colors"
+                    placeholder="Add any additional details about the trip..."
+                  />
+                </div>
+
+                <div className="flex flex-wrap justify-end gap-3 pt-4 border-t border-gray-100">
+                  <button
+                    type="button"
+                    onClick={closeEditModal}
+                    className="px-4 py-2.5 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors flex items-center"
+                  >
+                    <X size={16} className="mr-1.5" /> Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-4 py-2.5 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center"
+                  >
+                    <Save size={16} className="mr-1.5" /> Save Changes
+                  </button>
+                </div>
+              </form>
+            </div>
+
+            {/* "X" close icon top-right */}
+            <button
+              onClick={closeEditModal}
               className="absolute top-4 right-4 text-white hover:text-green-100 transition-colors"
               aria-label="Close modal"
             >

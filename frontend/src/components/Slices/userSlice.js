@@ -1,4 +1,4 @@
-// slices/userSlice.js
+
 
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 import { fetchUserProfile, updateUserProfile } from '../../services/userService.js';
@@ -26,6 +26,8 @@ export const updateUserProfileAction = createAsyncThunk(
     }
   }
 );
+
+
 
 const userSlice = createSlice({
   name: 'user',
@@ -60,7 +62,9 @@ const userSlice = createSlice({
       .addCase(updateUserProfileAction.rejected, (state, action) => {
         state.loading = false;
         state.error = action.payload;
-      });
+      })
+    
+      ;
   },
 });
 

@@ -1,121 +1,151 @@
-import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
-import driverService from '../../services/driverService';
+import { createSlice, createAsyncThunk } from "@reduxjs/toolkit";
+import driverService from "../../services/driverService";
 
 const initialState = {
   drivers: [],
+  pendingDrivers: [],
   currentDriver: null,
   loading: false,
   error: null,
-  kycLoading: false,
-  kycError: null,
-  verificationLoading: false,
-  kycData: [],
 };
 
-// Thunks
-export const createDriverPersonalInfo = createAsyncThunk(
-  'driver/createPersonal',
+// 1) **Save Personal Info**
+export const savePersonalInfo = createAsyncThunk(
+  "driver/savePersonalInfo",
   async (formData, { rejectWithValue }) => {
     try {
-      const response = await driverService.savePersonalInfo(formData);
-      return response;
+      return await driverService.savePersonalInfo(formData);
     } catch (error) {
-      return rejectWithValue(error.response?.data || { message: 'Failed to save personal information' });
+      console.error("Error saving personal info:", error.message);
+      return rejectWithValue(error.message);
     }
   }
 );
 
-export const updateDriverLicense = createAsyncThunk(
-  'driver/updateLicense',
+// 2) **Save License Info**
+export const saveLicenseInfo = createAsyncThunk(
+  "driver/saveLicenseInfo",
   async ({ driverId, formData }, { rejectWithValue }) => {
     try {
-      const response = await driverService.saveLicenseInfo(driverId, formData);
-      return response;
+      return await driverService.saveLicenseInfo(driverId, formData);
     } catch (error) {
-      return rejectWithValue(error.response?.data || { message: 'Failed to save license information' });
+      console.error("Error saving license info:", error.message);
+      return rejectWithValue(error.message);
     }
   }
 );
 
-export const updateDriverVehicle = createAsyncThunk(
-  'driver/updateVehicle',
+// 3) **Save Vehicle Info**
+export const saveVehicleInfo = createAsyncThunk(
+  "driver/saveVehicleInfo",
   async ({ driverId, formData }, { rejectWithValue }) => {
     try {
-      const response = await driverService.saveVehicleInfo(driverId, formData);
-      return response;
+      return await driverService.saveVehicleInfo(driverId, formData);
     } catch (error) {
-      return rejectWithValue(error.response?.data || { message: 'Failed to save vehicle information' });
+      console.error("Error saving vehicle info:", error.message);
+      return rejectWithValue(error.message);
     }
   }
 );
 
+// 4) **Fetch All Drivers**
 export const fetchAllDrivers = createAsyncThunk(
-  'driver/fetchAll',
+  "driver/fetchAllDrivers",
   async (_, { rejectWithValue }) => {
     try {
-      const response = await driverService.getAllDrivers();
-      return response;
+      return await driverService.getAllDrivers();
     } catch (error) {
-      return rejectWithValue(error.response?.data || { message: 'Failed to fetch drivers' });
+      console.error("Error fetching drivers:", error.message);
+      return rejectWithValue(error.message);
     }
   }
 );
 
+// 5) **Fetch Driver by ID**
 export const fetchDriverById = createAsyncThunk(
-  'driver/fetchById',
+  "driver/fetchDriverById",
   async (driverId, { rejectWithValue }) => {
     try {
-      const response = await driverService.getDriverById(driverId);
-      return response;
+      return await driverService.getDriverById(driverId);
     } catch (error) {
-      return rejectWithValue(error.response?.data || { message: 'Failed to fetch driver' });
+      console.error(`Error fetching driver ${driverId}:`, error.message);
+      return rejectWithValue(error.message);
     }
   }
 );
 
+// 6) **Update Verification (Verify or Reject)**
 export const updateDriverVerification = createAsyncThunk(
-  'driver/updateVerification',
-  async ({ driverId, isVerified }, { rejectWithValue }) => {
+  "driver/updateDriverVerification",
+  async ({ driverId, status, rejectionReason }, { rejectWithValue }) => {
     try {
-      const response = await driverService.updateVerification(driverId, isVerified);
-      return response;
+      const result = await driverService.updateDriverVerification(driverId, status, rejectionReason)
+      return result
     } catch (error) {
-      return rejectWithValue(error.response?.data || { message: 'Failed to update verification status' });
+      console.error(`Error updating verification for driver ${driverId}:`, error.message)
+      return rejectWithValue(error.message)
     }
-  }
-);
+  },
+)
 
-export const submitDriverKYC = createAsyncThunk(
-  'driver/submitKYC',
+// 7) **Submit KYC**
+export const submitKYC = createAsyncThunk(
+  "driver/submitKYC",
   async ({ userId, kycData }, { rejectWithValue }) => {
     try {
-      const response = await driverService.submitKYC(userId, kycData);
-      return response;
+      return await driverService.submitKYC(userId, kycData);
     } catch (error) {
-      return rejectWithValue(error.response?.data || { message: 'Failed to submit KYC' });
+      console.error("Error submitting KYC:", error.message);
+      return rejectWithValue(error.message);
     }
   }
 );
 
-export const fetchKYCData = createAsyncThunk(
-  'driver/fetchKYCData',
+// 8) **Fetch Pending KYC Requests**
+export const fetchPendingKYC = createAsyncThunk(
+  "driver/fetchPendingKYC",
   async (_, { rejectWithValue }) => {
     try {
-      const response = await driverService.getPendingKYC();
-      return response;
+      return await driverService.getPendingKYC();
     } catch (error) {
-      return rejectWithValue(error.response?.data || { message: 'Failed to fetch KYC data' });
+      console.error("Error fetching pending KYC requests:", error.message);
+      return rejectWithValue(error.message);
+    }
+  }
+);
+
+// 9) **Reject a Driver**
+export const rejectDriver = createAsyncThunk(
+  "driver/rejectDriver",
+  async ({ driverId, reason }, { rejectWithValue }) => {
+    try {
+      return await driverService.rejectDriver(driverId, reason);
+    } catch (error) {
+      console.error(`Error rejecting driver ${driverId}:`, error.message);
+      return rejectWithValue(error.message);
+    }
+  }
+);
+
+// 10) **Verify a Driver**
+export const verifyDriver = createAsyncThunk(
+  "driver/verifyDriver",
+  async (driverId, { rejectWithValue }) => {
+    try {
+      return await driverService.verifyDriver(driverId);
+    } catch (error) {
+      console.error(`Error verifying driver ${driverId}:`, error.message);
+      return rejectWithValue(error.message);
     }
   }
 );
 
 const driverSlice = createSlice({
-  name: 'driver',
+  name: "driver",
   initialState,
   reducers: {
     clearDriverError: (state) => {
       state.error = null;
-      state.kycError = null;
     },
     setCurrentDriver: (state, action) => {
       state.currentDriver = action.payload;
@@ -126,63 +156,46 @@ const driverSlice = createSlice({
   },
   extraReducers: (builder) => {
     builder
-      // Create Personal Info
-      .addCase(createDriverPersonalInfo.pending, (state) => {
+      // 1) Save Personal Info
+      .addCase(savePersonalInfo.pending, (state) => {
         state.loading = true;
-        state.error = null;
       })
-      .addCase(createDriverPersonalInfo.fulfilled, (state, action) => {
+      .addCase(savePersonalInfo.fulfilled, (state, action) => {
         state.loading = false;
         state.drivers.push(action.payload);
-        state.currentDriver = action.payload;
       })
-      .addCase(createDriverPersonalInfo.rejected, (state, action) => {
+      .addCase(savePersonalInfo.rejected, (state, action) => {
         state.loading = false;
-        state.error = action.payload?.message || 'Failed to save personal information';
+        state.error = action.payload;
       })
 
-      // Update License
-      .addCase(updateDriverLicense.pending, (state) => {
+      // 2) Save License Info
+      .addCase(saveLicenseInfo.pending, (state) => {
         state.loading = true;
-        state.error = null;
       })
-      .addCase(updateDriverLicense.fulfilled, (state, action) => {
+      .addCase(saveLicenseInfo.fulfilled, (state, action) => {
         state.loading = false;
-        state.drivers = state.drivers.map(driver =>
-          driver._id === action.payload._id ? action.payload : driver
-        );
-        if (state.currentDriver && state.currentDriver._id === action.payload._id) {
-          state.currentDriver = action.payload;
-        }
       })
-      .addCase(updateDriverLicense.rejected, (state, action) => {
+      .addCase(saveLicenseInfo.rejected, (state, action) => {
         state.loading = false;
-        state.error = action.payload?.message || 'Failed to update license information';
+        state.error = action.payload;
       })
 
-      // Update Vehicle
-      .addCase(updateDriverVehicle.pending, (state) => {
+      // 3) Save Vehicle Info
+      .addCase(saveVehicleInfo.pending, (state) => {
         state.loading = true;
-        state.error = null;
       })
-      .addCase(updateDriverVehicle.fulfilled, (state, action) => {
+      .addCase(saveVehicleInfo.fulfilled, (state, action) => {
         state.loading = false;
-        state.drivers = state.drivers.map(driver =>
-          driver._id === action.payload._id ? action.payload : driver
-        );
-        if (state.currentDriver && state.currentDriver._id === action.payload._id) {
-          state.currentDriver = action.payload;
-        }
       })
-      .addCase(updateDriverVehicle.rejected, (state, action) => {
+      .addCase(saveVehicleInfo.rejected, (state, action) => {
         state.loading = false;
-        state.error = action.payload?.message || 'Failed to update vehicle information';
+        state.error = action.payload;
       })
 
-      // Fetch All Drivers
+      // 4) Fetch All Drivers
       .addCase(fetchAllDrivers.pending, (state) => {
         state.loading = true;
-        state.error = null;
       })
       .addCase(fetchAllDrivers.fulfilled, (state, action) => {
         state.loading = false;
@@ -190,84 +203,108 @@ const driverSlice = createSlice({
       })
       .addCase(fetchAllDrivers.rejected, (state, action) => {
         state.loading = false;
-        state.error = action.payload?.message || 'Failed to fetch drivers';
+        state.error = action.payload;
       })
 
-      // Fetch Driver by ID
-      .addCase(fetchDriverById.pending, (state) => {
+      // 5) Fetch Pending KYC Requests
+      .addCase(fetchPendingKYC.pending, (state) => {
         state.loading = true;
-        state.error = null;
       })
-      .addCase(fetchDriverById.fulfilled, (state, action) => {
+      .addCase(fetchPendingKYC.fulfilled, (state, action) => {
         state.loading = false;
-        state.currentDriver = action.payload;
-        
-        // Update in drivers array if exists
-        const existingIndex = state.drivers.findIndex(driver => driver._id === action.payload._id);
-        if (existingIndex >= 0) {
-          state.drivers[existingIndex] = action.payload;
-        } else {
-          state.drivers.push(action.payload);
-        }
+        state.pendingDrivers = action.payload;
       })
-      .addCase(fetchDriverById.rejected, (state, action) => {
+      .addCase(fetchPendingKYC.rejected, (state, action) => {
         state.loading = false;
-        state.error = action.payload?.message || 'Failed to fetch driver';
+        state.error = action.payload;
       })
 
-      // Update Verification
+      // 6) Update Verification
       .addCase(updateDriverVerification.pending, (state) => {
-        state.verificationLoading = true;
-        state.error = null;
+        state.updateLoading = true
+        state.updateError = null
       })
       .addCase(updateDriverVerification.fulfilled, (state, action) => {
-        state.verificationLoading = false;
-        state.drivers = state.drivers.map(driver =>
-          driver._id === action.payload._id ? action.payload : driver
-        );
-        if (state.currentDriver && state.currentDriver._id === action.payload._id) {
-          state.currentDriver = action.payload;
+        state.updateLoading = false
+        // Update the driver in the pendingDrivers array
+        const updatedDriver = action.payload.driver
+        const index = state.pendingDrivers.findIndex((driver) => driver._id === updatedDriver._id)
+        if (index !== -1) {
+          state.pendingDrivers[index] = updatedDriver
         }
       })
       .addCase(updateDriverVerification.rejected, (state, action) => {
-        state.verificationLoading = false;
-        state.error = action.payload?.message || 'Failed to update verification status';
+        state.updateLoading = false
+        state.updateError = action.payload;
       })
 
-      // Submit KYC
-      .addCase(submitDriverKYC.pending, (state) => {
-        state.kycLoading = true;
-        state.kycError = null;
+
+
+      // 7) Submit KYC
+      .addCase(submitKYC.pending, (state) => {
+        state.loading = true;
       })
-      .addCase(submitDriverKYC.fulfilled, (state, action) => {
-        state.kycLoading = false;
-        state.drivers = state.drivers.map(driver =>
-          driver._id === action.payload._id ? action.payload : driver
-        );
-        if (state.currentDriver && state.currentDriver._id === action.payload._id) {
-          state.currentDriver = action.payload;
-        }
+      .addCase(submitKYC.fulfilled, (state, action) => {
+        state.loading = false;
+        state.drivers.push(action.payload);
       })
-      .addCase(submitDriverKYC.rejected, (state, action) => {
-        state.kycLoading = false;
-        state.kycError = action.payload?.message || 'Failed to submit KYC';
+      .addCase(submitKYC.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload;
       })
 
-      // Fetch KYC Data
-      .addCase(fetchKYCData.pending, (state) => {
-        state.kycLoading = true;
-        state.kycError = null;
+
+      // 8) Reject a Driver
+
+      .addCase(rejectDriver.pending, (state) => {
+        state.loading = true;
+      }
+      )
+      .addCase(rejectDriver.fulfilled, (state, action) => {
+        state.loading = false;
       })
-      .addCase(fetchKYCData.fulfilled, (state, action) => {
-        state.kycLoading = false;
-        state.kycData = action.payload;
+      .addCase(rejectDriver.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload;
       })
-      .addCase(fetchKYCData.rejected, (state, action) => {
-        state.kycLoading = false;
-        state.kycError = action.payload?.message || 'Failed to fetch KYC data';
-      });
-  },
+
+
+      // 9) Verify a Driver
+
+      .addCase(verifyDriver.pending, (state) => {
+        state.loading = true;
+      }
+      )
+      .addCase(verifyDriver.fulfilled, (state, action) => {
+        state.loading = false;
+      })
+
+      .addCase(verifyDriver.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload;
+      }
+      )
+
+      // 10) Fetch Driver by ID
+
+      .addCase(fetchDriverById.pending, (state) => {
+        state.loading = true;
+      }
+      )
+      .addCase(fetchDriverById.fulfilled, (state, action) => {
+        state.loading = false;
+        state.currentDriver = action.payload;
+      })
+      .addCase(fetchDriverById.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload
+      }
+      )
+      ;
+  }
 });
+
 
 export const { clearDriverError, setCurrentDriver, clearCurrentDriver } = driverSlice.actions;
 export default driverSlice.reducer;
+

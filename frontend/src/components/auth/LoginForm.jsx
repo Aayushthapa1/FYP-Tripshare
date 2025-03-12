@@ -22,7 +22,7 @@ const LoginForm = () => {
   useEffect(() => {
     // Redirect to dashboard if authenticated
     if (isAuthenticated) {
-      navigate("/dashboard");
+      navigate("/");
     }
   }, [isAuthenticated, navigate]);
 
@@ -61,7 +61,7 @@ const LoginForm = () => {
 
         if (response && response.IsSuccess) {
           toast.success("Login successful!");
-          navigate("/dashboard");
+          navigate("/");
         } else {
           // API returned success: false
           console.log("Login API returned IsSuccess=false");

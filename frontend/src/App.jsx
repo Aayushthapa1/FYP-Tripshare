@@ -28,7 +28,8 @@ import HelpCenter from "./components/home/HelpCenter";
 import ScrollToTopButton from "./components/scrollToTop";
 // Admin
 import AdminLayout from "./components/admin/components/AdminLayout";
-import AdminDashboard from "./components/admin/pages/AdminDashboard";
+import AdminProfile from "./components/admin/components/adminProfile.jsx";
+import AdminDashboard from "./components/admin/pages/AdminDashboard 3.jsx";
 import ManageUsers from "./components/admin/pages/ManageUsers";
 import ManageRides from "./components/admin/pages/ManageRides";
 import ManagePayments from "./components/admin/pages/ManagePayments";
@@ -150,13 +151,13 @@ function App() {
               </CheckAuth>
             }
           >
-            <Route index element={<AdminDashboard />} />
+            <Route index element={< AdminDashboard/>} />
             <Route path="users" element={<ManageUsers />} />
             <Route path="rides" element={<ManageRides />} />
             <Route path="payments" element={<ManagePayments />} />
             <Route path="disputes" element={<ManageDisputes />} />
             <Route path="settings" element={<AdminSettings />} />
-            
+            <Route path="profile" element={<AdminProfile />} />
             <Route path="drivers" element={<DriverList />} />
             <Route path="kyc" element={<KycVerification />} />
           </Route>
