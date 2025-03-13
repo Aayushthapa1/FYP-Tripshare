@@ -54,8 +54,6 @@ import TripList from "./components/trip/tripList";
 //DRIVER
 import KYCForm from "./components/driver/KYCForm";
 
-
-
 // Auth
 import RegisterPage from "./components/pages/RegisterPage";
 import LoginPage from "./components/pages/LoginPage";

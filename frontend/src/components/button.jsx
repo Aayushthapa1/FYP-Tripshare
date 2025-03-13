@@ -32,7 +32,7 @@ const Button = ({
 }) => {
   // Define variant classes using Tailwind
   const variantClasses = {
-    primary: "bg-blue-600 text-white hover:bg-blue-700 active:bg-blue-800 focus:ring-blue-500 shadow-sm",
+    primary: "bg-green-600 text-white hover:bg-green-700 active:bg-green-800 focus:ring-blue-500 shadow-sm",
     secondary: "bg-gray-200 text-gray-800 hover:bg-gray-300 active:bg-gray-400 focus:ring-gray-500",
     outline: "bg-white border border-gray-300 text-gray-700 hover:bg-gray-50 active:bg-gray-100 focus:ring-gray-400",
     ghost: "bg-transparent text-gray-700 hover:bg-gray-100 active:bg-gray-200 focus:ring-gray-400",

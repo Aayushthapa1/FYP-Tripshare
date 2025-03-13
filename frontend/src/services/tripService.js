@@ -127,6 +127,7 @@ export const getDriverTrips = async () => {
 export const bookSeat = async (tripId) => {
   try {
     const response = await axiosInstance.post(`/api/trips/${tripId}/book-seat`);
+    console.log(response)
     const data = handleResponse(response);
     // data.Result.trip => updated trip
     return data.Result?.trip || null;

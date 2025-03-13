@@ -1,12 +1,15 @@
-import React, { useEffect, useState } from "react";
+"use client";
+
+import { useEffect, useState } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import {
   deleteTrip,
   updateTrip,
   getTrips,
   getTripById,
-  bookSeat,
+  searchTrips,
 } from "../Slices/tripSlice";
+import { createBooking } from "../Slices/bookingSlice";
 import { useNavigate } from "react-router-dom";
 import { Toaster, toast } from "sonner";
 import {
@@ -22,21 +25,34 @@ import {
   Trash,
   Info,
   Home,
-  List,
   ToggleLeft,
   ChevronRight,
   ArrowLeft,
   Plus,
   Save,
-  Filter,
   Sliders,
-  CheckCircle,
-  XCircle,
+  Search,
 } from "lucide-react";
+
+import { io } from "socket.io-client";
 
 const TripList = () => {
   const dispatch = useDispatch();
   const navigate = useNavigate();
+  const socket = io("http://localhost:3301"); // or your production URL
+
+  socket.on("connect", () => {
+    console.log("Connected with socket ID:", socket.id);
+  });
+
+  // Listen for "trip_created" event
+  socket.on("trip_created", (newTrip) => {
+    console.log("A new trip was created:", newTrip);
+    // e.g. update your trip list in state or Redux
+    // setTrips((prev) => [...prev, newTrip]);
+  });
+
+ 
 
   // Auth user
   const { user } = useSelector((state) => state.auth) || {};
@@ -57,6 +73,9 @@ const TripList = () => {
 
   // For mobile view
   const [isMobileView, setIsMobileView] = useState(window.innerWidth < 768);
+
+  // For search
+  const [searchTerm, setSearchTerm] = useState("");
 
   useEffect(() => {
     dispatch(getTrips());
@@ -94,7 +113,6 @@ const TripList = () => {
       toast.error(err?.message || "Failed to update status");
     }
   };
-
 
   // "View Details" modal
   const handleViewDetails = (trip) => {
@@ -172,16 +190,31 @@ const TripList = () => {
     });
   };
 
-  const handleBookRide = async (tripId) => {
+  const handleCreateBooking = async (tripId) => {
     try {
-      await dispatch(bookSeat(tripId)).unwrap();
+      await dispatch(createBooking({ tripId, seats: 1 })).unwrap();
       toast.success("Seat booked successfully");
-      dispatch(getTrips()); // so the seat count is updated
+      dispatch(getTrips()); // if you want updated seat counts
     } catch (err) {
       toast.error(err?.message || "Failed to book ride");
     }
   };
   
+  
+  const handleSearch = () => {
+    if (searchTerm.trim()) {
+      dispatch(searchTrips(searchTerm));
+    } else {
+      // If search term is empty, get all trips
+      dispatch(getTrips());
+    }
+  };
+
+  const handleKeyPress = (e) => {
+    if (e.key === "Enter") {
+      handleSearch();
+    }
+  };
 
   // Filter trips by status
   const filteredTrips =
@@ -288,12 +321,23 @@ const TripList = () => {
                 </button>
               </div>
 
-              <button
-                onClick={() => navigate("/trips/new")}
-                className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors shadow-sm flex items-center"
-              >
-                <Plus size={18} className="mr-1" /> New Trip
-              </button>
+              {/* Search input */}
+              <div className="flex items-center bg-white border border-gray-300 rounded-lg overflow-hidden">
+                <input
+                  type="text"
+                  placeholder="Search trips..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  onKeyPress={handleKeyPress}
+                  className="px-3 py-1.5 text-sm border-none focus:outline-none"
+                />
+                <button
+                  onClick={handleSearch}
+                  className="px-3 py-1.5 text-sm bg-green-500 text-white hover:bg-green-600"
+                >
+                  <Search size={16} />
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -420,7 +464,7 @@ const TripList = () => {
                       ) : (
                         // Book Ride button for non-drivers
                         <button
-                          onClick={() => handleBookRide(trip._id)}
+                          onClick={() => handleCreateBooking(trip._id)}
                           className="px-3 py-1.5 text-sm bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center"
                         >
                           <Check size={16} className="mr-1.5" /> Book Ride
@@ -631,7 +675,7 @@ const TripList = () => {
                   <button
                     onClick={() => {
                       closeDetailsModal();
-                      handleBookRide(selectedTrip._id);
+                      handleCreateBooking(selectedTrip._id);
                     }}
                     className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center"
                   >

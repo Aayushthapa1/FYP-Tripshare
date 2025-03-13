@@ -3,6 +3,7 @@ import authReducer from "../components/Slices/authSlice";
 import driverReducer from "../components/Slices/driverSlice";
 import tripReducer from "../components/Slices/tripSlice";
 import userSlice from "../components/Slices/userSlice";
+import bookingSlice from "../components/Slices/bookingSlice";
 
 
 
@@ -12,6 +13,7 @@ const store = configureStore({
         driver: driverReducer,
         trip: tripReducer,
         user: userSlice,
+        booking: bookingSlice,
     },
 });
 

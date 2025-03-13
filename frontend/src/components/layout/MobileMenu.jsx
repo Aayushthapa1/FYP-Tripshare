@@ -1,57 +1,104 @@
-import React from 'react';
-import { useNavigate } from 'react-router-dom';
+"use client"
+import { Home, Phone, LogIn, UserPlus, Car, LogOut } from "lucide-react"
 
-export default function MobileMenu({ isOpen }) {
-  const navigate = useNavigate();
-  const isAuthenticated = localStorage.getItem('token'); // Check if user is logged in
-
-  const handleLogout = () => {
-    localStorage.removeItem('token'); // Remove token from storage
-    document.cookie = "token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;"; // Clear cookies if used
-    navigate('/login'); // Redirect to login page
-  };
-
+export default function MobileMenu({ isOpen, user, role, isAuthenticated, onNavigate, onLogout, closeMenu }) {
   return (
-    <div className={`md:hidden ${isOpen ? 'block' : 'hidden'}`}>
-      <div className="px-4 pt-2 pb-3 space-y-1 bg-white border-t">
-        {[
-          { href: '#', label: 'Home' },
-          { href: 'Contact Us', label: 'Contact Us' },
-        ].map((link) => (
-          <a
-            key={link.label}
-            href={link.href}
-            className="block px-3 py-2 text-base font-medium text-gray-700 hover:text-green-600 hover:bg-gray-50 rounded-md"
-          >
-            {link.label}
-          </a>
-        ))}
+    <div
+      className={`md:hidden fixed inset-x-0 top-16 z-40 transform transition-transform duration-300 ease-in-out ${
+        isOpen ? "translate-y-0 opacity-100" : "-translate-y-full opacity-0"
+      }`}
+    >
+      <div className="px-4 pt-2 pb-3 space-y-1 bg-white border-t shadow-lg rounded-b-xl">
+        {/* Basic Links */}
+        <button
+          onClick={() => {
+            onNavigate("/")
+            closeMenu()
+          }}
+          className="flex items-center w-full text-left px-4 py-3 text-base font-medium text-gray-700 hover:text-green-600 hover:bg-gray-50 rounded-lg transition-colors"
+        >
+          <Home className="h-5 w-5 mr-3 text-gray-500" />
+          Home
+        </button>
 
-        <div className="mt-4 space-y-2">
-          {!isAuthenticated ? (
+        <button
+          onClick={() => {
+            onNavigate("/contact")
+            closeMenu()
+          }}
+          className="flex items-center w-full text-left px-4 py-3 text-base font-medium text-gray-700 hover:text-green-600 hover:bg-gray-50 rounded-lg transition-colors"
+        >
+          <Phone className="h-5 w-5 mr-3 text-gray-500" />
+          Contact Us
+        </button>
+
+        {/* If user is authenticated, show driver vs user logic */}
+        {isAuthenticated ? (
+          <>
+            {role === "driver" ? (
+              <button
+                onClick={() => {
+                  onNavigate("/tripForm")
+                  closeMenu()
+                }}
+                className="flex items-center w-full text-left px-4 py-3 text-base font-medium text-green-700 bg-green-50 hover:bg-green-100 rounded-lg transition-colors"
+              >
+                <Car className="h-5 w-5 mr-3 text-green-600" />
+                Publish a Ride
+              </button>
+            ) : (
+              <button
+                onClick={() => {
+                  onNavigate("/trips")
+                  closeMenu()
+                }}
+                className="flex items-center w-full text-left px-4 py-3 text-base font-medium text-green-700 bg-green-50 hover:bg-green-100 rounded-lg transition-colors"
+              >
+                <Car className="h-5 w-5 mr-3 text-green-600" />
+                View Rides
+              </button>
+            )}
+
+            {/* Logout */}
             <button
-              onClick={() => navigate('/login')}
-              className="block w-full px-3 py-2 text-base font-medium text-gray-700 hover:text-green-600 hover:bg-gray-50 rounded-md"
+              onClick={() => {
+                onLogout()
+                closeMenu()
+              }}
+              className="flex items-center w-full text-left px-4 py-3 text-base font-medium text-red-600 hover:bg-gray-50 hover:text-red-700 rounded-lg transition-colors mt-4"
             >
-              Login
-            </button>
-          ) : (
-            <button
-              onClick={handleLogout}
-              className="block w-full px-3 py-2 text-base font-medium text-red-600 hover:bg-gray-50 rounded-md"
-            >
+              <LogOut className="h-5 w-5 mr-3 text-red-500" />
               Logout
             </button>
-          )}
+          </>
+        ) : (
+          <>
+            {/* Not Authenticated -> Show Login/Register */}
+            <button
+              onClick={() => {
+                onNavigate("/login")
+                closeMenu()
+              }}
+              className="flex items-center w-full text-left px-4 py-3 text-base font-medium text-gray-700 hover:text-green-600 hover:bg-gray-50 rounded-lg transition-colors"
+            >
+              <LogIn className="h-5 w-5 mr-3 text-gray-500" />
+              Login
+            </button>
 
-          <button
-            onClick={() => navigate('/')}
-            className="block w-full px-3 py-2 text-base font-medium text-white bg-green-600 hover:bg-green-700 rounded-md"
-          >
-            Get Started
-          </button>
-        </div>
+            <button
+              onClick={() => {
+                onNavigate("/register")
+                closeMenu()
+              }}
+              className="flex items-center w-full text-left px-4 py-3 text-base font-medium text-white bg-green-500 hover:bg-green-600 rounded-lg transition-colors shadow-sm"
+            >
+              <UserPlus className="h-5 w-5 mr-3 text-white" />
+              Register
+            </button>
+          </>
+        )}
       </div>
     </div>
-  );
+  )
 }
+
