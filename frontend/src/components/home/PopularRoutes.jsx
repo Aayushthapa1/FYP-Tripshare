@@ -1,8 +1,63 @@
-import React, { useState } from "react";
-import { ChevronLeft, ChevronRight, ArrowRight } from "lucide-react";
+"use client";
+
+import { useState, useEffect } from "react";
+import {
+  ChevronLeft,
+  ChevronRight,
+  ArrowRight,
+  MapPin,
+  Calendar,
+  Users,
+} from "lucide-react";
 
 const PopularRoutes = () => {
   const [currentIndex, setCurrentIndex] = useState(0);
+  const [visibleItems, setVisibleItems] = useState(1);
+  const [touchStart, setTouchStart] = useState(null);
+  const [touchEnd, setTouchEnd] = useState(null);
+
+  // Handle responsive carousel display
+  useEffect(() => {
+    const handleResize = () => {
+      if (window.innerWidth >= 1280) {
+        setVisibleItems(3);
+      } else if (window.innerWidth >= 768) {
+        setVisibleItems(2);
+      } else {
+        setVisibleItems(1);
+      }
+    };
+
+    handleResize();
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
+
+  // Touch handlers for mobile swipe
+  const handleTouchStart = (e) => {
+    setTouchStart(e.targetTouches[0].clientX);
+  };
+
+  const handleTouchMove = (e) => {
+    setTouchEnd(e.targetTouches[0].clientX);
+  };
+
+  const handleTouchEnd = () => {
+    if (!touchStart || !touchEnd) return;
+    const distance = touchStart - touchEnd;
+    const isLeftSwipe = distance > 50;
+    const isRightSwipe = distance < -50;
+
+    if (isLeftSwipe) {
+      slideRight();
+    } else if (isRightSwipe) {
+      slideLeft();
+    }
+
+    setTouchStart(null);
+    setTouchEnd(null);
+  };
+
   const routes = [
     {
       id: 1,
@@ -12,9 +67,11 @@ const PopularRoutes = () => {
       image: "https://images.unsplash.com/photo-1529333166437-7750a6dd5a70", // Scenic mountains
       description:
         "Travel from the bustling capital to the serene lakeside city of Pokhara, known for its breathtaking Annapurna views.",
+      duration: "6-7 hours",
+      frequency: "Daily",
       subRoutes: [
         {
-          from: "Kathmandu  Airport",
+          from: "Kathmandu Airport",
           price: "NPR 2000",
           description: "Direct flights from Kathmandu to Pokhara.",
         },
@@ -33,6 +90,8 @@ const PopularRoutes = () => {
       price: "NPR 1500",
       image: "https://images.unsplash.com/photo-1506748686214-e9df14d4d9d0", // Annapurna range
       description: "Return journey to the capital with scenic mountain views.",
+      duration: "6-7 hours",
+      frequency: "Daily",
       subRoutes: [
         {
           from: "Pokhara Bus Park",
@@ -53,6 +112,8 @@ const PopularRoutes = () => {
       price: "NPR 350",
       image: "https://images.unsplash.com/photo-1531123897727-8f129e1688ce", // Green landscapes
       description: "Short ride connecting major eastern cities.",
+      duration: "1 hour",
+      frequency: "Hourly",
       subRoutes: [
         {
           from: "Biratnagar Airport",
@@ -73,6 +134,8 @@ const PopularRoutes = () => {
       price: "NPR 200",
       image: "https://images.unsplash.com/photo-1585829366114-6d67d3014d68", // Hills and forests
       description: "Gateway to the beautiful hill town of Dharan.",
+      duration: "30 minutes",
+      frequency: "Every 15 min",
       subRoutes: [
         {
           from: "Itahari Chowk",
@@ -93,6 +156,8 @@ const PopularRoutes = () => {
       price: "NPR 500",
       image: "https://images.unsplash.com/photo-1591439147235-ec38e2f38e0f", // Serene hill station
       description: "A scenic drive to the cool hilltop of Bhedetar.",
+      duration: "1.5 hours",
+      frequency: "Daily",
       subRoutes: [
         {
           from: "Dharan Clock Tower",
@@ -113,6 +178,8 @@ const PopularRoutes = () => {
       price: "NPR 600",
       image: "https://images.unsplash.com/photo-1580658438438-94a3d8a7a2da", // Tea gardens
       description: "Journey through lush tea gardens to Ilam.",
+      duration: "3 hours",
+      frequency: "Daily",
       subRoutes: [
         {
           from: "Charali",
@@ -133,6 +200,8 @@ const PopularRoutes = () => {
       price: "NPR 650",
       image: "https://images.unsplash.com/photo-1565557620330-e9dddc870192", // Rural Nepal
       description: "Return trip to the southern lowlands from Ilam.",
+      duration: "4 hours",
+      frequency: "Daily",
       subRoutes: [
         {
           from: "Fikkal",
@@ -153,6 +222,8 @@ const PopularRoutes = () => {
       price: "NPR 800",
       image: "https://images.unsplash.com/photo-1587148811906-7a2d1fa2eb08", // Chitwan wildlife
       description: "Experience Nepal's wildlife in Chitwan National Park.",
+      duration: "5 hours",
+      frequency: "Daily",
       subRoutes: [
         {
           from: "Thamel",
@@ -173,6 +244,8 @@ const PopularRoutes = () => {
       price: "NPR 1500",
       image: "https://images.unsplash.com/photo-1587282321140-d3c0d97e6af8", // Peace Pagoda
       description: "Visit the birthplace of Lord Buddha.",
+      duration: "7 hours",
+      frequency: "Daily",
       subRoutes: [
         {
           from: "Butwal",
@@ -194,6 +267,8 @@ const PopularRoutes = () => {
       image: "https://images.unsplash.com/photo-1544620347-c4fd4a3d5957", // Cultural heritage
       description:
         "Return journey from the peaceful plains to the bustling capital.",
+      duration: "9 hours",
+      frequency: "Daily",
       subRoutes: [
         {
           from: "Bharatpur",
@@ -210,112 +285,201 @@ const PopularRoutes = () => {
   ];
 
   const slideLeft = () => {
-    setCurrentIndex((prevIndex) =>
-      prevIndex === 0 ? routes.length - 1 : prevIndex - 1
-    );
+    setCurrentIndex((prevIndex) => {
+      const newIndex = prevIndex - 1;
+      return newIndex < 0 ? routes.length - visibleItems : newIndex;
+    });
   };
 
   const slideRight = () => {
-    setCurrentIndex((prevIndex) =>
-      prevIndex === routes.length - 1 ? 0 : prevIndex + 1
-    );
+    setCurrentIndex((prevIndex) => {
+      const newIndex = prevIndex + 1;
+      return newIndex > routes.length - visibleItems ? 0 : newIndex;
+    });
   };
 
+  // Calculate how many dots to show
+  const totalSlides = Math.ceil(routes.length / visibleItems);
+  const currentSlide = Math.floor(currentIndex / visibleItems);
+
   return (
-    <div className="w-full max-w-7xl mx-auto px-4 py-16">
-      <h2 className="text-3xl md:text-4xl font-bold text-gray-800 text-center mb-12">
-        Our Best-Selling Bus Routes
-      </h2>
+    <div className="w-full bg-gradient-to-b from-gray-50 to-white py-16 px-4 sm:px-6 lg:px-8">
+      <div className="max-w-7xl mx-auto">
+        <div className="text-center mb-12">
+          <h2 className="text-3xl md:text-4xl font-bold text-gray-800 mb-4">
+            Popular Bus Routes
+          </h2>
+          <p className="text-gray-600 max-w-2xl mx-auto">
+            Discover the most traveled routes across Nepal with comfortable
+            buses and affordable prices
+          </p>
+        </div>
 
-      <div className="relative">
-        {/* Carousel Container */}
-        <div className="overflow-hidden">
+        <div className="relative">
+          {/* Carousel Container */}
           <div
-            className="flex transition-transform duration-700 ease-in-out"
-            style={{ transform: `translateX(-${currentIndex * 100}%)` }}
+            className="overflow-hidden"
+            onTouchStart={handleTouchStart}
+            onTouchMove={handleTouchMove}
+            onTouchEnd={handleTouchEnd}
           >
-            {routes.map((route) => (
-              <div
-                key={route.id}
-                className="w-full min-w-full md:min-w-[50%] lg:min-w-[33.333%] px-4"
-              >
-                <div className="bg-white rounded-xl shadow-md hover:shadow-lg overflow-hidden transform transition-transform hover:-translate-y-2">
-                  {/* Image */}
-                  <div className="relative h-48 md:h-56 lg:h-64">
-                    <img
-                      src={route.image}
-                      alt={`${route.from} to ${route.to}`}
-                      className="w-full h-full object-cover"
-                    />
-                    <div className="absolute bottom-0 left-0 w-full bg-gradient-to-t from-black/60 to-transparent text-white px-4 py-2">
-                      <h3 className="text-lg font-semibold">
-                        {route.from} → {route.to}
-                      </h3>
-                    </div>
-                  </div>
+            <div
+              className="flex transition-transform duration-700 ease-out"
+              style={{
+                transform: `translateX(-${
+                  (currentIndex * 100) / visibleItems
+                }%)`,
+                width: `${(routes.length / visibleItems) * 100}%`,
+              }}
+            >
+              {routes.map((route) => (
+                <div
+                  key={route.id}
+                  className="px-3 md:px-4"
+                  style={{ width: `${(100 / routes.length) * visibleItems}%` }}
+                >
+                  <div className="bg-white rounded-2xl shadow-lg hover:shadow-xl overflow-hidden transform transition-all duration-300 hover:-translate-y-2 h-full flex flex-col border border-gray-100">
+                    {/* Image with gradient overlay */}
+                    <div className="relative h-52 sm:h-56 md:h-60 overflow-hidden">
+                      <img
+                        src={`${route.image}?auto=format&fit=crop&w=800&q=80`}
+                        alt={`${route.from} to ${route.to}`}
+                        className="w-full h-full object-cover transition-transform duration-700 hover:scale-110"
+                      />
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/30 to-transparent"></div>
 
-                  {/* Content */}
-                  <div className="p-6">
-                    <div className="flex justify-between items-center mb-4">
-                      <div>
-                        <p className="text-sm text-gray-500">Starting From</p>
-                        <p className="text-xl font-bold text-gray-800">
-                          {route.price}
-                        </p>
+                      {/* Route badge */}
+                      <div className="absolute top-4 left-4 bg-white/90 backdrop-blur-sm text-gray-800 px-3 py-1 rounded-full text-sm font-medium">
+                        Popular Route
                       </div>
-                      <button
-                        className="p-2 rounded-full bg-blue-100 text-blue-500 hover:bg-blue-200 transition-all"
-                        aria-label="View Route Details"
-                      >
-                        <ArrowRight className="w-6 h-6" />
-                      </button>
+
+                      {/* Route info overlay */}
+                      <div className="absolute bottom-0 left-0 w-full text-white p-4">
+                        <div className="flex items-center mb-1">
+                          <MapPin className="w-4 h-4 mr-1 text-green-400" />
+                          <h3 className="text-xl font-bold">
+                            {route.from} → {route.to}
+                          </h3>
+                        </div>
+                        <div className="flex items-center text-sm text-gray-200 space-x-3">
+                          <span className="flex items-center">
+                            <Calendar className="w-3 h-3 mr-1" />
+                            {route.frequency}
+                          </span>
+                          <span className="flex items-center">
+                            <Users className="w-3 h-3 mr-1" />
+                            {route.duration}
+                          </span>
+                        </div>
+                      </div>
                     </div>
 
-                    {route.subRoutes && (
-                      <div className="space-y-3">
-                        <h4 className="text-sm font-medium text-gray-700">
-                          Sub-Routes
-                        </h4>
-                        {route.subRoutes.map((subRoute, index) => (
-                          <div
-                            key={index}
-                            className="flex justify-between items-center border-b border-gray-200 py-2"
-                          >
-                            <span className="text-gray-600">
-                              {subRoute.from}
-                            </span>
-                            <div className="flex items-center gap-2">
-                              <span className="font-semibold text-gray-800">
-                                {subRoute.price}
-                              </span>
-                              <ChevronRight className="w-4 h-4 text-gray-400" />
-                            </div>
+                    {/* Content */}
+                    <div className="p-5 flex-grow flex flex-col">
+                      <div className="flex justify-between items-center mb-4">
+                        <div>
+                          <p className="text-xs text-gray-500 uppercase tracking-wider">
+                            Starting From
+                          </p>
+                          <p className="text-2xl font-bold text-gray-800">
+                            {route.price}
+                          </p>
+                        </div>
+                        <button
+                          className="p-2 rounded-full bg-green-100 text-green-600 hover:bg-green-200 transition-all"
+                          aria-label="View Route Details"
+                        >
+                          <ArrowRight className="w-5 h-5" />
+                        </button>
+                      </div>
+
+                      <p className="text-gray-600 text-sm mb-4 line-clamp-2">
+                        {route.description}
+                      </p>
+
+                      {route.subRoutes && (
+                        <div className="space-y-3 mt-auto">
+                          <h4 className="text-sm font-medium text-gray-700 flex items-center">
+                            <span className="w-1.5 h-1.5 bg-green-500 rounded-full mr-2"></span>
+                            Available Sub-Routes
+                          </h4>
+                          <div className="space-y-2">
+                            {route.subRoutes.map((subRoute, index) => (
+                              <div
+                                key={index}
+                                className="flex justify-between items-center border-b border-gray-100 py-2 group"
+                              >
+                                <span className="text-sm text-gray-600 group-hover:text-gray-900 transition-colors">
+                                  {subRoute.from}
+                                </span>
+                                <div className="flex items-center gap-2">
+                                  <span className="font-medium text-gray-800">
+                                    {subRoute.price}
+                                  </span>
+                                  <ChevronRight className="w-4 h-4 text-gray-400 group-hover:text-green-500 transition-colors" />
+                                </div>
+                              </div>
+                            ))}
                           </div>
-                        ))}
-                      </div>
-                    )}
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </div>
-              </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Navigation Buttons - Hidden on small screens, visible on medium and up */}
+          <button
+            onClick={slideLeft}
+            className="hidden md:flex absolute left-0 top-1/2 -translate-y-1/2 -translate-x-1/2 bg-white/90 backdrop-blur-sm p-3 rounded-full shadow-lg hover:bg-gray-100 transition-all z-10 focus:outline-none focus:ring-2 focus:ring-green-500 items-center justify-center"
+            aria-label="Previous Slide"
+          >
+            <ChevronLeft className="w-5 h-5 text-gray-700" />
+          </button>
+          <button
+            onClick={slideRight}
+            className="hidden md:flex absolute right-0 top-1/2 -translate-y-1/2 translate-x-1/2 bg-white/90 backdrop-blur-sm p-3 rounded-full shadow-lg hover:bg-gray-100 transition-all z-10 focus:outline-none focus:ring-2 focus:ring-green-500 items-center justify-center"
+            aria-label="Next Slide"
+          >
+            <ChevronRight className="w-5 h-5 text-gray-700" />
+          </button>
+
+          {/* Pagination Dots */}
+          <div className="flex justify-center mt-8 space-x-2">
+            {Array.from({ length: totalSlides }).map((_, index) => (
+              <button
+                key={index}
+                onClick={() => setCurrentIndex(index * visibleItems)}
+                className={`w-2.5 h-2.5 rounded-full transition-all duration-300 ${
+                  currentSlide === index
+                    ? "bg-green-500 w-8"
+                    : "bg-gray-300 hover:bg-gray-400"
+                }`}
+                aria-label={`Go to slide ${index + 1}`}
+              />
             ))}
           </div>
         </div>
 
-        {/* Navigation Buttons */}
-        <button
-          onClick={slideLeft}
-          className="absolute left-2 top-1/2 -translate-y-1/2 bg-white p-3 rounded-full shadow-lg hover:bg-gray-100 transition-all z-10 focus:outline-none focus:ring-2 focus:ring-blue-500"
-          aria-label="Previous Slide"
-        >
-          <ChevronLeft className="w-6 h-6 text-gray-600" />
-        </button>
-        <button
-          onClick={slideRight}
-          className="absolute right-2 top-1/2 -translate-y-1/2 bg-white p-3 rounded-full shadow-lg hover:bg-gray-100 transition-all z-10 focus:outline-none focus:ring-2 focus:ring-blue-500"
-          aria-label="Next Slide"
-        >
-          <ChevronRight className="w-6 h-6 text-gray-600" />
-        </button>
+        {/* Mobile Navigation Buttons */}
+        <div className="flex justify-center mt-6 space-x-4 md:hidden">
+          <button
+            onClick={slideLeft}
+            className="bg-white p-3 rounded-full shadow-md hover:bg-gray-100 transition-all focus:outline-none focus:ring-2 focus:ring-green-500 flex items-center justify-center"
+            aria-label="Previous Slide"
+          >
+            <ChevronLeft className="w-5 h-5 text-gray-700" />
+          </button>
+          <button
+            onClick={slideRight}
+            className="bg-white p-3 rounded-full shadow-md hover:bg-gray-100 transition-all focus:outline-none focus:ring-2 focus:ring-green-500 flex items-center justify-center"
+            aria-label="Next Slide"
+          >
+            <ChevronRight className="w-5 h-5 text-gray-700" />
+          </button>
+        </div>
       </div>
     </div>
   );

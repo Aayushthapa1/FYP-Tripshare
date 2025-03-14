@@ -1,6 +1,7 @@
 // src/services/bookingService.js
 
 import axiosInstance from "../utils/axiosInstance"; 
+import { io } from "socket.io-client";
 // or your custom axios with interceptors
 
 // Optionally, if you have a handleResponse/handleError utility:

@@ -14,7 +14,7 @@ import { ToastContainer } from "react-toastify";
 // Layout / Shared
 import Navbar from "./components/layout/Navbar";
 import Footer from "./components/layout/Footer";
-import UserProfile from "./components/auth/userProfile.jsx";
+import ProfileModal from "./components/auth/ProfileModal.jsx";
 // import MultiStepForm from "./components/layout/MultiStepForm";
 
 
@@ -99,7 +99,7 @@ function App() {
           />
           <Route path="/contact" element={<HelpCenter />} />
           <Route path="/payment" element={<PaymentForm />} />
-          <Route path="/profile/:userId" element={<UserProfile />} />
+          <Route path="/profile/:userId" element={<ProfileModal />} />
           <Route
             path="/tripform"
             element={

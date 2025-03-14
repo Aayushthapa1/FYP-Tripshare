@@ -1,6 +1,8 @@
+import { constants } from "crypto";
 import Trip from "../models/TripModel.js";
-import User from "../models/UserModel.js"; // ensure correct import name/path
+import User from "../models/userModel.js"; // ensure correct import name/path
 import { createResponse } from "../utils/responseHelper.js";
+import { io } from "../server.js";
 
 /**
  * CREATE a new trip (driver only)
@@ -31,7 +33,7 @@ export const createTrip = async (req, res, next) => {
       preferences,    // { smoking, pets, music }
     } = req.body;
 
-    // Create
+    // Create the trip
     const newTrip = await Trip.create({
       driver: {
         _id: user._id,
@@ -49,6 +51,10 @@ export const createTrip = async (req, res, next) => {
       preferences,
     });
 
+    // ** Broadcast to ALL connected clients **
+    // Everyone listening for "trip_created" will receive `newTrip`.
+    io.emit("trip_created", newTrip);
+
     return res.status(201).json(
       createResponse(201, true, [], {
         message: "Trip created successfully",
@@ -64,58 +70,61 @@ export const createTrip = async (req, res, next) => {
 /**
  * BOOK a seat on a trip (any authenticated user except the driver)
  */
-export const bookSeat = async (req, res, next) => {
-  try {
-    const userId = req.user._id;
-    const { tripId } = req.params;
+// export const bookSeat = async (req, res, next) => {
+//   try {
+//     const userId = req.user._id;
+//     const { tripId } = req.params;
+//     const trip = await Trip.findById(tripId).populate("driver");
 
-    const trip = await Trip.findById(tripId);
-    if (!trip) {
-      return res
-        .status(404)
-        .json(createResponse(404, false, [{ message: "Trip not found" }]));
-    }
+//     if (!trip) {
+//       return res
+//         .status(404)
+//         .json(createResponse(404, false, [{ message: "Trip not found" }]));
+//     }
 
-    // If you're the driver, can't book your own
-    if (trip.driver && trip.driver._id.toString() === userId.toString()) {
-      return res
-        .status(400)
-        .json(
-          createResponse(400, false, [{ message: "Driver cannot book own trip" }])
-        );
-    }
+//     console.log("The trip is", trip)
 
-    // Check seats
-    if (trip.availableSeats < 1) {
-      return res
-        .status(400)
-        .json(
-          createResponse(400, false, [{ message: "No seats left for this trip" }])
-        );
-    }
+//     // If you're the driver, can't book your own
+//     if (trip.driver && trip.driver._id.toString() === userId.toString()) {
+//       return res
+//         .status(400)
+//         .json(
+//           createResponse(400, false, [{ message: "Driver cannot book own trip" }])
+//         );
+//     }
 
-    // Already booked?
-    const alreadyBooked = trip.bookedSeats.some(
-      (bookedUserId) => bookedUserId.toString() === userId.toString()
-    );
-    if (alreadyBooked) {
-      return res
-        .status(400)
-        .json(createResponse(400, false, [{ message: "Already booked" }]));
-    }
+//     // Check seats
+//     if (trip.availableSeats < 1) {
+//       return res
+//         .status(400)
+//         .json(
+//           createResponse(400, false, [{ message: "No seats left for this trip" }])
+//         );
+//     }
 
-    trip.bookedSeats.push(userId);
-    trip.availableSeats -= 1;
-    await trip.save();
+//     // Already booked?
+//     const alreadyBooked = trip.bookedSeats.some(
+//       (bookedUserId) => bookedUserId.toString() === userId.toString()
+//     );
+//     console.log("Already booked?", alreadyBooked);
+//     if (alreadyBooked) {
+//       return res
+//         .status(400)
+//         .json(createResponse(400, false, [{ message: "Already booked" }]));
+//     }
 
-    return res
-      .status(200)
-      .json(createResponse(200, true, [], { message: "Seat booked", trip }));
-  } catch (error) {
-    console.error("Error in bookSeat:", error);
-    next(error);
-  }
-};
+//     trip.bookedSeats.push(userId);
+//     trip.availableSeats -= 1;
+//     await trip.save();
+
+//     return res
+//       .status(200)
+//       .json(createResponse(200, true, [], { message: "Seat booked", trip }));
+//   } catch (error) {
+//     console.error("Error in bookSeat:", error);
+//     next(error);
+//   }
+// };
 
 /**
  * GET all trips

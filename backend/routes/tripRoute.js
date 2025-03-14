@@ -7,7 +7,6 @@ import {
   updateTrip,
   deleteTrip,
   searchTrips,
-  bookSeat
 } from "../controllers/tripController.js";
 import protectRoute from "../middlewares/protectRoute.js";
 import { authorizeRole } from "../middlewares/roleAuth.js";
@@ -27,8 +26,6 @@ const validateSearchParams = (req, res, next) => {
 // Create trip (driver only)
 router.post("/create", protectRoute, authorizeRole("driver"), createTrip);
 
-// Book seat (any logged-in user)
-router.post("/:tripId/book-seat", protectRoute, bookSeat);
 
 // List all trips (public)
 router.get("/all", getAllTrips);

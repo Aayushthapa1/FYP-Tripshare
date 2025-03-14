@@ -3,7 +3,9 @@ import { useNavigate, useParams } from "react-router-dom"
 import { ArrowLeft, Calendar, Clock, MapPin, Trash, Car, CheckCircle, Home, Save, AlertTriangle, X } from "lucide-react"
 import { Toaster, toast } from "sonner"
 import { useDispatch, useSelector } from "react-redux"
-import { createTrip, updateTrip, deleteTrip, resetTripState } from "../Slices/tripSlice" // <-- update to your actual slice path, e.g. "../store/slices/tripSlice"
+import { createTrip, updateTrip, deleteTrip, resetTripState } from "../Slices/tripSlice"
+import Navbar from "./../layout/Navbar"
+import Footer from "./../layout/Footer" // <-- update to your actual slice path, e.g. "../store/slices/tripSlice"
 
 const TripForm = () => {
   const navigate = useNavigate()
@@ -63,8 +65,6 @@ const TripForm = () => {
       dispatch(resetTripState())
       // Mark the form as not dirty
       setIsFormDirty(false)
-      // Go back to trip list
-      navigate("/trips")
     }
   }, [success, tripId, dispatch, navigate])
 
@@ -190,8 +190,7 @@ const TripForm = () => {
         dispatch(resetTripState())
         // Mark the form as not dirty
         setIsFormDirty(false)
-        // Go back to trip list
-        navigate("/trips")
+        
       }
     } catch (err) {
       console.error("Operation failed:", err)
@@ -214,7 +213,6 @@ const TripForm = () => {
         description: "Any booked passengers will be notified automatically.",
         id: "trip-delete",
       })
-      navigate("/trips")
     } catch (err) {
       console.error("Delete failed:", err)
       toast.error("Couldn't delete this trip", {
@@ -334,6 +332,7 @@ const TripForm = () => {
 
   return (
     <div className="min-h-screen bg-gray-50">
+      <Navbar/>
       <Toaster
         position="top-right"
         richColors
@@ -628,6 +627,7 @@ const TripForm = () => {
           </div>
         </form>
       </main>
+      <Footer/>
     </div>
   )
 }

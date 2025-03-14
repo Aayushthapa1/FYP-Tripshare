@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { useDispatch, useSelector } from "react-redux";
-import { fetchPendingKYC, updateDriverVerification } from "../../Slices/driverSlice";
+import { fetchPendingKYC, updateDriverVerification } from "../../Slices/KYCSlice";
 import { Check, X, AlertCircle, ChevronRight, ChevronDown, Search, FileText, User, Car, Phone, MapPin, Mail } from 'lucide-react';
 
 const KycVerification = () => {

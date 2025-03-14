@@ -1,5 +1,5 @@
 import { createSlice, createAsyncThunk } from "@reduxjs/toolkit";
-import driverService from "../../services/driverService";
+import driverService from "../../services/KYCService";
 
 const initialState = {
   drivers: [],
@@ -140,7 +140,7 @@ export const verifyDriver = createAsyncThunk(
   }
 );
 
-const driverSlice = createSlice({
+const KYCSlice = createSlice({
   name: "driver",
   initialState,
   reducers: {
@@ -305,6 +305,6 @@ const driverSlice = createSlice({
 });
 
 
-export const { clearDriverError, setCurrentDriver, clearCurrentDriver } = driverSlice.actions;
-export default driverSlice.reducer;
+export const { clearDriverError, setCurrentDriver, clearCurrentDriver } = KYCSlice.actions;
+export default KYCSlice.reducer;
 

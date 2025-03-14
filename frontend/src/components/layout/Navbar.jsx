@@ -1,18 +1,22 @@
-import React, { useState, useEffect } from "react";
+
+
+import { useState, useEffect } from "react";
 import { useDispatch, useSelector } from "react-redux";
-import { Car, Menu, X, UserCircle, Search, Plus, LogOut } from 'lucide-react';
+import { Car, Menu, X, UserCircle, Search, Plus, LogOut } from "lucide-react";
 import { toast, Toaster } from "sonner";
 import NavLinks from "./NavLinks";
 import MobileMenu from "./MobileMenu";
 import Button from "../button.jsx";
 import { useNavigate } from "react-router-dom";
 import { logoutUser } from "../Slices/authSlice"; // import your logout action
+import ProfileModal from "../auth/ProfileModal.jsx"; // Import the new ProfileModal component
 
 export default function Navbar() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isScrolled, setIsScrolled] = useState(false);
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
+  const [showProfileModal, setShowProfileModal] = useState(false); // New state for profile modal
 
   const dispatch = useDispatch();
   const navigate = useNavigate();
@@ -36,12 +40,12 @@ export default function Navbar() {
   // Close user menu when clicking outside
   useEffect(() => {
     const handleClickOutside = (event) => {
-      if (isUserMenuOpen && !event.target.closest('.user-menu-container')) {
+      if (isUserMenuOpen && !event.target.closest(".user-menu-container")) {
         setIsUserMenuOpen(false);
       }
     };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [isUserMenuOpen]);
 
   const handleNavigate = (path) => {
@@ -50,32 +54,37 @@ export default function Navbar() {
 
   const confirmLogout = () => {
     setShowLogoutConfirm(true);
-    toast.custom((t) => (
-      <div className="bg-white rounded-lg shadow-lg p-4 max-w-md w-full border border-gray-200">
-        <h3 className="text-lg font-medium text-gray-900 mb-2">Confirm Logout</h3>
-        <p className="text-gray-600 mb-4">Are you sure you want to logout?</p>
-        <div className="flex justify-end space-x-2">
-          <button 
-            onClick={() => toast.dismiss(t.id)} 
-            className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200 transition-colors"
-          >
-            Cancel
-          </button>
-          <button 
-            onClick={() => {
-              toast.dismiss(t.id);
-              handleLogout();
-            }} 
-            className="px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-md hover:bg-red-700 transition-colors"
-          >
-            Yes, Logout
-          </button>
+    toast.custom(
+      (t) => (
+        <div className="bg-white rounded-lg shadow-lg p-4 max-w-md w-full border border-gray-200">
+          <h3 className="text-lg font-medium text-gray-900 mb-2">
+            Confirm Logout
+          </h3>
+          <p className="text-gray-600 mb-4">Are you sure you want to logout?</p>
+          <div className="flex justify-end space-x-2">
+            <button
+              onClick={() => toast.dismiss(t.id)}
+              className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200 transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={() => {
+                toast.dismiss(t.id);
+                handleLogout();
+              }}
+              className="px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-md hover:bg-red-700 transition-colors"
+            >
+              Yes, Logout
+            </button>
+          </div>
         </div>
-      </div>
-    ), {
-      duration: 10000,
-      position: 'top-right',
-    });
+      ),
+      {
+        duration: 10000,
+        position: "top-center",
+      }
+    );
   };
 
   const handleLogout = () => {
@@ -100,6 +109,12 @@ export default function Navbar() {
     navigate("/"); // redirect to home
   };
 
+  // Handle opening the profile modal
+  const handleOpenProfile = () => {
+    setIsUserMenuOpen(false); // Close the dropdown
+    setShowProfileModal(true); // Open the profile modal
+  };
+
   return (
     <nav
       className={`fixed w-full z-50 bg-white border-b border-gray-200 transition-shadow duration-300 ${
@@ -110,9 +125,14 @@ export default function Navbar() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between items-center h-16">
           {/* Left: Logo */}
-          <div className="flex items-center space-x-2 cursor-pointer" onClick={() => handleNavigate("/")}>
+          <div
+            className="flex items-center space-x-2 cursor-pointer"
+            onClick={() => handleNavigate("/")}
+          >
             <Car className="h-8 w-8 text-green-500" />
-            <span className="text-2xl font-bold text-gray-900 tracking-tight">TripShare</span>
+            <span className="text-2xl font-bold text-gray-900 tracking-tight">
+              TripShare
+            </span>
           </div>
 
           {/* Middle: Nav Links (Desktop) */}
@@ -160,25 +180,19 @@ export default function Navbar() {
                 >
                   <UserCircle className="h-6 w-6 text-gray-700" />
                 </button>
+
                 {isUserMenuOpen && (
                   <div className="absolute right-0 mt-2 w-56 bg-white rounded-xl shadow-xl py-2 border border-gray-100 transform origin-top-right transition-all duration-200 ease-out">
                     <div className="px-4 py-3 border-b border-gray-100">
-                      <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Signed in as</p>
-                      <button
-                        onClick={() => {
-                          setIsUserMenuOpen(false);
-                          handleNavigate(`/profile/${user?._id}`);
-                        }}
-                        className="text-sm font-medium text-gray-900 hover:text-green-600 cursor-pointer mt-1"
-                      >
+                      <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                        Signed in as
+                      </p>
+                      <button className="text-sm font-medium text-gray-900 hover:text-green-600 cursor-pointer mt-1">
                         {userName}
                       </button>
                     </div>
                     <button
-                      onClick={() => {
-                        setIsUserMenuOpen(false);
-                        handleNavigate("/kycform");
-                      }}
+                      onClick={handleOpenProfile}
                       className="flex w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 hover:text-green-600 text-left transition-colors"
                     >
                       <span className="ml-2">Profile Settings</span>
@@ -186,11 +200,11 @@ export default function Navbar() {
                     <button
                       onClick={() => {
                         setIsUserMenuOpen(false);
-                        handleNavigate("/trips");
+                        handleNavigate("/Kycform");
                       }}
                       className="flex w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 hover:text-green-600 text-left transition-colors"
                     >
-                      <span className="ml-2">My Trips</span>
+                      <span className="ml-2">KYC</span>
                     </button>
                     <div className="border-t border-gray-100 my-1"></div>
                     <button
@@ -253,7 +267,20 @@ export default function Navbar() {
         onNavigate={handleNavigate}
         onLogout={confirmLogout}
         closeMenu={() => setIsMenuOpen(false)}
+        onOpenProfile={() => {
+          setIsMenuOpen(false);
+          setShowProfileModal(true);
+        }}
       />
+
+      {/* Profile Modal */}
+      {isAuthenticated && (
+        <ProfileModal
+          isOpen={showProfileModal}
+          onClose={() => setShowProfileModal(false)}
+          userId={user?._id}
+        />
+      )}
     </nav>
   );
 }

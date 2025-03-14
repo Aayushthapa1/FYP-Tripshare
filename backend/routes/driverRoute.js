@@ -1,4 +1,6 @@
-import express from 'express';
+// routes/driverRoutes.js
+
+import express from "express";
 import {
   savePersonalInformation,
   saveLicenseInformation,
@@ -7,28 +9,39 @@ import {
   updateDriverVerification,
   submitKYC,
   getPendingKYC,
-} from '../controllers/driverController.js';
+  
+} from "../controllers/driverController.js";
 
 const router = express.Router();
 
-// Save Personal Information
-router.post('/personalinfo', savePersonalInformation);
+// Personal Info
+router.post("/personalinfo", savePersonalInformation);
 
-// Save License Information
-router.post('/licenseinfo', saveLicenseInformation);
+// License Info
+router.post("/licenseinfo", saveLicenseInformation);
 
-// Save Vehicle Information
-router.post('/vehicleinfo', saveVehicleInformation);
+// Vehicle Info
+router.post("/vehicleinfo", saveVehicleInformation);
 
-// Submit KYC
-router.post('/kyc', submitKYC);
+// (Optional) Submit KYC all at once
+router.post("/kyc", submitKYC);
 
-// Fetch all drivers
-router.get('/drivers', getAllDrivers);
+// Get all drivers
+router.get("/drivers", getAllDrivers);
 
-// Fetch pending KYC
-router.get('/kycpending', getPendingKYC);
+// Get driver by id
+router.get('/drivers/:driverId', async (req, res) => {
+  const { driverId } = req.params;
+  const driver = await DriverModel.findById(driverId);
+  res.json(driver); // or { driver } if you prefer
+});
 
-router.put('/drivers/:driverId/verify', updateDriverVerification); // Update verification status
+// Get pending KYC
+router.get("/kycpending", getPendingKYC);
+
+// Update driver verification
+router.put("/drivers/verify/:driverId", updateDriverVerification);
+
+
 
 export default router;

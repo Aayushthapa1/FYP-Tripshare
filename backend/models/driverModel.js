@@ -6,8 +6,8 @@ const DriverSchema = new mongoose.Schema(
     fullName: { type: String, required: true },
     address: { type: String, required: true },
     email: { type: String, required: true, unique: true },
-    gender: { type: String, enum: ["Male", "Female", "Other"], required: true }, // Added "Other"
-    dob: { type: Date, required: true }, // Changed to Date type
+    gender: { type: String, enum: ["Male", "Female", "Other"], required: true },
+    dob: { type: Date, required: true },
     citizenshipNumber: { type: String, required: true, unique: true },
     photo: { type: String, required: true },
 
@@ -17,21 +17,22 @@ const DriverSchema = new mongoose.Schema(
     backPhoto: { type: String },
 
     // Vehicle Information
-    vehicleType: { type: String, enum: ["Car", "Bike", "Electric"], required: true },
-    numberPlate: { type: String, unique: true, required: true },
-    productionYear: { type: Number, required: true }, // Changed to Number type
-    vehiclePhoto: { type: String, required: true },
-    vehicleDetailPhoto: { type: String, required: true },
-    ownerDetailPhoto: { type: String, required: true },
-    renewalDetailPhoto: { type: String, required: true },
+    vehicleType: { type: String, enum: ["Car", "Bike", "Electric"], required: false },
+    numberPlate: { type: String, unique: true, required: false },
+    productionYear: { type: Number, required: false },
+    vehiclePhoto: { type: String, required: false },
+    vehicleDetailPhoto: { type: String, required: false },
+    ownerDetailPhoto: { type: String, required: false },
+    renewalDetailPhoto: { type: String, required: false },
+    
 
     // KYC Status
     status: {
       type: String,
-      enum: ["pending", "verified", "rejected", "needs_resubmission"], // Added "needs_resubmission"
+      enum: ["pending", "verified", "rejected", "needs_resubmission"],
       default: "pending",
     },
-    rejectionReason: { type: String }, // Added for storing rejection reasons
+    rejectionReason: { type: String },
 
     // Reference to User
     user: {
@@ -43,4 +44,6 @@ const DriverSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-export default mongoose.model("Driver", DriverSchema);
+const DriverModel = mongoose.model("Driver", DriverSchema);
+
+export default DriverModel;

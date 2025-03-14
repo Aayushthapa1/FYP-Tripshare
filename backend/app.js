@@ -12,6 +12,7 @@ import tripRoute from "./routes/tripRoute.js";
 import driverRoute from "./routes/driverRoute.js";
 import handleRideRoute from "./routes/handleRideRoute.js";
 import userRoute from "./routes/userRoute.js";
+import bookingRoutes from "./routes/bookingRoute.js";
 
 const app = express();
 
@@ -39,6 +40,7 @@ app.use("/api/users", userRoute);
 app.use("/api/drivers", driverRoute);
 app.use ("/api/rides", handleRideRoute);
 app.use("/api/user", userRoute);
+app.use("/api/bookings", bookingRoutes);
 
 // Root route
 app.get("/", (req, res) => {
