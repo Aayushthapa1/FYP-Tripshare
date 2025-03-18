@@ -1,51 +1,33 @@
-// paymentModel.js
 import mongoose from "mongoose";
 
-const PaymentSchema = new mongoose.Schema(
+const paymentSchema = new mongoose.Schema(
   {
-    amount: { 
-      type: Number, 
+    booking: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Booking",
       required: true,
-      min: [10, "Amount must be at least 10"],
-      max: [100000, "Amount cannot exceed 100000"]
     },
-    method: { 
-      type: String, 
+    amount: {
+      type: Number,
       required: true,
-      enum: {
-        values: ['esewa', 'khalti'],
-        message: '{VALUE} is not a supported payment method'
-      }
     },
-    transactionId: { 
-      type: String, 
+    paymentMethod: {
+      type: String,
+      enum: ["esewa", "khalti", "bank_transfer","COD"],
       required: true,
-      unique: true,
-      index: true
     },
-    status: { 
-      type: String, 
+    status: {
+      type: String,
+      enum: ["pending", "completed", "failed"],
       default: "pending",
-      enum: {
-        values: ['pending', 'success', 'failed', 'expired'],
-        message: '{VALUE} is not a valid status'
-      }
     },
-    metadata: {
-      ipAddress: String,
-      userAgent: String,
-      referenceId: String
+    transactionId: {
+      type: String,
     },
-    errorMessage: String,
-    successResponse: Object
+    khaltiToken: { type: String },
   },
-  { 
-    timestamps: true 
-  }
+  { timestamps: true }
 );
 
-// Add indexes for better query performance
-PaymentSchema.index({ createdAt: 1 });
-PaymentSchema.index({ status: 1 });
-
-export default mongoose.model("Payment", PaymentSchema);
+const Payment = mongoose.model("Payment", paymentSchema);
+export default Payment;

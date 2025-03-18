@@ -1,20 +1,22 @@
-// src/services/bookingService.js
+import axiosInstance from "../utils/axiosInstance";
 
-import axiosInstance from "../utils/axiosInstance"; 
-import { io } from "socket.io-client";
-// or your custom axios with interceptors
-
-// Optionally, if you have a handleResponse/handleError utility:
+// Utility functions for response handling
 const handleResponse = (response) => {
   if (!response.data) {
     throw new Error("No data received from the server");
   }
-  return response.data; // e.g. { StatusCode, IsSuccess, ErrorMessage, Result: {...} }
+  return response.data;
 };
 
 const handleError = (error) => {
   if (error.response) {
-    throw new Error(error.response.data?.ErrorMessage?.[0]?.message || error.response.data?.message || "Unknown error");
+    // Try to extract error messages from the response
+    const errors = error.response.data?.errors;
+    const errMsg =
+      (Array.isArray(errors) && errors.length > 0 && errors[0].message) ||
+      error.response.data?.message ||
+      "Unknown error";
+    throw new Error(errMsg);
   } else if (error.request) {
     throw new Error("No response from server");
   } else {
@@ -25,13 +27,12 @@ const handleError = (error) => {
 /**
  * Create a booking
  * POST /api/bookings
- * body: { tripId, seats }
+ * Body: { tripId, seats }
  */
 export const createBooking = async ({ tripId, seats = 1 }) => {
   try {
     const response = await axiosInstance.post("/api/bookings", { tripId, seats });
     const data = handleResponse(response);
-    // data.Result.booking => the new booking doc
     return data.Result?.booking;
   } catch (error) {
     throw handleError(error);
@@ -46,7 +47,6 @@ export const getMyBookings = async () => {
   try {
     const response = await axiosInstance.get("/api/bookings/my");
     const data = handleResponse(response);
-    // data.Result.bookings => array
     return data.Result?.bookings || [];
   } catch (error) {
     throw handleError(error);
@@ -61,7 +61,6 @@ export const getBookingDetails = async (bookingId) => {
   try {
     const response = await axiosInstance.get(`/api/bookings/${bookingId}`);
     const data = handleResponse(response);
-    // data.Result.booking => the booking doc with trip & driver populated
     return data.Result?.booking;
   } catch (error) {
     throw handleError(error);
@@ -76,7 +75,6 @@ export const cancelBooking = async (bookingId) => {
   try {
     const response = await axiosInstance.patch(`/api/bookings/${bookingId}/cancel`);
     const data = handleResponse(response);
-    // data.Result.booking => the updated booking doc
     return data.Result?.booking;
   } catch (error) {
     throw handleError(error);

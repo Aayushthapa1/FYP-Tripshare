@@ -1,5 +1,3 @@
-// controllers/bookingController.js
-
 import mongoose from "mongoose";
 import Booking from "../models/bookingModel.js";
 import Trip from "../models/TripModel.js";
@@ -7,81 +5,55 @@ import { createResponse } from "../utils/responseHelper.js";
 
 /**
  * CREATE a new booking
- * (User is not the driver, seats must be available, etc.)
  */
 export const createBooking = async (req, res, next) => {
   try {
-    const userId = req.user._id; // from protectRoute
-    const { tripId, seats = 1 } = req.body;
+    const userId = req.user._id;
+    let { tripId, seats = 1, paymentMethod } = req.body;
 
-    // 1) Validate tripId
-    if (!mongoose.Types.ObjectId.isValid(tripId)) {
-      return res
-        .status(400)
-        .json(createResponse(400, false, [
-          { message: "Invalid trip ID" }
-        ]));
+    // Ensure seats is a number
+    seats = Number(seats);
+    if (isNaN(seats) || seats < 1) {
+      return res.status(400).json(createResponse(400, false, [{ message: "Invalid seats value" }]));
     }
 
-    // 2) Find the trip
+    // Validate payment method
+    if (!["COD", "online"].includes(paymentMethod)) {
+      return res.status(400).json(createResponse(400, false, [{ message: "Invalid payment method" }]));
+    }
+
+    // Find the trip
     const trip = await Trip.findById(tripId);
     if (!trip) {
-      return res
-        .status(404)
-        .json(createResponse(404, false, [
-          { message: "Trip not found" }
-        ]));
+      return res.status(404).json(createResponse(404, false, [{ message: "Trip not found" }]));
     }
 
-    // 3) Ensure user is not the driver
-    if (trip.driver && trip.driver._id.toString() === userId.toString()) {
-      return res
-        .status(400)
-        .json(createResponse(400, false, [
-          { message: "Driver cannot book their own trip" }
-        ]));
-    }
-
-    // 4) Check if enough seats remain
+    // Check available seats
     if (trip.availableSeats < seats) {
-      return res
-        .status(400)
-        .json(createResponse(400, false, [
-          { message: "Not enough seats available for this trip" }
-        ]));
+      return res.status(400).json(createResponse(400, false, [{ message: "Not enough seats available for this trip" }]));
     }
 
-    // 5) Decrement seats
+    // Decrement available seats and save the trip
     trip.availableSeats -= seats;
     await trip.save();
 
-    // 6) Create booking
+    // Determine payment status based on method
+    const paymentStatus = paymentMethod === "COD" ? "pending" : "pending"; // Payment is "pending" until online payment is confirmed
+
+    // Create the booking
     const newBooking = await Booking.create({
       trip: trip._id,
       user: userId,
       seatsBooked: seats,
-      // status: "booked" by default
+      paymentMethod,
+      paymentStatus,
     });
-
-    // ** Emit a Socket.IO event to let relevant clients know a booking was created **
-    // If you want to notify all clients:
-    io.emit("booking_created", newBooking);
-
-    // Or if you only want to notify the driver specifically:
-    //  - We need the driver's userId. It's trip.driver._id.
-    //  - If you're storing user->socket in a Map, do something like:
-    /*
-    import { onlineUsers } from "../server.js";
-    const driverId = trip.driver._id.toString();
-    const driverSocketId = onlineUsers.get(driverId);
-    if (driverSocketId) {
-      io.to(driverSocketId).emit("booking_created", newBooking);
-    }
-    */
 
     return res.status(201).json(
       createResponse(201, true, [], {
-        message: "Booking created successfully",
+        message: paymentMethod === "COD" 
+          ? "Booking confirmed with Cash on Delivery. Pay at the time of the trip." 
+          : "Booking created. Please proceed with online payment.",
         booking: newBooking,
       })
     );
@@ -93,11 +65,6 @@ export const createBooking = async (req, res, next) => {
 
 /**
  * GET a single booking's details
- * Here we populate the trip (and the trip's driver), so you see all the data:
- *  - departure/destination
- *  - date/time
- *  - vehicleDetails
- *  - driver name, phone, etc.
  */
 export const getBookingDetails = async (req, res, next) => {
   try {
@@ -109,14 +76,14 @@ export const getBookingDetails = async (req, res, next) => {
         .json(createResponse(400, false, [{ message: "Invalid booking ID" }]));
     }
 
-    // Populate the trip, and within the trip, populate driver
+    // Populate the trip and, within the trip, populate the driver field
     const booking = await Booking.findById(bookingId)
       .populate({
         path: "trip",
         populate: {
-          path: "driver._id", // We store driver as { _id, name, phoneNumber }
-          model: "User", // if you actually reference the user doc
-          select: "fullName phoneNumber role", // or whichever fields
+          path: "driver",
+          model: "User",
+          select: "fullName phoneNumber role",
         },
       })
       .populate("user", "fullName email phoneNumber");
@@ -145,12 +112,11 @@ export const getMyBookings = async (req, res, next) => {
   try {
     const userId = req.user._id;
 
-    // Populate trip, driver, etc. if you want
     const bookings = await Booking.find({ user: userId })
       .populate({
         path: "trip",
         populate: {
-          path: "driver._id",
+          path: "driver",
           model: "User",
           select: "fullName phoneNumber role",
         },
@@ -170,8 +136,6 @@ export const getMyBookings = async (req, res, next) => {
 
 /**
  * CANCEL a booking
- * - sets booking.status = "cancelled"
- * - increments trip.availableSeats
  */
 export const cancelBooking = async (req, res, next) => {
   try {
@@ -191,7 +155,7 @@ export const cancelBooking = async (req, res, next) => {
         .json(createResponse(404, false, [{ message: "Booking not found" }]));
     }
 
-    // Ensure this booking belongs to the user
+    // Ensure the booking belongs to the user
     if (booking.user.toString() !== userId.toString()) {
       return res
         .status(403)
@@ -202,7 +166,7 @@ export const cancelBooking = async (req, res, next) => {
         );
     }
 
-    // If it's still "booked", revert seats
+    // If the booking is still booked, cancel it and revert seats
     if (booking.status === "booked") {
       booking.status = "cancelled";
       if (booking.trip) {

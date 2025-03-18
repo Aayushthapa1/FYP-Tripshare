@@ -15,6 +15,7 @@ import { ToastContainer } from "react-toastify";
 import Navbar from "./components/layout/Navbar";
 import Footer from "./components/layout/Footer";
 import ProfileModal from "./components/auth/ProfileModal.jsx";
+import KhaltiPaymentButton from "./components/layout/PaymentButton.jsx";
 // import MultiStepForm from "./components/layout/MultiStepForm";
 
 
@@ -50,6 +51,7 @@ import PaymentForm from "./components/payment/PaymentForm";
 //trips
 import TripForm from "./components/trip/tripForm";
 import TripList from "./components/trip/tripList";
+import BookingConfirmationModal from "./components/trip/bookingList.jsx";
 
 //DRIVER
 import KYCForm from "./components/driver/KYCForm";
@@ -91,6 +93,8 @@ function App() {
                 <HowItWorks />
                 <PopularRoutes />
                 <ScrollToTopButton />
+                <KhaltiPaymentButton/>
+
 
 
                 <Footer />
@@ -100,15 +104,11 @@ function App() {
           <Route path="/contact" element={<HelpCenter />} />
           <Route path="/payment" element={<PaymentForm />} />
           <Route path="/profile/:userId" element={<ProfileModal />} />
-          <Route
-            path="/tripform"
-            element={
-              <CheckAuth role="driver">
-                <TripForm />
-              </CheckAuth>
-            }
-          />
+        
           <Route path="/trips" element={<TripList />} />
+          <Route path="/tripform" element={<TripForm />} />
+          <Route path="/bookings" element={<BookingConfirmationModal />} />
+          
 
           {/* Auth Routes */}
           <Route

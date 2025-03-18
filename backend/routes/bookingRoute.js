@@ -9,16 +9,16 @@ import protectRoute from "../middlewares/protectRoute.js";
 
 const router = express.Router();
 
-// CREATE booking
+// Create booking (protected)
 router.post("/", protectRoute, createBooking);
 
-// GET my bookings
+// Get my bookings (protected)
 router.get("/my", protectRoute, getMyBookings);
 
-// GET single booking details
+// Get single booking details (protected)
 router.get("/:bookingId", protectRoute, getBookingDetails);
 
-// CANCEL booking
+// Cancel booking (protected)
 router.patch("/:bookingId/cancel", protectRoute, cancelBooking);
 
 export default router;

@@ -1,13 +1,16 @@
-// routes/payment.routes.js
 import express from "express";
-import { processPayment, esewaSuccess, khaltiSuccess } from "../controllers/paymentController.js";
-import { validateRequest } from '../middlewares/validateRequest.js';
-import { paymentSchema } from '../middlewares/validationSchema.js';
+import { createPayment, getPaymentDetails, getAllPayments } from "../controllers/paymentController.js";
+import protectRoute from "../middlewares/protectRoute.js";
 
 const router = express.Router();
 
-router.post("/", validateRequest(paymentSchema), processPayment);
-router.get("/esewa-success", esewaSuccess);
-router.post("/khalti-success", khaltiSuccess);
+// Create a payment (Protected)
+router.post("/", protectRoute, createPayment);
+
+// Get a single payment details (Protected)
+router.get("/:paymentId", protectRoute, getPaymentDetails);
+
+// Get all payments for logged-in user (Protected)
+router.get("/", protectRoute, getAllPayments);
 
 export default router;

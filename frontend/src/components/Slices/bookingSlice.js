@@ -1,4 +1,3 @@
-// src/store/slices/bookingSlice.js
 import { createSlice, createAsyncThunk } from "@reduxjs/toolkit";
 import bookingService from "../../services/bookingService";
 
@@ -55,12 +54,11 @@ const bookingSlice = createSlice({
   initialState: {
     loading: false,
     error: null,
-    myBookings: [],       // store user’s bookings
-    currentBooking: null, // store a single booking detail
-    lastAction: null,     // optional, track last time we updated
+    myBookings: [],       // Store user’s bookings
+    currentBooking: null, // Store a single booking detail
+    lastAction: null,     // Track last update time
   },
   reducers: {
-    // optional synchronous actions
     clearBookingError: (state) => {
       state.error = null;
     },
@@ -69,6 +67,7 @@ const bookingSlice = createSlice({
       state.error = null;
       state.myBookings = [];
       state.currentBooking = null;
+      state.lastAction = null;
     },
   },
   extraReducers: (builder) => {
@@ -80,8 +79,6 @@ const bookingSlice = createSlice({
       })
       .addCase(createBooking.fulfilled, (state, action) => {
         state.loading = false;
-        // We don't necessarily store newly created booking in a list here
-        // But you could push it to myBookings if you want
         state.lastAction = Date.now();
       })
       .addCase(createBooking.rejected, (state, action) => {
@@ -96,7 +93,7 @@ const bookingSlice = createSlice({
       })
       .addCase(getMyBookings.fulfilled, (state, action) => {
         state.loading = false;
-        state.myBookings = action.payload; // array of bookings
+        state.myBookings = action.payload;
       })
       .addCase(getMyBookings.rejected, (state, action) => {
         state.loading = false;
@@ -110,7 +107,7 @@ const bookingSlice = createSlice({
       })
       .addCase(getBookingDetails.fulfilled, (state, action) => {
         state.loading = false;
-        state.currentBooking = action.payload; // single booking object
+        state.currentBooking = action.payload;
       })
       .addCase(getBookingDetails.rejected, (state, action) => {
         state.loading = false;
@@ -124,14 +121,12 @@ const bookingSlice = createSlice({
       })
       .addCase(cancelBooking.fulfilled, (state, action) => {
         state.loading = false;
-        const updated = action.payload; // updated booking doc
-        // If we have myBookings loaded, we can update that booking in the array
+        const updatedBooking = action.payload;
         state.myBookings = state.myBookings.map((b) =>
-          b._id === updated._id ? updated : b
+          b._id === updatedBooking._id ? updatedBooking : b
         );
-        // If currentBooking is the same, update it
-        if (state.currentBooking?._id === updated._id) {
-          state.currentBooking = updated;
+        if (state.currentBooking?._id === updatedBooking._id) {
+          state.currentBooking = updatedBooking;
         }
         state.lastAction = Date.now();
       })
