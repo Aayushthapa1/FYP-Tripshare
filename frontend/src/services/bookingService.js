@@ -29,16 +29,37 @@ const handleError = (error) => {
  * POST /api/bookings
  * Body: { tripId, seats }
  */
-export const createBooking = async ({ tripId, seats = 1 }) => {
+export const createBooking = async ({ tripId, seats = 1, paymentMethod }) => {
   try {
-    const response = await axiosInstance.post("/api/bookings", { tripId, seats });
+    // Ensure seats is a number
+    seats = Number(seats);
+    if (isNaN(seats) || seats < 1) {
+      throw new Error("Invalid seats value");
+    }
+
+    // Validate payment method
+    if (!["COD", "online"].includes(paymentMethod)) {
+      throw new Error("Invalid payment method");
+    }
+
+    // Make the API call to create the booking
+    const response = await axiosInstance.post("/api/bookings", {
+      tripId,
+      seats,
+      paymentMethod,
+    });
+
+    // Handle response from backend
     const data = handleResponse(response);
-    return data.Result?.booking;
+    if (!data.success) {
+      throw new Error(data.message);
+    }
+
+    return data.booking; // Return the created booking object
   } catch (error) {
     throw handleError(error);
   }
 };
-
 /**
  * Get all bookings for the logged-in user
  * GET /api/bookings/my

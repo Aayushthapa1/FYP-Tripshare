@@ -6,6 +6,7 @@ import {
   loginUserSchema,
 } from "../middlewares/validationSchema.js";
 import nodemailer from "nodemailer";
+import user from "../models/userModel.js";
 
 import {
   generateAccessToken,
@@ -168,7 +169,6 @@ export const userLogout = async (req, res, next) => {
 
 
 export const getUserProfile = async (req, res, next) => {
-  console.log("entered teh user profile")
   try {
     const user = await User.findById(req.user._id).select("-password");
 
@@ -194,19 +194,16 @@ export const getUserProfile = async (req, res, next) => {
 
 export const updateUserProfile = async (req, res, next) => {
   try {
-    const { fullName ,address, userName, phoneNumber } = req.body;
-    console.log("The req body is", req.body);
-
+    const { fullName, address, userName, phoneNumber } = req.body;
     // Fetch the user based on the decoded ID from the protected route
     const user = await User.findById(req.user._id);
-
     if (!user) {
       return res.status(404).json(
         createResponse(404, false, [{ message: "User not found" }])
       );
     }
 
-  
+
     // Phone number check
     if (phoneNumber && phoneNumber !== user.phoneNumber) {
       const phoneExists = await User.findOne({
@@ -251,7 +248,7 @@ export const updateUserProfile = async (req, res, next) => {
 export const getUsersByRole = async (req, res, next) => {
   try {
     const { role } = req.params;
-    
+
     if (!["user", "driver", "admin"].includes(role)) {
       return res
         .status(400)
@@ -268,6 +265,22 @@ export const getUsersByRole = async (req, res, next) => {
     );
   } catch (error) {
     console.error(`Error while fetching ${role}s:`, error);
+    next(error);
+  }
+};
+
+// For "getAllUsers"
+export const getAllUsers = async (req, res, next) => {
+  try {
+    const users = await User.find().select("-password"); // an array of user docs
+    return res.status(200).json(
+      createResponse(200, true, [], {
+        message: "All users fetched successfully",
+        users_data: users,
+      })
+    );
+  } catch (error) {
+    console.error("Error fetching all users:", error);
     next(error);
   }
 };

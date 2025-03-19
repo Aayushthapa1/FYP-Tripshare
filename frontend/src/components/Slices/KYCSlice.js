@@ -220,30 +220,25 @@ const KYCSlice = createSlice({
       })
 
       // 6) Update Verification
-      .addCase(updateDriverVerification.pending, (state) => {
-        state.updateLoading = true
-        state.updateError = null
-      })
       .addCase(updateDriverVerification.fulfilled, (state, action) => {
-        state.updateLoading = false
-        // Update the driver in the pendingDrivers array
-        const updatedDriver = action.payload.driver
-        const index = state.pendingDrivers.findIndex((driver) => driver._id === updatedDriver._id)
-        if (index !== -1) {
-          state.pendingDrivers[index] = updatedDriver
+        state.updateLoading = false;
+        const updatedDriver = action.payload.driver;
+
+        // Remove the driver from pendingDrivers if they exist
+        state.pendingDrivers = state.pendingDrivers.filter(driver => driver._id !== updatedDriver._id);
+
+        // Add to verified drivers if the status is "verified"
+        if (updatedDriver.status === "verified") {
+          state.drivers.push(updatedDriver);
+        } else {
+          // If the driver is still pending or rejected, keep them in the correct list
+          state.pendingDrivers.push(updatedDriver);
         }
       })
-      .addCase(updateDriverVerification.rejected, (state, action) => {
-        state.updateLoading = false
-        state.updateError = action.payload;
-      })
-
-
-
       // 7) Submit KYC
       .addCase(submitKYC.pending, (state) => {
         state.loading = true;
-      })
+      })  
       .addCase(submitKYC.fulfilled, (state, action) => {
         state.loading = false;
         state.drivers.push(action.payload);

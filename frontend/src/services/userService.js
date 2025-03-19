@@ -1,6 +1,6 @@
-// services/userService.js
 
-import axiosInstance from '../utils/axiosInstance'; 
+
+import axiosInstance from '../utils/axiosInstance';
 // Assuming you have an axios instance configured
 
 export const fetchUserProfile = async (userId) => {
@@ -23,6 +23,14 @@ export const updateUserProfile = async (userId, userData) => {
   }
 };
 
+export const getAllUsersService = async () => {
+  try {
+    const response = await axiosInstance.get("/api/user/all");
+    return response.data.result.users_data; 
+  } catch (error) {
+    throw new Error(formatError(error));
+  }
+};
 
 
 const formatError = (error) => {

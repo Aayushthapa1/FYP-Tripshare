@@ -7,10 +7,10 @@ import {
   getTripById,
   searchTrips,
 } from "../Slices/tripSlice";
-import { getMyBookings } from "../Slices/bookingSlice";
+import { getMyBookings, createBooking } from "../Slices/bookingSlice";
 import { useNavigate } from "react-router-dom";
-import BookingConfirmationModal from "./bookingList";
 import { Toaster, toast } from "sonner";
+import { initiatePayment } from "../Slices/paymentSlice";
 import {
   MapPin,
   Calendar,
@@ -35,21 +35,21 @@ import {
 } from "lucide-react";
 import Navbar from "../layout/Navbar";
 import Footer from "../layout/Footer";
-import { io } from "socket.io-client";
+// import { io } from "socket.io-client";
 
 const TripList = () => {
   const dispatch = useDispatch();
   const navigate = useNavigate();
-  const socket = io("http://localhost:5173"); // or your production URL
+  // const socket = io("http://localhost:5173"); // or your production URL
 
-  socket.on("connect", () => {
-    console.log("Connected with socket ID:", socket.id);
-  });
+  // socket.on("connect", () => {
+  //   console.log("Connected with socket ID:", socket.id);
+  // });
 
   // Listen for "trip_created" event
-  socket.on("trip_created", (newTrip) => {
-    console.log("A new trip was created:", newTrip);
-  });
+  // socket.on("trip_created", (newTrip) => {
+  //   console.log("A new trip was created:", newTrip);
+  // });
 
   // Auth user
   const { user } = useSelector((state) => state.auth) || {};
@@ -58,10 +58,12 @@ const TripList = () => {
   const { myBookings = [] } = useSelector((state) => state.booking) || {};
 
   // State for modals
-  const [bookingTrip, setBookingTrip] = useState(null);
   const [selectedTrip, setSelectedTrip] = useState(null);
   const [editingTrip, setEditingTrip] = useState(null);
   const [editFormData, setEditFormData] = useState(null);
+  const [paymentModalTrip, setPaymentModalTrip] = useState(null);
+  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState("COD");
+  const [isProcessingPayment, setIsProcessingPayment] = useState(false);
 
   // For filtering and search
   const [statusFilter, setStatusFilter] = useState("all");
@@ -174,9 +176,91 @@ const TripList = () => {
     });
   };
 
-  // Initiate booking process by setting the bookingTrip state
-  const handleInitiateBooking = (trip) => {
-    setBookingTrip(trip);
+  // Booking function to show payment options
+  const handleBooking = (trip) => {
+    setPaymentModalTrip(trip);
+  };
+
+  // Function to close payment modal
+  const closePaymentModal = () => {
+    setPaymentModalTrip(null);
+    setSelectedPaymentMethod("COD");
+    setIsProcessingPayment(false);
+  };
+
+  // Function to process the actual booking with payment method
+  // Function to process the actual booking with payment method
+  const processBooking = async () => {
+    try {
+      console.log("Processing booking started");
+      setIsProcessingPayment(true);
+
+      if (selectedPaymentMethod === "online") {
+        try {
+          console.log("Initiating online payment...");
+
+          // For online payments, initiate payment directly without creating a booking first
+          const paymentResponse = await dispatch(
+            initiatePayment({
+              userId: user._id,
+              tripId: paymentModalTrip._id, // Pass tripId instead of bookingId
+              seats: 1, // Include seats info
+              amount: paymentModalTrip.price,
+              bookingType: "trip",
+            })
+          );
+
+          console.log("Payment response:", paymentResponse);
+
+       
+
+          console.log("Redirecting to Khalti payment page...");
+        // In your processBooking function:
+if (paymentResponse) {
+  // Make sure the URL is absolute by checking if it starts with http:// or https://
+  const paymentUrl = paymentResponse?.payload?.Result?.payment_url;
+    // Use window.location.href for absolute URLs (external websites)
+    window.location.href = paymentUrl;
+  
+  return; // Return to prevent
+} else {
+  throw new Error("No payment URL received");
+}
+        } catch (err) {
+          console.error("Error during online payment initiation:", err);
+          toast.error(err?.message || "Failed to initiate payment");
+          setIsProcessingPayment(false);
+        }
+      } else {
+        console.log("Processing Cash on Delivery (COD) booking...");
+
+        // For COD, create the booking immediately
+        const bookingData = {
+          tripId: paymentModalTrip._id,
+          seats: 1,
+          paymentMethod: "COD",
+        };
+
+        console.log("Sending booking request with data:", bookingData);
+
+        const result = await dispatch(createBooking(bookingData)).unwrap();
+
+        console.log("Booking successful:", result);
+        toast.success("Booking confirmed with Cash on Delivery!");
+
+        // Refresh trips to update availability
+        console.log("Refreshing trip and booking data...");
+        dispatch(getTrips());
+        dispatch(getMyBookings());
+
+        console.log("Closing payment modal...");
+        closePaymentModal();
+      }
+    } catch (err) {
+      console.error("Error during booking process:", err);
+      toast.error(err?.message || "Failed to book trip");
+      setIsProcessingPayment(false);
+    }
   };
 
   const handleSearch = () => {
@@ -193,25 +277,29 @@ const TripList = () => {
     }
   };
 
-  // Filter trips by status
-  let displayTrips = trips;
-  const userBookedTripIds = new Set(
-    myBookings.map((booking) => booking.trip?._id)
-  );
-  // 1) Filter out trips the user has already booked
-  displayTrips = displayTrips.filter(
-    (trip) => !userBookedTripIds.has(trip._id)
-  );
-  // 2) Filter by status
-  if (statusFilter !== "all") {
-    displayTrips = displayTrips.filter((trip) => trip.status === statusFilter);
-  }
-
-  // Format date
+  // Format date to a readable format
   const formatDate = (dateString) => {
-    const options = { weekday: "short", month: "short", day: "numeric" };
-    return new Date(dateString).toLocaleDateString("en-US", options);
+    if (!dateString) return "";
+    const date = new Date(dateString);
+    return date.toLocaleDateString("en-US", {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+    });
   };
+
+  // Get today's date without time
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  // Filter trips
+  const displayTrips = trips.filter((trip) => {
+    const tripDate = new Date(trip.departureDate);
+    tripDate.setHours(0, 0, 0, 0);
+
+    // Only filter out trips with dates in the past or today
+    return tripDate > today;
+  });
 
   if (loading) {
     return (
@@ -491,7 +579,7 @@ const TripList = () => {
                           </>
                         ) : (
                           <button
-                            onClick={() => handleInitiateBooking(trip)}
+                            onClick={() => handleBooking(trip)}
                             className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center"
                           >
                             <Check size={16} className="mr-1.5" /> Book Now
@@ -690,7 +778,7 @@ const TripList = () => {
                   <button
                     onClick={() => {
                       closeDetailsModal();
-                      handleInitiateBooking(selectedTrip);
+                      handleBooking(selectedTrip);
                     }}
                     className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center"
                   >
@@ -992,15 +1080,139 @@ const TripList = () => {
           </div>
         </div>
       )}
-      <Footer />
 
-      {/* Booking Confirmation Modal */}
-      {bookingTrip && (
-        <BookingConfirmationModal
-          trip={bookingTrip}
-          onClose={() => setBookingTrip(null)}
-        />
+      {/* Payment Method Selection Modal */}
+      {paymentModalTrip && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black bg-opacity-50 backdrop-blur-sm"
+          onClick={closePaymentModal}
+        >
+          <div
+            className="bg-white rounded-xl shadow-xl max-w-md w-full relative animate-fade-in"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="bg-green-600 text-white p-6 rounded-t-xl">
+              <h2 className="text-xl font-bold">Choose Payment Method</h2>
+              <p className="text-green-100 mt-1 flex items-center">
+                <MapPin size={16} className="mr-1.5" />
+                {paymentModalTrip.departureLocation} →{" "}
+                {paymentModalTrip.destinationLocation}
+              </p>
+            </div>
+            <div className="p-6">
+              <div className="mb-6">
+                <p className="text-gray-700 mb-2">Trip Cost:</p>
+                <p className="text-2xl font-bold text-gray-900">
+                  ₹{paymentModalTrip.price}
+                </p>
+              </div>
+
+              <div className="space-y-4 mb-6">
+                <p className="font-medium text-gray-700">
+                  Select payment method:
+                </p>
+
+                {/* COD Option */}
+                <div
+                  className={`flex items-center p-4 border rounded-lg cursor-pointer transition-colors ${
+                    selectedPaymentMethod === "COD"
+                      ? "border-green-500 bg-green-50"
+                      : "border-gray-200 hover:bg-gray-50"
+                  }`}
+                  onClick={() => setSelectedPaymentMethod("COD")}
+                >
+                  <div className="mr-3">
+                    <div
+                      className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${
+                        selectedPaymentMethod === "COD"
+                          ? "border-green-500"
+                          : "border-gray-400"
+                      }`}
+                    >
+                      {selectedPaymentMethod === "COD" && (
+                        <div className="w-3 h-3 bg-green-500 rounded-full"></div>
+                      )}
+                    </div>
+                  </div>
+                  <div>
+                    <p className="font-medium">Cash on Delivery</p>
+                    <p className="text-sm text-gray-500">
+                      Pay directly to the driver
+                    </p>
+                  </div>
+                </div>
+
+                {/* Online Payment Option */}
+                <div
+                  className={`flex items-center p-4 border rounded-lg cursor-pointer transition-colors ${
+                    selectedPaymentMethod === "online"
+                      ? "border-green-500 bg-green-50"
+                      : "border-gray-200 hover:bg-gray-50"
+                  }`}
+                  onClick={() => setSelectedPaymentMethod("online")}
+                >
+                  <div className="mr-3">
+                    <div
+                      className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${
+                        selectedPaymentMethod === "online"
+                          ? "border-green-500"
+                          : "border-gray-400"
+                      }`}
+                    >
+                      {selectedPaymentMethod === "online" && (
+                        <div className="w-3 h-3 bg-green-500 rounded-full"></div>
+                      )}
+                    </div>
+                  </div>
+                  <div>
+                    <p className="font-medium">Online Payment</p>
+                    <p className="text-sm text-gray-500">
+                      Pay via Khalti, eSewa, or other methods
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex justify-end gap-3 border-t border-gray-100 pt-4">
+                <button
+                  onClick={closePaymentModal}
+                  className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors flex items-center"
+                  disabled={isProcessingPayment}
+                >
+                  <X size={16} className="mr-1.5" /> Cancel
+                </button>
+                <button
+                  onClick={() => {
+                    processBooking();
+                  }}
+                  className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center"
+                  disabled={isProcessingPayment}
+                >
+                  {isProcessingPayment ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2"></div>
+                      Processing...
+                    </>
+                  ) : (
+                    <>
+                      <Check size={16} className="mr-1.5" /> Confirm Booking
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+            <button
+              onClick={closePaymentModal}
+              className="absolute top-4 right-4 text-white hover:text-green-100 transition-colors"
+              aria-label="Close modal"
+              disabled={isProcessingPayment}
+            >
+              <X size={20} />
+            </button>
+          </div>
+        </div>
       )}
+      <Footer />
     </div>
   );
 };

@@ -1,4 +1,3 @@
-
 // src/App.jsx
 import React, { useEffect } from "react";
 import {
@@ -10,14 +9,13 @@ import {
 import { useDispatch, useSelector } from "react-redux";
 import { ToastContainer } from "react-toastify";
 
-
 // Layout / Shared
 import Navbar from "./components/layout/Navbar";
 import Footer from "./components/layout/Footer";
 import ProfileModal from "./components/auth/ProfileModal.jsx";
-import KhaltiPaymentButton from "./components/layout/PaymentButton.jsx";
-// import MultiStepForm from "./components/layout/MultiStepForm";
 
+// import PaymentCallback from "./components/layout/paymentCallback.jsx";
+// import MultiStepForm from "./components/layout/MultiStepForm";
 
 // Public/Home
 import HeroSection from "./components/home/HeroSection";
@@ -46,7 +44,8 @@ import RiderDashboard from "./components/user/pages/RiderDashboard";
 import NotFound from "./components/user/pages/NotFound";
 
 //payment
-import PaymentForm from "./components/payment/PaymentForm";
+import PaymentSuccess from "./components/payment/paymentSuccess";
+import PaymentFailed from "./components/payment/paymentFail";
 
 //trips
 import TripForm from "./components/trip/tripForm";
@@ -93,29 +92,26 @@ function App() {
                 <HowItWorks />
                 <PopularRoutes />
                 <ScrollToTopButton />
-                <KhaltiPaymentButton/>
-
-
 
                 <Footer />
               </>
             }
           />
+          <Route path="/payment-success" element={<PaymentSuccess />} />
+          <Route path="/payment-failed" element={<PaymentFailed />} />
           <Route path="/contact" element={<HelpCenter />} />
-          <Route path="/payment" element={<PaymentForm />} />
           <Route path="/profile/:userId" element={<ProfileModal />} />
-        
+
           <Route path="/trips" element={<TripList />} />
           <Route path="/tripform" element={<TripForm />} />
           <Route path="/bookings" element={<BookingConfirmationModal />} />
-          
 
           {/* Auth Routes */}
           <Route
             path="/register"
             element={
               isAuthenticated ? (
-                user?.role === "Admin" ? (
+                user?.role === "admin" ? (
                   <Navigate to="/admin" />
                 ) : (
                   <Navigate to="/" />
@@ -129,7 +125,7 @@ function App() {
             path="/login"
             element={
               isAuthenticated ? (
-                user?.role === "Admin" ? (
+                user?.role === "admin" ? (
                   <Navigate to="/admin" />
                 ) : (
                   <Navigate to="/" />
@@ -144,12 +140,12 @@ function App() {
           <Route
             path="/admin"
             element={
-              <CheckAuth role="Admin">
+              <CheckAuth role="admin">
                 <AdminLayout />
               </CheckAuth>
             }
           >
-            <Route index element={< AdminDashboard/>} />
+            <Route index element={<AdminDashboard />} />
             <Route path="users" element={<ManageUsers />} />
             <Route path="rides" element={<ManageRides />} />
             <Route path="payments" element={<ManagePayments />} />
@@ -175,24 +171,16 @@ function App() {
             path="/driver"
             element={
               <CheckAuth role="user">
-          
                 <UserLayout>
                   <RiderDashboard />
                 </UserLayout>
               </CheckAuth>
             }
           />
-          <Route 
-            path="/kycform"
-            element={
-             
-                <KYCForm />
-        
-            }
-          />
+          <Route path="/kycform" element={<KYCForm />} />
 
           {/* Misc */}
-          < Route path="/unauth-page" element={<UnauthPage />} />
+          <Route path="/unauth-page" element={<UnauthPage />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </Router>
@@ -201,5 +189,3 @@ function App() {
 }
 
 export default App;
-
-

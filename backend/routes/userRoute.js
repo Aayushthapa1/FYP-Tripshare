@@ -5,7 +5,8 @@ import {
   updateUserProfile,
   getUsersByRole,
   forgotPassword,
-  resetPassword
+  resetPassword,
+  getAllUsers
 } from "../controllers/userController.js";
 
 const router = express.Router();
@@ -13,6 +14,9 @@ const router = express.Router();
 router.get("/:id", protectRoute, getUserProfile);
 router.put("/:id", protectRoute, updateUserProfile);
 router.get("/getUsersByRole/:role", protectRoute, getUsersByRole);
+router.get("/all",  getAllUsers);
+
+
 
 
 export default router;

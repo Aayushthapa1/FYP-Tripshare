@@ -4,10 +4,15 @@ import axiosInstance from "../utils/axiosInstance";
 // 1) **Save Personal Info**
 const savePersonalInfo = async (formData) => {
     try {
-        const response = await axiosInstance.post(`/api/personalinfo`, formData, {
+        // Make sure we call /api/drivers/personalinfo 
+        const response = await axiosInstance.post("/api/drivers/personalinfo", formData, {
             headers: { "Content-Type": "multipart/form-data" },
         });
-        return response.data; // Typically { message, driver } or just driver object
+        console.log("REQ.BODY:", req.body);
+        console.log("REQ.FILE:", req.file);
+
+        return response.data;
+
     } catch (error) {
         console.error("Error saving personal info:", error.response?.data || error.message);
         throw new Error(error.response?.data?.message || "Failed to save personal information.");
@@ -17,7 +22,8 @@ const savePersonalInfo = async (formData) => {
 // 2) **Save License Info**
 const saveLicenseInfo = async (driverId, formData) => {
     try {
-        const response = await axiosInstance.post(`/api/licenseinfo`, formData, {
+        formData.append("driverId", driverId); // Add driverId to FormData
+        const response = await axiosInstance.post("/api/drivers/licenseinfo", formData, {
             headers: { "Content-Type": "multipart/form-data" },
         });
         return response.data;
@@ -30,7 +36,8 @@ const saveLicenseInfo = async (driverId, formData) => {
 // 3) **Save Vehicle Info**
 const saveVehicleInfo = async (driverId, formData) => {
     try {
-        const response = await axiosInstance.post(`/api/vehicleinfo`, formData, {
+        formData.append("driverId", driverId); // Add driverId to FormData
+        const response = await axiosInstance.post("/api/drivers/vehicleinfo", formData, {
             headers: { "Content-Type": "multipart/form-data" },
         });
         return response.data;

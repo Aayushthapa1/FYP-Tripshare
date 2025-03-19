@@ -10,11 +10,12 @@ export const createBooking = async (req, res, next) => {
   try {
     const userId = req.user._id;
     let { tripId, seats = 1, paymentMethod } = req.body;
+    console.log("Request values:", tripId, seats, paymentMethod);
 
     // Ensure seats is a number
     seats = Number(seats);
     if (isNaN(seats) || seats < 1) {
-      return res.status(400).json(createResponse(400, false, [{ message: "Invalid seats value" }]));
+      return res.status(400).json(createResponse(400, false, [{ message: "Invalid seats value. Must be a positive number." }]));
     }
 
     // Validate payment method
@@ -28,41 +29,77 @@ export const createBooking = async (req, res, next) => {
       return res.status(404).json(createResponse(404, false, [{ message: "Trip not found" }]));
     }
 
-    // Check available seats
+    // Check if trip is scheduled (not cancelled)
+    if (trip.status !== "scheduled") {
+      return res.status(400).json(createResponse(400, false, [{ message: "Cannot book a trip that is not scheduled" }]));
+    }
+console.log("THE AVAULABE SEATS IS", trip.availableSeats)
+    // Check available seats - improved comparison
     if (trip.availableSeats < seats) {
-      return res.status(400).json(createResponse(400, false, [{ message: "Not enough seats available for this trip" }]));
+      return res.status(400).json(createResponse(400, false, [{ 
+        message: `Not enough seats available. Requested: ${seats}, Available: ${trip.availableSeats}` 
+      }]));
     }
 
-    // Decrement available seats and save the trip
-    trip.availableSeats -= seats;
-    await trip.save();
-
-    // Determine payment status based on method
-    const paymentStatus = paymentMethod === "COD" ? "pending" : "pending"; // Payment is "pending" until online payment is confirmed
-
-    // Create the booking
-    const newBooking = await Booking.create({
-      trip: trip._id,
+    // Check for existing bookings by this user for this trip
+    const existingBooking = await Booking.findOne({ 
+      trip: tripId, 
       user: userId,
-      seatsBooked: seats,
-      paymentMethod,
-      paymentStatus,
+      status: { $ne: "cancelled" } // Exclude cancelled bookings
     });
 
-    return res.status(201).json(
-      createResponse(201, true, [], {
-        message: paymentMethod === "COD" 
-          ? "Booking confirmed with Cash on Delivery. Pay at the time of the trip." 
-          : "Booking created. Please proceed with online payment.",
-        booking: newBooking,
-      })
-    );
+    if (existingBooking) {
+      return res.status(400).json(createResponse(400, false, [{ 
+        message: "You already have a booking for this trip",
+        existingBooking 
+      }]));
+    }
+
+    // Start a session for transaction
+    const session = await mongoose.startSession();
+    session.startTransaction();
+
+    try {
+      // Decrement available seats and save the trip
+      trip.availableSeats -= seats;
+      await trip.save({ session });
+
+      // Determine payment status based on method
+      const paymentStatus = paymentMethod === "COD" ? "pending" : "pending"; // Payment is "pending" until online payment is confirmed
+
+      // Create the booking
+      const newBooking = await Booking.create([{
+        trip: trip._id,
+        user: userId,
+        seatsBooked: seats,
+        paymentMethod,
+        paymentStatus,
+        status: "booked"
+      }], { session });
+
+      // Commit the transaction
+      await session.commitTransaction();
+      session.endSession();
+
+      return res.status(201).json(
+        createResponse(201, true, [], {
+          message: paymentMethod === "COD" 
+            ? `Booking confirmed with Cash on Delivery. ${seats} seat(s) reserved for you.` 
+            : `Booking created. Please proceed with online payment for ${seats} seat(s).`,
+          booking: newBooking[0],
+        })
+      );
+    } catch (error) {
+      // Abort transaction on error
+      await session.abortTransaction();
+      session.endSession();
+      throw error;
+    }
   } catch (error) {
     console.error("Error in createBooking:", error);
     next(error);
   }
 };
-
 /**
  * GET a single booking's details
  */

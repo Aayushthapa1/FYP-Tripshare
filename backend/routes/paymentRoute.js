@@ -1,16 +1,31 @@
+
 import express from "express";
-import { createPayment, getPaymentDetails, getAllPayments } from "../controllers/paymentController.js";
 import protectRoute from "../middlewares/protectRoute.js";
+import {
+   initiatePayment,
+   completeKhaltiPayment,
+   getPaymentDetails,
+   getAllPayments
+} from "../controllers/paymentController.js";
+
 
 const router = express.Router();
 
-// Create a payment (Protected)
-router.post("/", protectRoute, createPayment);
 
-// Get a single payment details (Protected)
+// Payment initiation route
+router.post("/initiate", protectRoute, initiatePayment);
+
+
+// Khalti callback route (public - called by Khalti)
+router.get("/completeKhaltiPayment", completeKhaltiPayment);
+
+
+// Get specific payment details
 router.get("/:paymentId", protectRoute, getPaymentDetails);
 
-// Get all payments for logged-in user (Protected)
-router.get("/", protectRoute, getAllPayments);
 
+// Get all payments (admin only potentially)
+router.get("/", protectRoute, getAllPayments);
 export default router;
+
+

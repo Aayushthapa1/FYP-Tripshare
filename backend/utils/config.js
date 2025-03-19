@@ -14,9 +14,14 @@ const _config = Object.freeze({
   cloudinaryCloud: process.env.CLOUDINARY_CLOUD,
   cloudinaryAPIKey: process.env.CLOUDINARY_API_KEY,
   cloudinaryAPISecret: process.env.CLOUDINARY_API_SECRET,
-  nodeEnv: process.env.NODE_ENV
+  nodeEnv: process.env.NODE_ENV,
+  KHALTI_SECRET_KEY: process.env.KHALTI_SECRET_KEY,
+  KHALTI_PUBLIC_KEY: process.env.KHALTI_PUBLIC_KEY,
+ backendUrl :"http://localhost:3301", // Replace with your actual backend URL
+frontendUrl :"http://localhost:5173"
+
 });
-console.log("console in the config file",process.env.JWT_SECRET_KEY)
+console.log("console in the config file", process.env.JWT_SECRET_KEY)
 console.log("the port is ", process.env.PORT)
 // export default _config;
-export default _config ;
+export default _config;

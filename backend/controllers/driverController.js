@@ -4,6 +4,7 @@ import upload from "../config/multerConfig.js";
 import nodemailer from "nodemailer";
 import DriverModel from "../models/driverModel.js";
 
+// Configure Nodemailer
 const transporter = nodemailer.createTransport({
   service: "gmail",
   auth: {
@@ -15,8 +16,8 @@ const transporter = nodemailer.createTransport({
 /**
  * Save Personal Information
  */
+// controllers/driverController.js
 export const savePersonalInformation = async (req, res) => {
-  // Single file upload for the "photo" field
   upload.single("photo")(req, res, async (err) => {
     if (err) {
       return res.status(400).json({ message: err.message });
@@ -24,11 +25,10 @@ export const savePersonalInformation = async (req, res) => {
 
     const { fullName, address, email, gender, dob, citizenshipNumber, userId } = req.body;
 
-    // Validate required fields
     if (!fullName || !address || !email || !gender || !dob || !citizenshipNumber || !req.file || !userId) {
-      return res
-        .status(400)
-        .json({ message: "All fields are required, including the photo and user ID." });
+      return res.status(400).json({
+        message: "All fields are required, including the photo and user ID.",
+      });
     }
 
     const photo = `/uploads/${req.file.filename}`;
@@ -38,9 +38,10 @@ export const savePersonalInformation = async (req, res) => {
       const existingDriver = await DriverModel.findOne({
         $or: [{ email }, { citizenshipNumber }],
       });
-
       if (existingDriver) {
-        return res.status(400).json({ message: "Email or Citizenship Number already exists." });
+        return res
+          .status(400)
+          .json({ message: "Email or Citizenship Number already exists." });
       }
 
       // Create a new driver record
@@ -61,10 +62,13 @@ export const savePersonalInformation = async (req, res) => {
         driver,
       });
     } catch (error) {
-      return res.status(500).json({ message: "Something went wrong.", error: error.message });
+      return res
+        .status(500)
+        .json({ message: "Something went wrong.", error: error.message });
     }
   });
 };
+
 
 /**
  * Save License Information
@@ -79,26 +83,41 @@ export const saveLicenseInformation = async (req, res) => {
       return res.status(400).json({ message: err.message });
     }
 
+    // Extract form data AFTER uploading
     const { licenseNumber, driverId } = req.body;
-    const frontPhoto = req.files?.frontPhoto?.[0]?.path;
-    const backPhoto = req.files?.backPhoto?.[0]?.path;
+    const frontPhoto = req.files?.frontPhoto?.[0]?.filename;
+    const backPhoto = req.files?.backPhoto?.[0]?.filename;
 
-    // Validate required fields
     if (!licenseNumber || !frontPhoto || !backPhoto || !driverId) {
       return res.status(400).json({ message: "All fields are required." });
     }
 
     try {
-      // Find the driver by ID
+      // Check if a different driver already uses this license number
+      const existingLicense = await DriverModel.findOne({ licenseNumber });
+      if (existingLicense && existingLicense._id.toString() !== driverId) {
+        return res
+          .status(400)
+          .json({ message: "License Number already exists." });
+      }
+
+      // Find the driver
       const driver = await DriverModel.findById(driverId);
       if (!driver) {
         return res.status(404).json({ message: "Driver not found." });
       }
 
+      // If the driver is already verified, do not overwrite
+      if (driver.status === "verified") {
+        return res
+          .status(400)
+          .json({ message: "This driver is already verified. Cannot update license." });
+      }
+
       // Update license info
       driver.licenseNumber = licenseNumber;
-      driver.frontPhoto = `/uploads/${req.files.frontPhoto[0].filename}`;
-      driver.backPhoto = `/uploads/${req.files.backPhoto[0].filename}`;
+      driver.frontPhoto = `/uploads/${frontPhoto}`;
+      driver.backPhoto = `/uploads/${backPhoto}`;
       await driver.save();
 
       return res.status(200).json({
@@ -106,7 +125,9 @@ export const saveLicenseInformation = async (req, res) => {
         driver,
       });
     } catch (error) {
-      return res.status(500).json({ message: "Something went wrong.", error: error.message });
+      return res
+        .status(500)
+        .json({ message: "Something went wrong.", error: error.message });
     }
   });
 };
@@ -127,12 +148,11 @@ export const saveVehicleInformation = async (req, res) => {
     }
 
     const { vehicleType, numberPlate, productionYear, driverId } = req.body;
-    const vehiclePhoto = req.files?.vehiclePhoto?.[0]?.path;
-    const vehicleDetailPhoto = req.files?.vehicleDetailPhoto?.[0]?.path;
-    const ownerDetailPhoto = req.files?.ownerDetailPhoto?.[0]?.path;
-    const renewalDetailPhoto = req.files?.renewalDetailPhoto?.[0]?.path;
+    const vehiclePhoto = req.files?.vehiclePhoto?.[0]?.filename;
+    const vehicleDetailPhoto = req.files?.vehicleDetailPhoto?.[0]?.filename;
+    const ownerDetailPhoto = req.files?.ownerDetailPhoto?.[0]?.filename;
+    const renewalDetailPhoto = req.files?.renewalDetailPhoto?.[0]?.filename;
 
-    // Validate required fields
     if (
       !vehicleType ||
       !numberPlate ||
@@ -153,14 +173,21 @@ export const saveVehicleInformation = async (req, res) => {
         return res.status(404).json({ message: "Driver not found." });
       }
 
+      // If the driver is already verified, do not overwrite
+      if (driver.status === "verified") {
+        return res
+          .status(400)
+          .json({ message: "This driver is already verified. Cannot update vehicle info." });
+      }
+
       // Update vehicle info
       driver.vehicleType = vehicleType;
       driver.numberPlate = numberPlate;
       driver.productionYear = productionYear;
-      driver.vehiclePhoto = `/uploads/${req.files.vehiclePhoto[0].filename}`;
-      driver.vehicleDetailPhoto = `/uploads/${req.files.vehicleDetailPhoto[0].filename}`;
-      driver.ownerDetailPhoto = `/uploads/${req.files.ownerDetailPhoto[0].filename}`;
-      driver.renewalDetailPhoto = `/uploads/${req.files.renewalDetailPhoto[0].filename}`;
+      driver.vehiclePhoto = `/uploads/${vehiclePhoto}`;
+      driver.vehicleDetailPhoto = `/uploads/${vehicleDetailPhoto}`;
+      driver.ownerDetailPhoto = `/uploads/${ownerDetailPhoto}`;
+      driver.renewalDetailPhoto = `/uploads/${renewalDetailPhoto}`;
 
       await driver.save();
 
@@ -169,13 +196,15 @@ export const saveVehicleInformation = async (req, res) => {
         driver,
       });
     } catch (error) {
-      return res.status(500).json({ message: "Something went wrong.", error: error.message });
+      return res
+        .status(500)
+        .json({ message: "Something went wrong.", error: error.message });
     }
   });
 };
 
 /**
- * Submit KYC (If you prefer a single endpoint that collects everything at once)
+ * Submit KYC (Optional single endpoint)
  */
 export const submitKYC = async (req, res) => {
   try {
@@ -199,7 +228,9 @@ export const submitKYC = async (req, res) => {
       driver,
     });
   } catch (error) {
-    return res.status(500).json({ message: "Something went wrong.", error: error.message });
+    return res
+      .status(500)
+      .json({ message: "Something went wrong.", error: error.message });
   }
 };
 
@@ -211,7 +242,9 @@ export const getAllDrivers = async (req, res) => {
     const drivers = await DriverModel.find().populate("user");
     return res.status(200).json(drivers);
   } catch (error) {
-    return res.status(500).json({ message: "Something went wrong.", error: error.message });
+    return res
+      .status(500)
+      .json({ message: "Something went wrong.", error: error.message });
   }
 };
 
@@ -220,68 +253,70 @@ export const getAllDrivers = async (req, res) => {
  */
 export const getPendingKYC = async (req, res) => {
   try {
-    console.log("Fetching pending KYCs...");
     const pendingKYCs = await DriverModel.find({ status: "pending" }).populate("user");
-    console.log("Pending KYCs:", pendingKYCs);
     return res.status(200).json(pendingKYCs);
   } catch (error) {
-    console.error("Error fetching pending KYCs:", error);
-    return res
-      .status(500)
-      .json({ message: "Failed to fetch pending KYC requests.", error: error.message });
+    return res.status(500).json({
+      message: "Failed to fetch pending KYC requests.",
+      error: error.message,
+    });
   }
 };
 
 /**
  * Update Driver Verification
- * (Change status, set rejection reason, send email, etc.)
  */
 export const updateDriverVerification = async (req, res) => {
-  const { driverId } = req.params
-  const { status, rejectionReason } = req.body
+  const { driverId } = req.params;
+  const { status, rejectionReason } = req.body;
 
   try {
-    const driver = await DriverModel.findById(driverId)
+    const driver = await DriverModel.findById(driverId);
     if (!driver) {
       return res.status(404).json({
         StatusCode: 404,
         IsSuccess: false,
         ErrorMessage: ["Driver not found."],
         Result: null,
-      })
+      });
     }
 
-    // Update status and possibly store rejection reason
-    driver.status = status
-    if (status === "rejected" || status === "needs_resubmission") {
-      driver.rejectionReason = rejectionReason
-    } else {
-      driver.rejectionReason = undefined // Clear rejection reason if verifying
+    // If already verified, do not overwrite
+    if (driver.status === "verified") {
+      return res.status(400).json({
+        StatusCode: 400,
+        IsSuccess: false,
+        ErrorMessage: ["This driver is already verified."],
+        Result: null,
+      });
     }
 
-    await driver.save()
+    driver.status = status;
+    driver.rejectionReason =
+      status === "rejected" || status === "needs_resubmission"
+        ? rejectionReason
+        : undefined;
 
-    // Send email notification
+    await driver.save();
+
+    // Send email notification (optional)
     try {
       const mailOptions = {
         from: process.env.EMAIL,
         to: driver.email,
         subject: "KYC Verification Status",
-        text: `Dear ${driver.fullName},\n\nYour KYC application has been ${status}.\n\n${
-          rejectionReason ? `Reason: ${rejectionReason}\n\n` : ""
-        }Thank you for your application.\n\nBest regards,\nThe Team`,
-      }
+        text: `Dear ${driver.fullName},\n\nYour KYC application has been ${status}.\n\n${rejectionReason ? `Reason: ${rejectionReason}\n\n` : ""
+          }Thank you for your application.\n\nBest regards,\nThe Team`,
+      };
 
-      transporter.sendMail(mailOptions, (error, info) => {
+      transporter.sendMail(mailOptions, (error) => {
         if (error) {
-          console.error("Error sending email:", error)
-        } else {
-          console.log("Email sent:", info.response)
+          console.error("Error sending email:", error);
         }
-      })
+      });
     } catch (emailError) {
-      console.error("Failed to send email notification:", emailError)
-      // Continue with the response even if email fails
+      console.error("Failed to send email notification:", emailError);
+      // Continue even if email fails
     }
 
     return res.status(200).json({
@@ -292,14 +327,14 @@ export const updateDriverVerification = async (req, res) => {
         message: `Driver KYC ${status} successfully.`,
         driver,
       },
-    })
+    });
   } catch (error) {
-    console.error("Error updating driver verification:", error)
+    console.error("Error updating driver verification:", error);
     return res.status(500).json({
       StatusCode: 500,
       IsSuccess: false,
       ErrorMessage: ["Something went wrong.", error.message],
       Result: null,
-    })
+    });
   }
-}
+};

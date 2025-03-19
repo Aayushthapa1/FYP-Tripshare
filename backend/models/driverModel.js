@@ -12,7 +12,7 @@ const DriverSchema = new mongoose.Schema(
     photo: { type: String, required: true },
 
     // License Information
-    licenseNumber: { type: String, unique: true },
+    licenseNumber: { type: String, unique: true, sparse: true },
     frontPhoto: { type: String },
     backPhoto: { type: String },
 

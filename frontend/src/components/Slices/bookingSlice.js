@@ -4,9 +4,22 @@ import bookingService from "../../services/bookingService";
 // 1) Create booking
 export const createBooking = createAsyncThunk(
   "booking/create",
-  async ({ tripId, seats }, { rejectWithValue }) => {
+  async ({ tripId, seats, paymentMethod }, { rejectWithValue }) => {
     try {
-      return await bookingService.createBooking({ tripId, seats });
+      // Validate seats
+      seats = Number(seats);
+      if (isNaN(seats) || seats < 1) {
+        throw new Error("Invalid seats value");
+      }
+
+      // Validate payment method
+      if (!["COD", "online"].includes(paymentMethod)) {
+        throw new Error("Invalid payment method");
+      }
+
+      // Call the service function to create booking
+      const result =  await bookingService.createBooking({ tripId, seats, paymentMethod });
+      return result
     } catch (err) {
       return rejectWithValue(err.message);
     }

@@ -308,30 +308,6 @@ const AdminProfile = () => {
           )}
         </div>
       </div>
-
-      {/* Additional Navigation */}
-      {/* <div className="max-w-4xl mx-auto mt-6 flex justify-center">
-        <div className="flex flex-wrap gap-3 justify-center">
-          <button
-            onClick={() => navigate("/trips")}
-            className="px-4 py-2 bg-white border border-gray-300 text-gray-700 font-medium rounded-lg hover:bg-gray-50 transition-all duration-200 text-sm"
-          >
-            Trips
-          </button>
-          <button
-            onClick={() => navigate("/payment")}
-            className="px-4 py-2 bg-white border border-gray-300 text-gray-700 font-medium rounded-lg hover:bg-gray-50 transition-all duration-200 text-sm"
-          >
-            Payment Methods
-          </button>
-          <button
-            onClick={() => navigate("/contact")}
-            className="px-4 py-2 bg-white border border-gray-300 text-gray-700 font-medium rounded-lg hover:bg-gray-50 transition-all duration-200 text-sm"
-          >
-            Contact Support
-          </button>
-        </div>
-      </div> */}
     </div>
   );
 };

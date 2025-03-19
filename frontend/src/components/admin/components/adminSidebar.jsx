@@ -1,4 +1,3 @@
-// src/admin/components/AdminSidebar.jsx
 
 import React from "react";
 import {
@@ -17,8 +16,6 @@ function AdminSidebar({ isOpen, onClose }) {
   const navigate = useNavigate();
 
   const handleLogout = () => {
-    // TODO: Implement your actual logout logic.
-    // e.g. clear tokens from localStorage, call logout API, etc.
     localStorage.removeItem("authToken");
     navigate("/"); // Redirect to homepage (or a login page).
   };

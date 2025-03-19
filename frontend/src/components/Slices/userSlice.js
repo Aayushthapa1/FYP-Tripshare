@@ -1,7 +1,7 @@
 
 
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
-import { fetchUserProfile, updateUserProfile } from '../../services/userService.js';
+import { fetchUserProfile, updateUserProfile, getAllUsersService } from '../../services/userService.js';
 
 export const getUserProfile = createAsyncThunk(
   'user/getUserProfile',
@@ -27,11 +27,22 @@ export const updateUserProfileAction = createAsyncThunk(
   }
 );
 
-
+export const fetchAllUsers = createAsyncThunk(
+  "user/fetchAllUsers",
+  async (_, { rejectWithValue }) => {
+    try {
+      const data = await getAllUsersService(); // an array
+      return data;
+    } catch (error) {
+      return rejectWithValue(error.message);
+    }
+  }
+);
 
 const userSlice = createSlice({
   name: 'user',
   initialState: {
+    users: [],
     userData: null,
     loading: false,
     error: null,
@@ -63,8 +74,20 @@ const userSlice = createSlice({
         state.loading = false;
         state.error = action.payload;
       })
-    
-      ;
+      .addCase(fetchAllUsers.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(fetchAllUsers.fulfilled, (state, action) => {
+        state.loading = false;
+        // `action.payload` is the array from getAllUsersService
+        state.users = action.payload;
+      })
+      .addCase(fetchAllUsers.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload;
+      });
+    ;
   },
 });
 
