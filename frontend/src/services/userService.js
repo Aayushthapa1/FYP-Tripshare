@@ -42,3 +42,12 @@ const formatError = (error) => {
     return error.message;
   }
 };
+
+const userService
+  = {
+    fetchUserProfile,
+    updateUserProfile,
+    getAllUsersService,
+  };
+
+export default userService

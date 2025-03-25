@@ -30,7 +30,7 @@ const userModelSchema = new mongoose.Schema(
     },
     role: {
       type: String,
-      enum: ["user", "driver", "admin"],
+      enum: ["user", "driver", "Admin"],
       required: true,
     },
     resetPasswordOTP: {

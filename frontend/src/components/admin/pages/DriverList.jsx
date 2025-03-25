@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from "react"
 import { useDispatch, useSelector } from "react-redux"
-import { fetchAllDrivers } from "../../Slices/KYCSlice"
+import { fetchAllDrivers } from "../../Slices/driverKYCSlice"
 import {
   Search,
   Filter,

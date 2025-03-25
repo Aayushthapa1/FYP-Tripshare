@@ -218,7 +218,7 @@ const TripList = () => {
         // In your processBooking function:
 if (paymentResponse) {
   // Make sure the URL is absolute by checking if it starts with http:// or https://
-  const paymentUrl = paymentResponse?.payload?.Result?.payment_url;
+  const paymentUrl = paymentResponse?.payload.Result.payment_url;
     // Use window.location.href for absolute URLs (external websites)
     window.location.href = paymentUrl;
   

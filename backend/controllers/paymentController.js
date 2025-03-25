@@ -19,12 +19,12 @@ export const initiatePayment = async (req, res, next) => {
     // Create Payment record with appropriate fields
     const paymentData = {
       user,
-      amount, 
+      amount,
       paymentMethod: "khalti",
       status: "pending",
       bookingType: bookingType || "trip"
     };
-    
+
     // Handle different scenarios
     if (bookingId) {
       // If bookingId is provided, use it
@@ -32,28 +32,28 @@ export const initiatePayment = async (req, res, next) => {
       if (!booking) {
         return res.status(404).json(createResponse(404, false, [{ message: "Booking not found" }]));
       }
-      
+
       paymentData.booking = bookingId;
-    } 
+    }
     else if (tripId) {
       // For direct trip payments without booking
       const trip = await Trip.findById(tripId);
       if (!trip) {
         return res.status(404).json(createResponse(404, false, [{ message: "Trip not found" }]));
       }
-      
+
       if (trip.availableSeats < seats) {
-        return res.status(400).json(createResponse(400, false, [{ 
-          message: `Not enough seats available. Requested: ${seats}, Available: ${trip.availableSeats}` 
+        return res.status(400).json(createResponse(400, false, [{
+          message: `Not enough seats available. Requested: ${seats}, Available: ${trip.availableSeats}`
         }]));
       }
-      
+
       paymentData.tripId = tripId;
       paymentData.seats = seats;
     }
     else {
-      return res.status(400).json(createResponse(400, false, [{ 
-        message: "Either bookingId or tripId must be provided" 
+      return res.status(400).json(createResponse(400, false, [{
+        message: "Either bookingId or tripId must be provided"
       }]));
     }
 
@@ -85,8 +85,8 @@ export const initiatePayment = async (req, res, next) => {
 
     // Call Khalti API
     const khaltiResponse = await axios.post(
-      `https://a.khalti.com/api/v2/epayment/initiate/`, 
-      khaltiPaymentData, 
+      `https://a.khalti.com/api/v2/epayment/initiate/`,
+      khaltiPaymentData,
       { headers }
     );
 
@@ -134,10 +134,10 @@ export const completeKhaltiPayment = async (req, res, next) => {
     // Create a correct URL without double slashes
     const khaltiBaseUrl = "https://a.khalti.com";
     const lookupUrl = `${khaltiBaseUrl}/api/v2/epayment/lookup/`;
-    
+
     // Ensure the URL is properly formatted (no double slashes)
     const cleanUrl = lookupUrl.replace(/([^:]\/)\/+/g, "$1");
-    
+
     console.log("Using Khalti lookup URL:", cleanUrl);
 
     const headers = {
@@ -157,14 +157,14 @@ export const completeKhaltiPayment = async (req, res, next) => {
 
     // Call epayment/lookup with the corrected URL
     const lookupResponse = await axios.post(
-      cleanUrl, 
-      { pidx }, 
+      cleanUrl,
+      { pidx },
       { headers }
     );
 
     // Rest of your code remains the same
     const paymentInfo = lookupResponse.data;
-    
+
     if (!paymentInfo) {
       payment.status = "failed";
       await payment.save();
@@ -185,7 +185,7 @@ export const completeKhaltiPayment = async (req, res, next) => {
       const booking = await Booking.findById(payment.booking);
       if (booking) {
         booking.paymentStatus = "paid";
-        booking.status = "completed"; 
+        booking.status = "completed";
         await booking.save();
       } else {
         // Handle case where payment was for a trip without a pre-created booking
@@ -199,14 +199,14 @@ export const completeKhaltiPayment = async (req, res, next) => {
             paymentStatus: "paid",
             status: "booked"
           });
-          
+
           // Update trip available seats
           const trip = await Trip.findById(payment.tripId);
           if (trip) {
             trip.availableSeats -= payment.seats;
             await trip.save();
           }
-          
+
           // Link booking to payment
           payment.booking = booking._id;
           await payment.save();
@@ -238,71 +238,74 @@ export const completeKhaltiPayment = async (req, res, next) => {
 * Get details of a specific payment
 */
 export const getPaymentDetails = async (req, res, next) => {
- try {
-   const { paymentId } = req.params
+  try {
+    const { paymentId } = req.params;
 
+    const payment = await Payment.findById(paymentId)
+      .populate({
+        path: "booking",
+        populate: {
+          path: "trip"
+        }
+      })
+      .populate("user", "name email");
 
-   const payment = await Payment.findById(paymentId).populate("booking").populate("user", "name email")
+    if (!payment) {
+      return res.status(404).json(createResponse(404, false, [{ message: "Payment not found" }]));
+    }
 
-
-   if (!payment) {
-     return res.status(404).json(createResponse(404, false, [{ message: "Payment not found" }]))
-   }
-
-
-   return res.status(200).json(
-     createResponse(200, true, [], {
-       payment,
-     }),
-   )
- } catch (error) {
-   console.error("Error fetching payment details:", error)
-   next(error)
- }
-}
-
+    return res.status(200).json(
+      createResponse(200, true, [], {
+        payment,
+      })
+    );
+  } catch (error) {
+    console.error("Error fetching payment details:", error);
+    next(error);
+  }
+};
 
 /**
 * Get all payments (with optional filtering)
 */
 export const getAllPayments = async (req, res, next) => {
- try {
-   // You could add filters here based on req.query
-   // For example: status, paymentMethod, date range, etc.
-   const { status, method, startDate, endDate } = req.query
+  try {
+    // You could add filters here based on req.query
+    // For example: status, paymentMethod, date range, etc.
+    const { status, method, startDate, endDate } = req.query
 
 
-   const query = {}
+    const query = {}
 
 
-   if (status) query.status = status
-   if (method) query.paymentMethod = method
+    if (status) query.status = status
+    if (method) query.paymentMethod = method
 
 
-   if (startDate && endDate) {
-     query.createdAt = {
-       $gte: new Date(startDate),
-       $lte: new Date(endDate),
-     }
-   }
+    if (startDate && endDate) {
+      query.createdAt = {
+        $gte: new Date(startDate),
+        $lte: new Date(endDate),
+      }
+    }
 
 
-   const payments = await Payment.find(query)
-     .populate("booking")
-     .populate("user", "name email")
-     .sort({ createdAt: -1 })
+    const payments = await Payment.find(query)
+      .populate("booking")
+      .populate("user", "name email")
+      .sort({ createdAt: -1 })
 
 
-   return res.status(200).json(
-     createResponse(200, true, [], {
-       count: payments.length,
-       payments,
-     }),
-   )
- } catch (error) {
-   console.error("Error fetching all payments:", error)
-   next(error)
- }
+    return res.status(200).json(
+      createResponse(200, true, [], {
+        count: payments.length,
+        payments,
+      }),
+    )
+  } catch (error) {
+    console.error("Error fetching all payments:", error)
+    next(error)
+  }
 }
 
 
@@ -310,25 +313,25 @@ export const getAllPayments = async (req, res, next) => {
 * Helper function for eSewa verification (if needed)
 */
 const verifyEsewaPayment = async (transactionId, amount) => {
- try {
-   // Example config
-   const eSewaConfig = {
-     MERCHANT_ID: _config.ESEWA_MERCHANT_ID,
-     SECRET_KEY: _config.ESEWA_SECRET_KEY,
-   }
+  try {
+    // Example config
+    const eSewaConfig = {
+      MERCHANT_ID: _config.ESEWA_MERCHANT_ID,
+      SECRET_KEY: _config.ESEWA_SECRET_KEY,
+    }
 
 
-   // STILL depends on eSewa's doc. This is a placeholder.
-   const response = await axios.post("https://uat.esewa.com.np/epay/transrec", {
-     amt: amount,
-     scd: eSewaConfig.MERCHANT_ID,
-     rid: transactionId,
-   })
+    // STILL depends on eSewa's doc. This is a placeholder.
+    const response = await axios.post("https://uat.esewa.com.np/epay/transrec", {
+      amt: amount,
+      scd: eSewaConfig.MERCHANT_ID,
+      rid: transactionId,
+    })
 
 
-   return response.data === "Success"
- } catch (error) {
-   console.error("eSewa verification error:", error)
-   return false
- }
+    return response.data === "Success"
+  } catch (error) {
+    console.error("eSewa verification error:", error)
+    return false
+  }
 }

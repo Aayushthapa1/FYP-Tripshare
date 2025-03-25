@@ -19,12 +19,7 @@ const LoginForm = () => {
 
   const { isAuthenticated, isLoading } = useSelector((state) => state?.auth);
 
-  useEffect(() => {
-    // Redirect to dashboard if authenticated
-    if (isAuthenticated) {
-      navigate("/");
-    }
-  }, [isAuthenticated, navigate]);
+
 
   const handleChange = (e) => {
     setCredentials({ ...credentials, [e.target.name]: e.target.value });
@@ -37,40 +32,29 @@ const LoginForm = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
-
+  
     if (!email || !password) {
       toast.error("Please enter your email and password to login");
       setLoading(false);
       return;
     }
-
+  
     try {
       console.log("Submitting login with credentials:", {
         email,
         password: "***",
       });
       const resultAction = await dispatch(loginUser(credentials));
-
+  
       console.log("Login result action:", resultAction);
-
+  
       // Check if the action was fulfilled or rejected
       if (loginUser.fulfilled.match(resultAction)) {
         // Success case
         const response = resultAction.payload;
         console.log("Login success response:", response);
-
-        if (response && response.IsSuccess) {
-          toast.success("Login successful!");
-          navigate("/");
-        } else {
-          // API returned success: false
-          console.log("Login API returned IsSuccess=false");
-          const errorMessage =
-            response?.ErrorMessage ||
-            response?.message ||
-            "Login failed. Please try again.";
-          toast.error(errorMessage);
-        }
+  
+        // No navigation here as it's handled elsewhere
       } else if (loginUser.rejected.match(resultAction)) {
         // Error case - handle the rejection
         console.log(
@@ -79,13 +63,13 @@ const LoginForm = () => {
           resultAction.error
         );
         const error = resultAction.payload;
-
+  
         // Display formatted error message
         const errorMessage =
           error?.ErrorMessage?.[0]?.message ||
           error?.message ||
           "Login failed. Please check your credentials and try again.";
-
+  
         toast.error(errorMessage);
       }
     } catch (error) {
@@ -95,6 +79,7 @@ const LoginForm = () => {
       setLoading(false);
     }
   };
+  
 
   return (
     <div className="w-full relative">

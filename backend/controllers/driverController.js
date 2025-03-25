@@ -1,340 +1,490 @@
-// controllers/driverController.js
+import DriverModel from "../models/driverModel.js"
+import { uploadToCloudinary } from "../config/cloudinaryConfig.js" 
 
-import upload from "../config/multerConfig.js";
-import nodemailer from "nodemailer";
-import DriverModel from "../models/driverModel.js";
-
-// Configure Nodemailer
-const transporter = nodemailer.createTransport({
-  service: "gmail",
-  auth: {
-    user: process.env.EMAIL,
-    pass: process.env.EMAIL_PASSWORD,
-  },
-});
-
-/**
- * Save Personal Information
- */
-// controllers/driverController.js
+// Save Personal Information
 export const savePersonalInformation = async (req, res) => {
-  upload.single("photo")(req, res, async (err) => {
-    if (err) {
-      return res.status(400).json({ message: err.message });
-    }
+  try {
+    console.log("savePersonalInformation request body:", req.body)
+    console.log("savePersonalInformation request files:", req.files)
+    console.log("savePersonalInformation request query:", req.query)
+    console.log("savePersonalInformation request params:", req.params)
 
-    const { fullName, address, email, gender, dob, citizenshipNumber, userId } = req.body;
+    // Try to get userId from various places
+    const userId = req.body.userId || req.query.userId || (req.params && req.params.userId)
 
-    if (!fullName || !address || !email || !gender || !dob || !citizenshipNumber || !req.file || !userId) {
+    console.log("Extracted userId:", userId)
+
+    if (!userId) {
       return res.status(400).json({
-        message: "All fields are required, including the photo and user ID.",
-      });
+        success: false,
+        message: "userId is required",
+      })
     }
 
-    const photo = `/uploads/${req.file.filename}`;
+    // Extract other fields with fallbacks
+    const fullName = req.body.fullName || ""
+    const address = req.body.address || ""
+    const email = req.body.email || ""
+    const gender = req.body.gender || "Other"
+    const dob = req.body.dob || new Date().toISOString().split("T")[0]
+    const citizenshipNumber = req.body.citizenshipNumber || ""
 
-    try {
-      // Check if the email or citizenship number already exists
-      const existingDriver = await DriverModel.findOne({
-        $or: [{ email }, { citizenshipNumber }],
-      });
-      if (existingDriver) {
-        return res
-          .status(400)
-          .json({ message: "Email or Citizenship Number already exists." });
+    // Handle photo upload
+    let photoUrl = ""
+    if (req.files && req.files.photo) {
+      try {
+        photoUrl = await uploadToCloudinary(req.files.photo.tempFilePath)
+      } catch (uploadError) {
+        console.error("Error uploading photo to Cloudinary:", uploadError)
+        return res.status(500).json({
+          success: false,
+          message: "Failed to upload photo",
+          error: uploadError.message,
+        })
       }
+    }
 
-      // Create a new driver record
-      const driver = await DriverModel.create({
+    // Check if driver profile already exists for this user
+    let driver = await DriverModel.findOne({ user: userId })
+
+    if (driver) {
+      // Update existing driver profile
+      driver.fullName = fullName
+      driver.address = address
+      driver.email = email
+      driver.gender = gender
+      driver.dob = new Date(dob)
+      driver.citizenshipNumber = citizenshipNumber
+      if (photoUrl) driver.photo = photoUrl
+
+      await driver.save()
+    } else {
+      // Create new driver profile
+      driver = new DriverModel({
         fullName,
         address,
         email,
         gender,
-        dob,
+        dob: new Date(dob),
         citizenshipNumber,
-        photo,
+        photo: photoUrl,
         user: userId,
         status: "pending",
-      });
+      })
 
-      return res.status(201).json({
-        message: "Personal information saved successfully.",
-        driver,
-      });
-    } catch (error) {
-      return res
-        .status(500)
-        .json({ message: "Something went wrong.", error: error.message });
-    }
-  });
-};
-
-
-/**
- * Save License Information
- */
-export const saveLicenseInformation = async (req, res) => {
-  // Multiple file fields: frontPhoto and backPhoto
-  upload.fields([
-    { name: "frontPhoto", maxCount: 1 },
-    { name: "backPhoto", maxCount: 1 },
-  ])(req, res, async (err) => {
-    if (err) {
-      return res.status(400).json({ message: err.message });
-    }
-
-    // Extract form data AFTER uploading
-    const { licenseNumber, driverId } = req.body;
-    const frontPhoto = req.files?.frontPhoto?.[0]?.filename;
-    const backPhoto = req.files?.backPhoto?.[0]?.filename;
-
-    if (!licenseNumber || !frontPhoto || !backPhoto || !driverId) {
-      return res.status(400).json({ message: "All fields are required." });
-    }
-
-    try {
-      // Check if a different driver already uses this license number
-      const existingLicense = await DriverModel.findOne({ licenseNumber });
-      if (existingLicense && existingLicense._id.toString() !== driverId) {
-        return res
-          .status(400)
-          .json({ message: "License Number already exists." });
-      }
-
-      // Find the driver
-      const driver = await DriverModel.findById(driverId);
-      if (!driver) {
-        return res.status(404).json({ message: "Driver not found." });
-      }
-
-      // If the driver is already verified, do not overwrite
-      if (driver.status === "verified") {
-        return res
-          .status(400)
-          .json({ message: "This driver is already verified. Cannot update license." });
-      }
-
-      // Update license info
-      driver.licenseNumber = licenseNumber;
-      driver.frontPhoto = `/uploads/${frontPhoto}`;
-      driver.backPhoto = `/uploads/${backPhoto}`;
-      await driver.save();
-
-      return res.status(200).json({
-        message: "License information saved successfully.",
-        driver,
-      });
-    } catch (error) {
-      return res
-        .status(500)
-        .json({ message: "Something went wrong.", error: error.message });
-    }
-  });
-};
-
-/**
- * Save Vehicle Information
- */
-export const saveVehicleInformation = async (req, res) => {
-  // Multiple file fields: vehiclePhoto, vehicleDetailPhoto, ownerDetailPhoto, renewalDetailPhoto
-  upload.fields([
-    { name: "vehiclePhoto", maxCount: 1 },
-    { name: "vehicleDetailPhoto", maxCount: 1 },
-    { name: "ownerDetailPhoto", maxCount: 1 },
-    { name: "renewalDetailPhoto", maxCount: 1 },
-  ])(req, res, async (err) => {
-    if (err) {
-      return res.status(400).json({ message: err.message });
-    }
-
-    const { vehicleType, numberPlate, productionYear, driverId } = req.body;
-    const vehiclePhoto = req.files?.vehiclePhoto?.[0]?.filename;
-    const vehicleDetailPhoto = req.files?.vehicleDetailPhoto?.[0]?.filename;
-    const ownerDetailPhoto = req.files?.ownerDetailPhoto?.[0]?.filename;
-    const renewalDetailPhoto = req.files?.renewalDetailPhoto?.[0]?.filename;
-
-    if (
-      !vehicleType ||
-      !numberPlate ||
-      !productionYear ||
-      !vehiclePhoto ||
-      !vehicleDetailPhoto ||
-      !ownerDetailPhoto ||
-      !renewalDetailPhoto ||
-      !driverId
-    ) {
-      return res.status(400).json({ message: "All fields are required." });
-    }
-
-    try {
-      // Find the driver by ID
-      const driver = await DriverModel.findById(driverId);
-      if (!driver) {
-        return res.status(404).json({ message: "Driver not found." });
-      }
-
-      // If the driver is already verified, do not overwrite
-      if (driver.status === "verified") {
-        return res
-          .status(400)
-          .json({ message: "This driver is already verified. Cannot update vehicle info." });
-      }
-
-      // Update vehicle info
-      driver.vehicleType = vehicleType;
-      driver.numberPlate = numberPlate;
-      driver.productionYear = productionYear;
-      driver.vehiclePhoto = `/uploads/${vehiclePhoto}`;
-      driver.vehicleDetailPhoto = `/uploads/${vehicleDetailPhoto}`;
-      driver.ownerDetailPhoto = `/uploads/${ownerDetailPhoto}`;
-      driver.renewalDetailPhoto = `/uploads/${renewalDetailPhoto}`;
-
-      await driver.save();
-
-      return res.status(200).json({
-        message: "Vehicle information saved successfully.",
-        driver,
-      });
-    } catch (error) {
-      return res
-        .status(500)
-        .json({ message: "Something went wrong.", error: error.message });
-    }
-  });
-};
-
-/**
- * Submit KYC (Optional single endpoint)
- */
-export const submitKYC = async (req, res) => {
-  try {
-    const { userId, ...kycData } = req.body;
-
-    // Check if the driver already exists
-    const existingDriver = await DriverModel.findOne({ user: userId });
-    if (existingDriver) {
-      return res.status(400).json({ message: "KYC already submitted." });
-    }
-
-    // Create a new driver record
-    const driver = await DriverModel.create({
-      ...kycData,
-      user: userId,
-      status: "pending",
-    });
-
-    return res.status(201).json({
-      message: "KYC submitted successfully.",
-      driver,
-    });
-  } catch (error) {
-    return res
-      .status(500)
-      .json({ message: "Something went wrong.", error: error.message });
-  }
-};
-
-/**
- * Get all Drivers
- */
-export const getAllDrivers = async (req, res) => {
-  try {
-    const drivers = await DriverModel.find().populate("user");
-    return res.status(200).json(drivers);
-  } catch (error) {
-    return res
-      .status(500)
-      .json({ message: "Something went wrong.", error: error.message });
-  }
-};
-
-/**
- * Get Pending KYC (Admin side)
- */
-export const getPendingKYC = async (req, res) => {
-  try {
-    const pendingKYCs = await DriverModel.find({ status: "pending" }).populate("user");
-    return res.status(200).json(pendingKYCs);
-  } catch (error) {
-    return res.status(500).json({
-      message: "Failed to fetch pending KYC requests.",
-      error: error.message,
-    });
-  }
-};
-
-/**
- * Update Driver Verification
- */
-export const updateDriverVerification = async (req, res) => {
-  const { driverId } = req.params;
-  const { status, rejectionReason } = req.body;
-
-  try {
-    const driver = await DriverModel.findById(driverId);
-    if (!driver) {
-      return res.status(404).json({
-        StatusCode: 404,
-        IsSuccess: false,
-        ErrorMessage: ["Driver not found."],
-        Result: null,
-      });
-    }
-
-    // If already verified, do not overwrite
-    if (driver.status === "verified") {
-      return res.status(400).json({
-        StatusCode: 400,
-        IsSuccess: false,
-        ErrorMessage: ["This driver is already verified."],
-        Result: null,
-      });
-    }
-
-    driver.status = status;
-    driver.rejectionReason =
-      status === "rejected" || status === "needs_resubmission"
-        ? rejectionReason
-        : undefined;
-
-    await driver.save();
-
-    // Send email notification (optional)
-    try {
-      const mailOptions = {
-        from: process.env.EMAIL,
-        to: driver.email,
-        subject: "KYC Verification Status",
-        text: `Dear ${driver.fullName},\n\nYour KYC application has been ${status}.\n\n${rejectionReason ? `Reason: ${rejectionReason}\n\n` : ""
-          }Thank you for your application.\n\nBest regards,\nThe Team`,
-      };
-
-      transporter.sendMail(mailOptions, (error) => {
-        if (error) {
-          console.error("Error sending email:", error);
-        }
-      });
-    } catch (emailError) {
-      console.error("Failed to send email notification:", emailError);
-      // Continue even if email fails
+      await driver.save()
     }
 
     return res.status(200).json({
-      StatusCode: 200,
-      IsSuccess: true,
-      ErrorMessage: [],
-      Result: {
-        message: `Driver KYC ${status} successfully.`,
-        driver,
-      },
-    });
+      success: true,
+      message: "Personal information saved successfully",
+      driver,
+    })
   } catch (error) {
-    console.error("Error updating driver verification:", error);
+    console.error("Error saving personal information:", error)
     return res.status(500).json({
-      StatusCode: 500,
-      IsSuccess: false,
-      ErrorMessage: ["Something went wrong.", error.message],
-      Result: null,
-    });
+      success: false,
+      message: "Failed to save personal information",
+      error: error.message,
+    })
   }
-};
+}
+
+// Save License Information
+export const saveLicenseInformation = async (req, res) => {
+  try {
+    console.log("saveLicenseInformation request body:", req.body)
+    console.log("saveLicenseInformation request files:", req.files)
+    console.log("saveLicenseInformation request query:", req.query)
+
+    // Try to get userId from various places
+    const userId = req.body.userId || req.query.userId || (req.params && req.params.userId)
+
+    console.log("Extracted userId:", userId)
+
+    if (!userId) {
+      return res.status(400).json({
+        success: false,
+        message: "userId is required",
+      })
+    }
+
+    // Extract licenseNumber with fallback
+    const licenseNumber = req.body.licenseNumber || ""
+
+    // Handle license photo uploads
+    let frontPhotoUrl = ""
+    let backPhotoUrl = ""
+
+    if (req.files) {
+      if (req.files.frontPhoto) {
+        frontPhotoUrl = await uploadToCloudinary(req.files.frontPhoto.tempFilePath)
+      }
+      if (req.files.backPhoto) {
+        backPhotoUrl = await uploadToCloudinary(req.files.backPhoto.tempFilePath)
+      }
+    }
+
+    // Find driver by user ID
+    const driver = await DriverModel.findOne({ user: userId })
+
+    if (!driver) {
+      return res.status(404).json({
+        success: false,
+        message: "Driver profile not found. Please complete personal information first.",
+      })
+    }
+
+    // Update license information
+    driver.licenseNumber = licenseNumber
+    if (frontPhotoUrl) driver.frontPhoto = frontPhotoUrl
+    if (backPhotoUrl) driver.backPhoto = backPhotoUrl
+
+    // Update status to pending if it was previously rejected
+    if (driver.status === "rejected" || driver.status === "needs_resubmission") {
+      driver.status = "pending"
+    }
+
+    await driver.save()
+
+    return res.status(200).json({
+      success: true,
+      message: "License information saved successfully",
+      driver,
+    })
+  } catch (error) {
+    console.error("Error saving license information:", error)
+    return res.status(500).json({
+      success: false,
+      message: "Failed to save license information",
+      error: error.message,
+    })
+  }
+}
+
+// Save Vehicle Information
+export const saveVehicleInformation = async (req, res) => {
+  try {
+    console.log("saveVehicleInformation request body:", req.body)
+    console.log("saveVehicleInformation request files:", req.files)
+    console.log("saveVehicleInformation request query:", req.query)
+
+    // Try to get userId from various places
+    const userId = req.body.userId || req.query.userId || (req.params && req.params.userId)
+
+    console.log("Extracted userId:", userId)
+
+    if (!userId) {
+      return res.status(400).json({
+        success: false,
+        message: "userId is required",
+      })
+    }
+
+    // Extract fields with fallbacks
+    const vehicleType = req.body.vehicleType || "Car"
+    const numberPlate = req.body.numberPlate || ""
+    const productionYear = req.body.productionYear || ""
+
+    // Handle vehicle photo uploads
+    let vehiclePhotoUrl = ""
+    let vehicleDetailPhotoUrl = ""
+    let ownerDetailPhotoUrl = ""
+    let renewalDetailPhotoUrl = ""
+
+    if (req.files) {
+      if (req.files.vehiclePhoto) {
+        vehiclePhotoUrl = await uploadToCloudinary(req.files.vehiclePhoto.tempFilePath)
+      }
+      if (req.files.vehicleDetailPhoto) {
+        vehicleDetailPhotoUrl = await uploadToCloudinary(req.files.vehicleDetailPhoto.tempFilePath)
+      }
+      if (req.files.ownerDetailPhoto) {
+        ownerDetailPhotoUrl = await uploadToCloudinary(req.files.ownerDetailPhoto.tempFilePath)
+      }
+      if (req.files.renewalDetailPhoto) {
+        renewalDetailPhotoUrl = await uploadToCloudinary(req.files.renewalDetailPhoto.tempFilePath)
+      }
+    }
+
+    // Find driver by user ID
+    const driver = await DriverModel.findOne({ user: userId })
+
+    if (!driver) {
+      return res.status(404).json({
+        success: false,
+        message: "Driver profile not found. Please complete personal information first.",
+      })
+    }
+
+    // Update vehicle information
+    driver.vehicleType = vehicleType
+    driver.numberPlate = numberPlate
+    driver.productionYear = productionYear
+    if (vehiclePhotoUrl) driver.vehiclePhoto = vehiclePhotoUrl
+    if (vehicleDetailPhotoUrl) driver.vehicleDetailPhoto = vehicleDetailPhotoUrl
+    if (ownerDetailPhotoUrl) driver.ownerDetailPhoto = ownerDetailPhotoUrl
+    if (renewalDetailPhotoUrl) driver.renewalDetailPhoto = renewalDetailPhotoUrl
+
+    // Update status to pending if it was previously rejected
+    if (driver.status === "rejected" || driver.status === "needs_resubmission") {
+      driver.status = "pending"
+    }
+
+    await driver.save()
+
+    return res.status(200).json({
+      success: true,
+      message: "Vehicle information saved successfully",
+      driver,
+    })
+  } catch (error) {
+    console.error("Error saving vehicle information:", error)
+    return res.status(500).json({
+      success: false,
+      message: "Failed to save vehicle information",
+      error: error.message,
+    })
+  }
+}
+
+// Submit KYC (all information at once)
+export const submitKYC = async (req, res) => {
+  try {
+    console.log("submitKYC request body:", req.body)
+    console.log("submitKYC request files:", req.files)
+    console.log("submitKYC request query:", req.query)
+    console.log("submitKYC request params:", req.params)
+
+    // Try to get userId from various places
+    const userId = req.body.userId || req.query.userId || (req.params && req.params.userId)
+
+    console.log("Extracted userId:", userId)
+
+    if (!userId) {
+      return res.status(400).json({
+        success: false,
+        message: "userId is required",
+      })
+    }
+
+    // Extract fields with fallbacks
+    const fullName = req.body.fullName || ""
+    const address = req.body.address || ""
+    const email = req.body.email || ""
+    const gender = req.body.gender || "Other"
+    const dob = req.body.dob || new Date().toISOString().split("T")[0]
+    const citizenshipNumber = req.body.citizenshipNumber || ""
+    const licenseNumber = req.body.licenseNumber || ""
+    const vehicleType = req.body.vehicleType || "Car"
+    const numberPlate = req.body.numberPlate || ""
+    const productionYear = req.body.productionYear || ""
+
+    // Handle all photo uploads
+    const photoUrls = {}
+    const requiredPhotos = [
+      "photo",
+      "frontPhoto",
+      "backPhoto",
+      "vehiclePhoto",
+      "vehicleDetailPhoto",
+      "ownerDetailPhoto",
+      "renewalDetailPhoto",
+    ]
+
+    if (req.files) {
+      for (const field of requiredPhotos) {
+        if (req.files[field]) {
+          photoUrls[field] = await uploadToCloudinary(req.files[field].tempFilePath)
+        }
+      }
+    }
+
+    // Check if driver profile already exists
+    let driver = await DriverModel.findOne({ user: userId })
+
+    if (driver) {
+      // Update existing driver
+      driver.fullName = fullName
+      driver.address = address
+      driver.email = email
+      driver.gender = gender
+      driver.dob = new Date(dob)
+      driver.citizenshipNumber = citizenshipNumber
+      driver.licenseNumber = licenseNumber
+      driver.vehicleType = vehicleType
+      driver.numberPlate = numberPlate
+      driver.productionYear = productionYear
+
+      // Update photos if provided
+      for (const [field, url] of Object.entries(photoUrls)) {
+        driver[field] = url
+      }
+
+      // Reset status to pending if resubmitting
+      driver.status = "pending"
+      driver.rejectionReason = null
+    } else {
+      // Create new driver with all information
+      driver = new DriverModel({
+        fullName,
+        address,
+        email,
+        gender,
+        dob: new Date(dob),
+        citizenshipNumber,
+        licenseNumber,
+        vehicleType,
+        numberPlate,
+        productionYear,
+        user: userId,
+        status: "pending",
+        ...photoUrls,
+      })
+    }
+
+    await driver.save()
+
+    return res.status(200).json({
+      success: true,
+      message: "KYC information submitted successfully",
+      driver,
+    })
+  } catch (error) {
+    console.error("Error submitting KYC:", error)
+    return res.status(500).json({
+      success: false,
+      message: "Failed to submit KYC information",
+      error: error.message,
+    })
+  }
+}
+
+// Get All Drivers
+export const getAllDrivers = async (req, res) => {
+  try {
+    const drivers = await DriverModel.find().populate("user", "username email")
+
+    return res.status(200).json({
+      success: true,
+      count: drivers.length,
+      drivers,
+    })
+  } catch (error) {
+    console.error("Error fetching drivers:", error)
+    return res.status(500).json({
+      success: false,
+      message: "Failed to fetch drivers",
+      error: error.message,
+    })
+  }
+}
+
+// Get Pending KYC Submissions
+export const getPendingKYC = async (req, res) => {
+  try {
+    const pendingDrivers = await DriverModel.find({ status: "pending" }).populate("user", "username email")
+
+    return res.status(200).json({
+      success: true,
+      count: pendingDrivers.length,
+      drivers: pendingDrivers,
+    })
+  } catch (error) {
+    console.error("Error fetching pending KYC submissions:", error)
+    return res.status(500).json({
+      success: false,
+      message: "Failed to fetch pending KYC submissions",
+      error: error.message,
+    })
+  }
+}
+
+// Update Driver Verification Status
+export const updateDriverVerification = async (req, res) => {
+  try {
+    const { driverId } = req.params
+    const { status, rejectionReason } = req.body
+
+    // Validate status
+    const validStatuses = ["pending", "verified", "rejected", "needs_resubmission"]
+    if (!validStatuses.includes(status)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid status value",
+      })
+    }
+
+    // Find driver by ID
+    const driver = await DriverModel.findById(driverId)
+
+    if (!driver) {
+      return res.status(404).json({
+        success: false,
+        message: "Driver not found",
+      })
+    }
+
+    // Update status
+    driver.status = status
+
+    // Add rejection reason if status is rejected or needs_resubmission
+    if (status === "rejected" || status === "needs_resubmission") {
+      if (!rejectionReason) {
+        return res.status(400).json({
+          success: false,
+          message: "Rejection reason is required when rejecting or requesting resubmission",
+        })
+      }
+      driver.rejectionReason = rejectionReason
+    } else {
+      driver.rejectionReason = null
+    }
+
+    await driver.save()
+
+    return res.status(200).json({
+      success: true,
+      message: `Driver verification status updated to ${status}`,
+      driver,
+    })
+  } catch (error) {
+    console.error("Error updating driver verification:", error)
+    return res.status(500).json({
+      success: false,
+      message: "Failed to update driver verification status",
+      error: error.message,
+    })
+  }
+}
+
+// Get Driver KYC Status by User ID
+export const getDriverKYCStatus = async (req, res) => {
+  try {
+    const { userId } = req.params
+
+    const driver = await DriverModel.findOne({ user: userId })
+
+    if (!driver) {
+      return res.status(404).json({
+        success: false,
+        message: "No KYC information found for this user",
+      })
+    }
+
+    return res.status(200).json({
+      success: true,
+      status: driver.status,
+      rejectionReason: driver.rejectionReason,
+      driver,
+    })
+  } catch (error) {
+    console.error("Error fetching KYC status:", error)
+    return res.status(500).json({
+      success: false,
+      message: "Failed to fetch KYC status",
+      error: error.message,
+    })
+  }
+}
+

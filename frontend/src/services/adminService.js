@@ -31,3 +31,9 @@ const formatError = (error) => {
     return error.message;
   }
 };
+const adminService = {
+  fetchUserProfile,
+  updateUserProfile,
+};
+
+export default adminService;

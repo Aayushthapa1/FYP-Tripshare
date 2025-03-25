@@ -51,7 +51,6 @@ export const getPaymentDetails = createAsyncThunk(
   "payment/getDetails",
   async (paymentId, { rejectWithValue }) => {
     try {
-      // Updated to match the backend route
       const response = await axiosInstance.get(`/payments/details/${paymentId}`);
 
       if (!response.data.success) {
@@ -61,7 +60,7 @@ export const getPaymentDetails = createAsyncThunk(
         });
       }
 
-      return response.data.data;
+      return response.data.data; // This returns the data object containing payment
     } catch (error) {
       return rejectWithValue({
         message: error.response?.data?.message || "Failed to get payment details",
@@ -138,14 +137,14 @@ export const getPaymentStatusByBooking = createAsyncThunk(
   async (bookingId, { rejectWithValue }) => {
     try {
       const response = await axiosInstance.get(`/payments/booking/${bookingId}`);
-      
+
       if (!response.data.success) {
         return rejectWithValue({
           message: response.data.message || "Failed to get payment status",
           errors: response.data.errors || []
         });
       }
-      
+
       return response.data.data;
     } catch (error) {
       return rejectWithValue({

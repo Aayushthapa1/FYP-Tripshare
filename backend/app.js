@@ -15,6 +15,7 @@ import userRoute from "./routes/userRoute.js";
 import bookingRoutes from "./routes/bookingRoute.js";
 import paymentRoutes from "./routes/paymentRoute.js";
 import chatRoutes from "./routes/chatRoute.js";
+import UserKYCRoute from "./routes/UserKYCRoute.js"
 
 const app = express();
 
@@ -45,7 +46,7 @@ app.use("/api/user", userRoute);
 app.use("/api/bookings", bookingRoutes);
 app.use("/api/payments", paymentRoutes);
 app.use("/api/chats", chatRoutes);
-
+app.use("/api/userkyc", UserKYCRoute);
 // Root route
 app.get("/", (req, res) => {
   res.send("Ride Share platform running...");

@@ -78,15 +78,32 @@ export const getMyBookings = async () => {
  * Get details for a single booking
  * GET /api/bookings/:bookingId
  */
-export const getBookingDetails = async (bookingId) => {
-  try {
-    const response = await axiosInstance.get(`/api/bookings/${bookingId}`);
-    const data = handleResponse(response);
-    return data.Result?.booking;
-  } catch (error) {
-    throw handleError(error);
+const fetchBookingDetails = async (bookingId) => {
+  // Validate bookingId format before making the request
+  if (!bookingId || typeof bookingId !== "string" || !bookingId.match(/^[0-9a-fA-F]{24}$/)) {
+    throw new Error("Invalid booking ID format")
   }
-};
+
+  try {
+    const response = await axiosInstance.get(`/api/bookings/${bookingId}`)
+    return response.data
+  } catch (error) {
+    // Enhanced error handling
+    if (error.response) {
+      // The request was made and the server responded with a status code
+      // that falls out of the range of 2xx
+      if (error.response.status === 404) {
+        throw new Error("Booking not found")
+      } else if (error.response.status === 400) {
+        throw new Error("Invalid booking information")
+      } else if (error.response.status === 401 || error.response.status === 403) {
+        throw new Error("Not authorized to access this booking")
+      }
+    }
+    // If it's a network error or something unexpected
+    throw error
+  }
+}
 
 /**
  * Cancel a booking
@@ -105,7 +122,7 @@ export const cancelBooking = async (bookingId) => {
 const bookingService = {
   createBooking,
   getMyBookings,
-  getBookingDetails,
+  fetchBookingDetails,
   cancelBooking,
 };
 

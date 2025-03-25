@@ -71,10 +71,7 @@ export default function HeroSection() {
               <div className="text-2xl md:text-3xl font-bold text-white">50+</div>
               <div className="text-sm text-gray-300">Cities</div>
             </div>
-            <div className="bg-white/10 backdrop-blur-sm rounded-lg p-3">
-              <div className="text-2xl md:text-3xl font-bold text-white">4.8</div>
-              <div className="text-sm text-gray-300">Average rating</div>
-            </div>
+            
           </div>
 
           {/* CTA buttons with improved styling */}

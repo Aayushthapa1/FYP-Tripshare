@@ -1,5 +1,6 @@
-
-import React from "react";
+import React, { useState } from "react";
+import { useDispatch } from "react-redux";
+import { toast, Toaster } from "sonner";
 import {
   LayoutDashboard,
   Users,
@@ -10,22 +11,81 @@ import {
   User,
   LogOut as LogOutIcon,
 } from "lucide-react";
+import { logoutUser } from "../../Slices/authSlice";
 import { NavLink, useNavigate } from "react-router-dom";
 
 function AdminSidebar({ isOpen, onClose }) {
+  const dispatch = useDispatch();
   const navigate = useNavigate();
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
 
+  // Show the custom toast confirming logout
+  const confirmLogout = () => {
+    setShowLogoutConfirm(true);
+    toast.custom(
+      (t) => (
+        <div className="bg-white rounded-lg shadow-lg p-4 max-w-md w-full border border-gray-200">
+          <h3 className="text-lg font-medium text-gray-900 mb-2">
+            Confirm Logout
+          </h3>
+          <p className="text-gray-600 mb-4">Are you sure you want to logout?</p>
+          <div className="flex justify-end space-x-2">
+            <button
+              onClick={() => toast.dismiss(t.id)}
+              className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200 transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={() => {
+                toast.dismiss(t.id);
+                handleLogout();
+              }}
+              className="px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-md hover:bg-red-700 transition-colors"
+            >
+              Yes, Logout
+            </button>
+          </div>
+        </div>
+      ),
+      {
+        duration: 10000,
+        position: "top-center",
+      }
+    );
+  };
+
+  // Actual logout handler
   const handleLogout = () => {
-    localStorage.removeItem("authToken");
-    navigate("/"); // Redirect to homepage (or a login page).
+    // Clear token from localStorage
+    localStorage.removeItem("token");
+    localStorage.removeItem("userInfo");
+
+    // Clear cookies
+    document.cookie.split(";").forEach((cookie) => {
+      document.cookie = cookie
+        .replace(/^ +/, "")
+        .replace(/=.*/, `=;expires=${new Date(0).toUTCString()};path=/`);
+    });
+
+    // Dispatch Redux logout action
+    dispatch(logoutUser());
+
+    // Show success toast
+    toast.success("Successfully logged out");
+
+    // Redirect user to home page
+    navigate("/");
   };
 
   return (
+    <>
+    <Toaster position="top-right"/>
     <aside
-      className={`bg-white border-r border-gray-200 h-screen w-64 fixed top-0 left-0 z-20 transform 
-      ${isOpen ? "translate-x-0" : "-translate-x-full"} 
-      md:translate-x-0 transition-transform duration-200 ease-in-out
-      flex flex-col`}
+      className={`bg-white border-r border-gray-200 h-screen w-64 fixed top-0 left-0 z-20 transform
+        ${isOpen ? "translate-x-0" : "-translate-x-full"}
+        md:translate-x-0 transition-transform duration-200 ease-in-out
+        flex flex-col`}
     >
       <div className="p-4 border-b">
         <h2 className="text-xl font-bold">Menu</h2>
@@ -33,7 +93,6 @@ function AdminSidebar({ isOpen, onClose }) {
 
       {/* Main nav links */}
       <nav className="flex-1 p-4 space-y-2">
-        {/* Dashboard */}
         <NavLink
           to="/admin"
           end
@@ -50,8 +109,7 @@ function AdminSidebar({ isOpen, onClose }) {
           <span>Dashboard</span>
         </NavLink>
 
-         {/* KYC verification */}
-         <NavLink
+        <NavLink
           to="/admin/Kyc"
           className={({ isActive }) =>
             `flex items-center space-x-2 p-2 rounded 
@@ -66,7 +124,6 @@ function AdminSidebar({ isOpen, onClose }) {
           <span>KYC Verification</span>
         </NavLink>
 
-        {/* Users */}
         <NavLink
           to="/admin/users"
           className={({ isActive }) =>
@@ -82,7 +139,6 @@ function AdminSidebar({ isOpen, onClose }) {
           <span>Users</span>
         </NavLink>
 
-        {/* Rides */}
         <NavLink
           to="/admin/rides"
           className={({ isActive }) =>
@@ -98,7 +154,6 @@ function AdminSidebar({ isOpen, onClose }) {
           <span>Rides</span>
         </NavLink>
 
-        {/* Payments */}
         <NavLink
           to="/admin/payments"
           className={({ isActive }) =>
@@ -114,7 +169,6 @@ function AdminSidebar({ isOpen, onClose }) {
           <span>Payments</span>
         </NavLink>
 
-        {/* Disputes */}
         <NavLink
           to="/admin/disputes"
           className={({ isActive }) =>
@@ -130,7 +184,6 @@ function AdminSidebar({ isOpen, onClose }) {
           <span>Disputes</span>
         </NavLink>
 
-        {/* Settings */}
         <NavLink
           to="/admin/settings"
           className={({ isActive }) =>
@@ -149,7 +202,6 @@ function AdminSidebar({ isOpen, onClose }) {
 
       {/* Profile + Logout (bottom) */}
       <div className="p-4 border-t mt-auto">
-        {/* Profile link */}
         <NavLink
           to="/admin/profile"
           className={({ isActive }) =>
@@ -165,9 +217,9 @@ function AdminSidebar({ isOpen, onClose }) {
           <span>Profile</span>
         </NavLink>
 
-        {/* Logout button */}
+        {/* Logout button with confirmation */}
         <button
-          onClick={handleLogout}
+          onClick={confirmLogout}
           className="w-full flex items-center space-x-2 p-2 rounded 
                      text-gray-700 hover:bg-gray-100"
         >
@@ -184,6 +236,7 @@ function AdminSidebar({ isOpen, onClose }) {
         Close
       </button>
     </aside>
+    </>
   );
 }
 

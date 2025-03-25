@@ -31,3 +31,20 @@ export const getChatMessages = async (req, res) => {
         return res.status(500).json({ error: error.message });
     }
 };
+
+
+// Add a new message to a specific chat room
+// Body: { chatRoomId, senderId, message }
+export const addMessage = async (req, res) => {
+    try {
+        const { chatRoomId, senderId, message } = req.body;
+        const newMessage = await ChatMessage.create({ chatRoomId, senderId, message });
+        return res.status(201).json(newMessage);
+    } catch (error) {
+        console.error("addMessage error:", error);
+        return res.status(500).json({ error: error.message });
+    }
+};
+
+
+

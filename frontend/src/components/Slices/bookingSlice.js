@@ -18,7 +18,7 @@ export const createBooking = createAsyncThunk(
       }
 
       // Call the service function to create booking
-      const result =  await bookingService.createBooking({ tripId, seats, paymentMethod });
+      const result = await bookingService.createBooking({ tripId, seats, paymentMethod });
       return result
     } catch (err) {
       return rejectWithValue(err.message);
@@ -39,16 +39,18 @@ export const getMyBookings = createAsyncThunk(
 );
 
 // 3) Get booking details
-export const getBookingDetails = createAsyncThunk(
-  "booking/getBookingDetails",
-  async (bookingId, { rejectWithValue }) => {
-    try {
-      return await bookingService.getBookingDetails(bookingId);
-    } catch (err) {
-      return rejectWithValue(err.message);
-    }
+export const getBookingDetails = createAsyncThunk("booking/getBookingDetails", async (bookingId, thunkAPI) => {
+  try {
+    return await bookingService.fetchBookingDetails(bookingId)
+  } catch (error) {
+    const message =
+      (error.response && error.response.data && error.response.data.errors && error.response.data.errors[0]?.message) ||
+      error.message ||
+      error.toString()
+
+    return thunkAPI.rejectWithValue(message)
   }
-);
+})
 
 // 4) Cancel booking
 export const cancelBooking = createAsyncThunk(
@@ -115,16 +117,17 @@ const bookingSlice = createSlice({
 
       // GET BOOKING DETAILS
       .addCase(getBookingDetails.pending, (state) => {
-        state.loading = true;
-        state.error = null;
+        state.isLoading = true
       })
       .addCase(getBookingDetails.fulfilled, (state, action) => {
-        state.loading = false;
-        state.currentBooking = action.payload;
+        state.isLoading = false
+        state.isSuccess = true
+        state.booking = action.payload.data.booking
       })
       .addCase(getBookingDetails.rejected, (state, action) => {
-        state.loading = false;
-        state.error = action.payload;
+        state.isLoading = false
+        state.isError = true
+        state.message = action.payload
       })
 
       // CANCEL BOOKING

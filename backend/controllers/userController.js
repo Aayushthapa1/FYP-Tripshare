@@ -5,8 +5,7 @@ import {
   registerUserSchema,
   loginUserSchema,
 } from "../middlewares/validationSchema.js";
-import nodemailer from "nodemailer";
-import user from "../models/userModel.js";
+import { sendEmail } from "../utils/sendEmail.js";
 
 import {
   generateAccessToken,
@@ -16,15 +15,6 @@ import { createResponse } from "../utils/responseHelper.js";
 
 // Utility function to generate OTP
 const generateOTP = () => Math.floor(100000 + Math.random() * 900000).toString();
-
-// Email transporter configuration
-const transporter = nodemailer.createTransport({
-  service: "gmail",
-  auth: {
-    user: process.env.EMAIL,
-    pass: process.env.EMAIL_PASSWORD,
-  },
-});
 
 export const userRegister = async (req, res, next) => {
   try {
@@ -83,6 +73,7 @@ export const userRegister = async (req, res, next) => {
   }
 };
 
+
 export const userLogin = async (req, res, next) => {
   try {
     console.log("The req body is", req.body);
@@ -108,6 +99,7 @@ export const userLogin = async (req, res, next) => {
 
     const userObj = user.toObject();
     delete userObj.password;
+    console.log("the user ibject is", userObj)
 
     // Set cookies
     res.cookie("accessToken", accessToken, {
@@ -123,6 +115,8 @@ export const userLogin = async (req, res, next) => {
       sameSite: "strict",
       maxAge: 24 * 60 * 60 * 1000,
     });
+
+
 
     return res.status(200).json(
       createResponse(200, true, [], {

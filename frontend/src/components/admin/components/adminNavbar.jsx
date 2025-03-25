@@ -1,23 +1,80 @@
-// src/admin/components/AdminNavbar.jsx
-import React, { useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import { Menu, Bell } from "lucide-react";
 import { useSelector, useDispatch } from "react-redux";
-import { getUserProfile ,updateUserProfileAction, } from "../../Slices/userSlice";
+import { getUserProfile } from "../../Slices/userSlice";
 import { Link } from "react-router-dom";
+
+// ThemeSwitcher Component
+const ThemeSwitcher = () => {
+  const [theme, setTheme] = useState(localStorage.getItem("theme") || "light");
+
+  useEffect(() => {
+    document.documentElement.setAttribute("data-theme", theme);
+    localStorage.setItem("theme", theme);
+  }, [theme]);
+  const toggleTheme = () => {
+    const newTheme = theme === "light" ? "synthwave" : "light";
+    setTheme(newTheme);
+    setTimeout(() => {
+      document.documentElement.setAttribute("data-theme", newTheme);
+    }, 100); // Small delay to ensure UI update
+  };
+  
+
+  return (
+    <label className="flex cursor-pointer gap-2">
+      {/* Sun Icon */}
+      <svg
+        xmlns="http://www.w3.org/2000/svg"
+        width="20"
+        height="20"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      >
+        <circle cx="12" cy="12" r="5" />
+        <path d="M12 1v2M12 21v2M4.2 4.2l1.4 1.4M18.4 18.4l1.4 1.4M1 12h2M21 12h2M4.2 19.8l1.4-1.4M18.4 5.6l1.4-1.4" />
+      </svg>
+
+      {/* Toggle Button */}
+      <input
+        type="checkbox"
+        className="toggle theme-controller"
+        checked={theme === "synthwave"}
+        onChange={toggleTheme}
+      />
+
+      {/* Moon Icon */}
+      <svg
+        xmlns="http://www.w3.org/2000/svg"
+        width="20"
+        height="20"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      >
+        <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+      </svg>
+    </label>
+  );
+};
 
 function AdminNavbar({ onToggleSidebar }) {
   const dispatch = useDispatch();
-  // Assume the admin's id is stored in your auth slice
   const adminId = useSelector((state) => state.auth.user?._id);
 
-  // Fetch the admin profile data on mount or when adminId changes
   useEffect(() => {
     if (adminId) {
       dispatch(getUserProfile(adminId));
     }
   }, [adminId, dispatch]);
 
-  // Get the admin profile data from the user slice
   const adminProfile = useSelector(
     (state) => state.user?.userData?.Result?.user_data
   );
@@ -37,17 +94,21 @@ function AdminNavbar({ onToggleSidebar }) {
         </h1>
       </div>
 
-      {/* Right side: Notification and profile avatar */}
+      {/* Right side: Theme toggle, Notification, and Profile avatar */}
       <div className="flex items-center space-x-4">
+        {/* Theme Switcher */}
+        <ThemeSwitcher />
+
+        {/* Notifications */}
         <button className="relative p-2 rounded-full hover:bg-gray-100 focus:outline-none">
           <Bell className="w-5 h-5 text-gray-700" />
           <span className="sr-only">Notifications</span>
         </button>
 
-        {/* Profile avatar wrapped in a link to the profile page */}
+        {/* Profile avatar */}
         <Link to="/admin/profile">
           <div className="h-8 w-8 rounded-full bg-gray-300 overflow-hidden">
-            {adminProfile && adminProfile.profilePicture ? (
+            {adminProfile?.profilePicture ? (
               <img
                 src={adminProfile.profilePicture}
                 alt="Admin Avatar"
@@ -55,7 +116,7 @@ function AdminNavbar({ onToggleSidebar }) {
               />
             ) : (
               <span className="flex items-center justify-center h-full w-full text-white bg-gray-500">
-                {adminProfile && adminProfile.fullName
+                {adminProfile?.fullName
                   ? adminProfile.fullName.charAt(0).toUpperCase()
                   : "A"}
               </span>

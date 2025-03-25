@@ -14,8 +14,9 @@ import Navbar from "./components/layout/Navbar";
 import Footer from "./components/layout/Footer";
 import ProfileModal from "./components/auth/ProfileModal.jsx";
 
-// import PaymentCallback from "./components/layout/paymentCallback.jsx";
-// import MultiStepForm from "./components/layout/MultiStepForm";
+//ride
+import RideBooking from "./components/ride/rideBooking.jsx";
+import RideStatus from "./components/ride/rideStatus.jsx";
 
 // Public/Home
 import HeroSection from "./components/home/HeroSection";
@@ -34,14 +35,13 @@ import ManageRides from "./components/admin/pages/ManageRides";
 import ManagePayments from "./components/admin/pages/ManagePayments";
 import ManageDisputes from "./components/admin/pages/ManageDisputes";
 import AdminSettings from "./components/admin/pages/AdminSettings";
-import KycVerification from "./components/admin/pages/KycVerification";
 import DriverList from "./components/admin/pages/DriverList";
 
 // User
 import UserLayout from "./components/pages/UserLayout";
-import BookRide from "./components/user/pages/BookRide";
-import RiderDashboard from "./components/user/pages/RiderDashboard";
 import NotFound from "./components/user/pages/NotFound";
+import UserDashboard from "./components/user/pages/userDashboard.jsx";
+import Sidebar from "./components/user/pages/userSidebar.jsx";
 
 //payment
 import PaymentSuccess from "./components/payment/paymentSuccess";
@@ -50,10 +50,11 @@ import PaymentFailed from "./components/payment/paymentFail";
 //trips
 import TripForm from "./components/trip/tripForm";
 import TripList from "./components/trip/tripList";
-import BookingConfirmationModal from "./components/trip/bookingList.jsx";
+import Bookinglist from "./components/trip/bookingList.jsx";
 
 //DRIVER
-import KYCForm from "./components/driver/KYCForm";
+import UserKycModal from "./components/driver/UserKYCModal.jsx";
+import DriverKycModal from "./components/driver/DriverKYCModal.jsx";
 
 // Auth
 import RegisterPage from "./components/pages/RegisterPage";
@@ -68,12 +69,11 @@ function App() {
   const dispatch = useDispatch();
   const { isAuthenticated, user } = useSelector((state) => state.auth);
   console.log("user", user);
-  console.log("", isAuthenticated);
 
   // Check authentication on first load
   useEffect(() => {
     dispatch(checkAuth());
-  }, [dispatch]);
+  }, []);
 
   return (
     <>
@@ -84,19 +84,27 @@ function App() {
           <Route
             path="/"
             element={
-              <>
-                <Navbar />
-                {/* <MultiStepForm/> */}
-                <HeroSection />
-                <FeaturesSection />
-                <HowItWorks />
-                <PopularRoutes />
-                <ScrollToTopButton />
-
-                <Footer />
-              </>
+              user?.role === "Admin" ? (
+                <Navigate to="/Admin" />
+              ) : (
+                <>
+                  <Navbar />
+                  <HeroSection />
+                  <FeaturesSection />
+                  <HowItWorks />
+                  <PopularRoutes />
+                  <ScrollToTopButton />
+                  <Footer />
+                </>
+              )
             }
           />
+
+          <Route path="/driverkyc" element={<DriverKycModal />} />
+          <Route path="/userkyc" element={<UserKycModal />} />
+
+          <Route path="/userDashboard" element={<UserDashboard />} />
+          <Route path="/sidebar" element={<Sidebar />} />
           <Route path="/payment-success" element={<PaymentSuccess />} />
           <Route path="/payment-failed" element={<PaymentFailed />} />
           <Route path="/contact" element={<HelpCenter />} />
@@ -104,15 +112,18 @@ function App() {
 
           <Route path="/trips" element={<TripList />} />
           <Route path="/tripform" element={<TripForm />} />
-          <Route path="/bookings" element={<BookingConfirmationModal />} />
+          <Route path="/bookings/:bookingId" element={<Bookinglist />} />
+
+          <Route path="/ridebooking" element={<RideBooking />} />
+          <Route path="/ridestatus" element={<RideStatus />} />
 
           {/* Auth Routes */}
           <Route
             path="/register"
             element={
               isAuthenticated ? (
-                user?.role === "admin" ? (
-                  <Navigate to="/admin" />
+                user?.role === "Admin" ? (
+                  <Navigate to="/Admin" />
                 ) : (
                   <Navigate to="/" />
                 )
@@ -125,8 +136,8 @@ function App() {
             path="/login"
             element={
               isAuthenticated ? (
-                user?.role === "admin" ? (
-                  <Navigate to="/admin" />
+                user?.role === "Admin" ? (
+                  <Navigate to="/Admin" />
                 ) : (
                   <Navigate to="/" />
                 )
@@ -138,9 +149,9 @@ function App() {
 
           {/* Admin Routes (Protected) */}
           <Route
-            path="/admin"
+            path="/Admin"
             element={
-              <CheckAuth role="admin">
+              <CheckAuth role="Admin">
                 <AdminLayout />
               </CheckAuth>
             }
@@ -153,7 +164,7 @@ function App() {
             <Route path="settings" element={<AdminSettings />} />
             <Route path="profile" element={<AdminProfile />} />
             <Route path="drivers" element={<DriverList />} />
-            <Route path="kyc" element={<KycVerification />} />
+            {/* <Route path="kyc" element={<KycVerification />} /> */}
           </Route>
 
           {/* User Routes (Protected) */}
@@ -162,7 +173,7 @@ function App() {
             element={
               <CheckAuth role="user">
                 <UserLayout>
-                  <BookRide />
+      
                 </UserLayout>
               </CheckAuth>
             }
@@ -172,12 +183,11 @@ function App() {
             element={
               <CheckAuth role="user">
                 <UserLayout>
-                  <RiderDashboard />
                 </UserLayout>
               </CheckAuth>
             }
           />
-          <Route path="/kycform" element={<KYCForm />} />
+
 
           {/* Misc */}
           <Route path="/unauth-page" element={<UnauthPage />} />
