@@ -1,257 +1,337 @@
-import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
-import rideService from '../../services/rideService';
+// src/Slices/rideSlice.js
+import { createSlice, createAsyncThunk } from "@reduxjs/toolkit";
+import rideService from "../../services/rideService";
 
-// Initial state
 const initialState = {
-  activeRide: null,
+  // For driver's posted ride or passenger's requested ride
+  currentRide: null,
   rideHistory: [],
-  availableDrivers: [],
-  pagination: {
-    total: 0,
-    page: 1,
-    limit: 10,
-    pages: 0,
-  },
-  loading: {
-    activeRide: false,
-    rideHistory: false,
-    requestRide: false,
-    updateStatus: false,
-    searchDrivers: false,
-    rateRide: false,
-  },
-  error: {
-    activeRide: null,
-    rideHistory: null,
-    requestRide: null,
-    updateStatus: null,
-    searchDrivers: null,
-    rateRide: null,
-  },
+  activeRide: null,
+  searchResults: [],
+  loading: false,
+  error: null,
+  message: null,
+  pendingRides: [],
 };
 
-// Async thunks
+/** 1) Driver posts a ride */
+export const postRide = createAsyncThunk(
+  "ride/postRide",
+  async (postData, { rejectWithValue }) => {
+    try {
+      const response = await rideService.postRide(postData);
+      return response;
+    } catch (error) {
+      return rejectWithValue(error.message);
+    }
+  }
+);
+
+/** 2) Passenger requests a ride */
 export const requestRide = createAsyncThunk(
-  'ride/requestRide',
-  async (rideData, { rejectWithValue }) => {
+  "ride/requestRide",
+  async (requestData, { rejectWithValue }) => {
     try {
-      return await rideService.requestRide(rideData);
+      const response = await rideService.requestRide(requestData);
+      return response;
     } catch (error) {
-      return rejectWithValue(error);
+      return rejectWithValue(error.message);
     }
   }
 );
 
+/** 3) Update ride status */
 export const updateRideStatus = createAsyncThunk(
-  'ride/updateStatus',
-  async (updateData, { rejectWithValue }) => {
+  "ride/updateRideStatus",
+  async (statusData, { rejectWithValue }) => {
     try {
-      return await rideService.updateRideStatus(updateData);
+      const response = await rideService.updateRideStatus(statusData);
+      return response;
     } catch (error) {
-      return rejectWithValue(error);
+      return rejectWithValue(error.message);
     }
   }
 );
 
-export const fetchActiveRide = createAsyncThunk(
-  'ride/fetchActiveRide',
+/** 4) Get ride history */
+export const getRideHistory = createAsyncThunk(
+  "ride/getRideHistory",
   async (params, { rejectWithValue }) => {
     try {
-      return await rideService.getActiveRide(params);
+      const response = await rideService.getRideHistory(params);
+      return response;
     } catch (error) {
-      // If 404 (no active ride), return null without error
-      if (error.status === 404) {
-        return null;
-      }
-      return rejectWithValue(error);
+      return rejectWithValue(error.message);
     }
   }
 );
 
-export const fetchRideHistory = createAsyncThunk(
-  'ride/fetchRideHistory',
+/** 5) Get active ride */
+export const getActiveRide = createAsyncThunk(
+  "ride/getActiveRide",
   async (params, { rejectWithValue }) => {
     try {
-      return await rideService.getRideHistory(params);
+      const response = await rideService.getActiveRide(params);
+      return response;
     } catch (error) {
-      return rejectWithValue(error);
+      return rejectWithValue(error.message);
     }
   }
 );
 
-export const searchDrivers = createAsyncThunk(
-  'ride/searchDrivers',
-  async (params, { rejectWithValue }) => {
-    try {
-      return await rideService.searchDrivers(params);
-    } catch (error) {
-      return rejectWithValue(error);
-    }
-  }
-);
-
+/** 6) Update payment status */
 export const updatePaymentStatus = createAsyncThunk(
-  'ride/updatePaymentStatus',
+  "ride/updatePaymentStatus",
   async (paymentData, { rejectWithValue }) => {
     try {
-      return await rideService.updatePaymentStatus(paymentData);
+      const response = await rideService.updatePaymentStatus(paymentData);
+      return response;
     } catch (error) {
-      return rejectWithValue(error);
+      return rejectWithValue(error.message);
     }
   }
 );
 
-export const rateRide = createAsyncThunk(
-  'ride/rateRide',
-  async (ratingData, { rejectWithValue }) => {
+/** 7) Search drivers */
+export const searchDrivers = createAsyncThunk(
+  "ride/searchDrivers",
+  async (params, { rejectWithValue }) => {
     try {
-      return await rideService.rateRide(ratingData);
+      const response = await rideService.searchDrivers(params);
+      return response;
     } catch (error) {
-      return rejectWithValue(error);
+      return rejectWithValue(error.message);
     }
   }
 );
 
-// Ride slice
+/** 8) Rate ride */
+export const rateRide = createAsyncThunk(
+  "ride/rateRide",
+  async (rateData, { rejectWithValue }) => {
+    try {
+      const response = await rideService.rateRide(rateData);
+      return response;
+    } catch (error) {
+      return rejectWithValue(error.message);
+    }
+  }
+);
+
+export const getPendingRides = createAsyncThunk(
+  "ride/getPendingRides",
+  async (_, { rejectWithValue }) => {
+    try {
+      const response = await rideService.getPendingRides();
+      return response;
+    } catch (error) {
+      return rejectWithValue(error.message);
+    }
+  }
+);
+
 const rideSlice = createSlice({
-  name: 'ride',
+  name: "ride",
   initialState,
   reducers: {
-    clearActiveRide: (state) => {
+    clearRideError: (state) => {
+      state.error = null;
+    },
+    clearRideMessage: (state) => {
+      state.message = null;
+    },
+    resetRideState: (state) => {
+      state.currentRide = null;
+      state.rideHistory = [];
       state.activeRide = null;
-    },
-    clearRideErrors: (state) => {
-      state.error = {
-        activeRide: null,
-        rideHistory: null,
-        requestRide: null,
-        updateStatus: null,
-        searchDrivers: null,
-        rateRide: null,
-      };
-    },
-    setActivePage: (state, action) => {
-      state.pagination.page = action.payload;
+      state.searchResults = [];
+      state.loading = false;
+      state.error = null;
+      state.message = null;
     },
   },
   extraReducers: (builder) => {
-    // Request Ride
     builder
+      // 1) postRide
+      .addCase(postRide.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(postRide.fulfilled, (state, action) => {
+        state.loading = false;
+        // action.payload = { success, data: ride }
+        if (action.payload.success) {
+          state.currentRide = action.payload.data;
+          state.message = "Ride posted successfully.";
+        } else {
+          // handle edge case if success: false
+          state.error = action.payload.message || "Failed to post ride";
+        }
+      })
+      .addCase(postRide.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload;
+      })
+
+      // 2) requestRide
       .addCase(requestRide.pending, (state) => {
-        state.loading.requestRide = true;
-        state.error.requestRide = null;
+        state.loading = true;
+        state.error = null;
       })
       .addCase(requestRide.fulfilled, (state, action) => {
-        state.loading.requestRide = false;
-        state.activeRide = action.payload.data;
+        state.loading = false;
+        if (action.payload.success) {
+          state.currentRide = action.payload.data;
+          state.message = "Ride requested successfully.";
+        } else {
+          state.error = action.payload.message || "Failed to request ride";
+        }
       })
       .addCase(requestRide.rejected, (state, action) => {
-        state.loading.requestRide = false;
-        state.error.requestRide = action.payload;
-      });
+        state.loading = false;
+        state.error = action.payload;
+      })
 
-    // Update Ride Status
-    builder
+      // 3) updateRideStatus
       .addCase(updateRideStatus.pending, (state) => {
-        state.loading.updateStatus = true;
-        state.error.updateStatus = null;
+        state.loading = true;
+        state.error = null;
       })
       .addCase(updateRideStatus.fulfilled, (state, action) => {
-        state.loading.updateStatus = false;
-        
-        // Update active ride if it's the same ride
-        if (state.activeRide && state.activeRide._id === action.payload.data._id) {
-          state.activeRide = action.payload.data;
-        }
-        
-        // Update ride in history if it exists there
-        const index = state.rideHistory.findIndex(ride => ride._id === action.payload.data._id);
-        if (index !== -1) {
-          state.rideHistory[index] = action.payload.data;
+        state.loading = false;
+        if (action.payload.success) {
+          // updated ride in action.payload.data
+          state.currentRide = action.payload.data;
+          state.message = `Ride status updated to ${action.payload.data.status}`;
+        } else {
+          state.error = action.payload.message || "Failed to update ride status";
         }
       })
       .addCase(updateRideStatus.rejected, (state, action) => {
-        state.loading.updateStatus = false;
-        state.error.updateStatus = action.payload;
-      });
+        state.loading = false;
+        state.error = action.payload;
+      })
 
-    // Fetch Active Ride
-    builder
-      .addCase(fetchActiveRide.pending, (state) => {
-        state.loading.activeRide = true;
-        state.error.activeRide = null;
+      // 4) getRideHistory
+      .addCase(getRideHistory.pending, (state) => {
+        state.loading = true;
+        state.error = null;
       })
-      .addCase(fetchActiveRide.fulfilled, (state, action) => {
-        state.loading.activeRide = false;
-        state.activeRide = action.payload?.data || null;
+      .addCase(getRideHistory.fulfilled, (state, action) => {
+        state.loading = false;
+        if (action.payload.success) {
+          // ride array in action.payload.data
+          state.rideHistory = action.payload.data || [];
+        } else {
+          state.error = action.payload.message || "Failed to fetch ride history";
+        }
       })
-      .addCase(fetchActiveRide.rejected, (state, action) => {
-        state.loading.activeRide = false;
-        state.error.activeRide = action.payload;
+      .addCase(getRideHistory.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload;
+      })
+
+      // 5) getActiveRide
+      .addCase(getActiveRide.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(getActiveRide.fulfilled, (state, action) => {
+        state.loading = false;
+        if (action.payload.success) {
+          state.activeRide = action.payload.data;
+        } else {
+          // Possibly a 404 if no active ride
+          state.error = action.payload.message || "No active ride found";
+          state.activeRide = null;
+        }
+      })
+      .addCase(getActiveRide.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload;
         state.activeRide = null;
-      });
-
-    // Fetch Ride History
-    builder
-      .addCase(fetchRideHistory.pending, (state) => {
-        state.loading.rideHistory = true;
-        state.error.rideHistory = null;
       })
-      .addCase(fetchRideHistory.fulfilled, (state, action) => {
-        state.loading.rideHistory = false;
-        state.rideHistory = action.payload.data;
-        state.pagination = action.payload.pagination;
-      })
-      .addCase(fetchRideHistory.rejected, (state, action) => {
-        state.loading.rideHistory = false;
-        state.error.rideHistory = action.payload;
-      });
 
-    // Search Drivers
-    builder
+      // 6) updatePaymentStatus
+      .addCase(updatePaymentStatus.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(updatePaymentStatus.fulfilled, (state, action) => {
+        state.loading = false;
+        if (action.payload.success) {
+          // updated ride in action.payload.data
+          state.currentRide = action.payload.data;
+          state.message = "Payment status updated";
+        } else {
+          state.error = action.payload.message || "Failed to update payment status";
+        }
+      })
+      .addCase(updatePaymentStatus.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload;
+      })
+
+      // 7) searchDrivers
       .addCase(searchDrivers.pending, (state) => {
-        state.loading.searchDrivers = true;
-        state.error.searchDrivers = null;
+        state.loading = true;
+        state.error = null;
       })
       .addCase(searchDrivers.fulfilled, (state, action) => {
-        state.loading.searchDrivers = false;
-        state.availableDrivers = action.payload.data;
+        state.loading = false;
+        if (action.payload.success) {
+          // array of drivers in action.payload.data
+          state.searchResults = action.payload.data || [];
+        } else {
+          state.error = action.payload.message || "Failed to search drivers";
+        }
       })
       .addCase(searchDrivers.rejected, (state, action) => {
-        state.loading.searchDrivers = false;
-        state.error.searchDrivers = action.payload;
-      });
+        state.loading = false;
+        state.error = action.payload;
+      })
 
-    // Rate Ride
-    builder
+      .addCase(getPendingRides.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(getPendingRides.fulfilled, (state, action) => {
+        state.loading = false;
+        if (action.payload.success) {
+          // Must set it to an array
+          state.pendingRides = action.payload.data || [];
+        } else {
+          state.error = action.payload.message || "Failed to fetch pending rides";
+        }
+      })
+      .addCase(getPendingRides.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload;
+      })
+
+      // 8) rateRide
       .addCase(rateRide.pending, (state) => {
-        state.loading.rateRide = true;
-        state.error.rateRide = null;
+        state.loading = true;
+        state.error = null;
       })
       .addCase(rateRide.fulfilled, (state, action) => {
-        state.loading.rateRide = false;
-        
-        // Update ride in history if it exists there
-        const index = state.rideHistory.findIndex(ride => ride._id === action.payload.data._id);
-        if (index !== -1) {
-          state.rideHistory[index] = action.payload.data;
+        state.loading = false;
+        if (action.payload.success) {
+          // updated ride in action.payload.data
+          state.currentRide = action.payload.data;
+          state.message = "Ride rated successfully.";
+        } else {
+          state.error = action.payload.message || "Failed to rate ride";
         }
       })
       .addCase(rateRide.rejected, (state, action) => {
-        state.loading.rateRide = false;
-        state.error.rateRide = action.payload;
+        state.loading = false;
+        state.error = action.payload;
       });
+      
   },
 });
 
-// Export actions and reducer
-export const { clearActiveRide, clearRideErrors, setActivePage } = rideSlice.actions;
-export default rideSlice.reducer;
+export const { clearRideError, clearRideMessage, resetRideState } = rideSlice.actions;
 
-// Selectors
-export const selectActiveRide = (state) => state.ride.activeRide;
-export const selectRideHistory = (state) => state.ride.rideHistory;
-export const selectAvailableDrivers = (state) => state.ride.availableDrivers;
-export const selectRidePagination = (state) => state.ride.pagination;
-export const selectRideLoading = (state) => state.ride.loading;
-export const selectRideErrors = (state) => state.ride.error;
+export default rideSlice.reducer;

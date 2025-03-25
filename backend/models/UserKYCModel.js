@@ -11,6 +11,7 @@ const UserKYCSchema = new mongoose.Schema({
     enum: ['male', 'female', 'other'],
     required: [true, 'Gender is required']
   },
+  
   citizenshipNumber: {
     type: String,
     required: [true, 'Citizenship number is required'],

@@ -16,6 +16,7 @@ import bookingRoutes from "./routes/bookingRoute.js";
 import paymentRoutes from "./routes/paymentRoute.js";
 import chatRoutes from "./routes/chatRoute.js";
 import UserKYCRoute from "./routes/UserKYCRoute.js"
+import fileUpload from "express-fileupload"
 
 const app = express();
 
@@ -30,6 +31,10 @@ app.use(
     exposedHeaders: ['set-cookie']
   })
 );
+app.use(fileUpload({
+  useTempFiles: true,
+  tempFileDir: "/tmp/"
+}))
 
 // Body parsing middleware
 app.use(express.json());
@@ -41,7 +46,7 @@ app.use("/api/trips", tripRoute);
 app.use("/api/auth", authRoute);
 app.use("/api/users", userRoute);
 app.use("/api/drivers", driverRoute);
-app.use ("/api/rides", handleRideRoute);
+app.use("/api/rides", handleRideRoute);
 app.use("/api/user", userRoute);
 app.use("/api/bookings", bookingRoutes);
 app.use("/api/payments", paymentRoutes);

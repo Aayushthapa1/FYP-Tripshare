@@ -4,13 +4,13 @@ const RideSchema = new mongoose.Schema(
   {
     driverId: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: "Driver",
+      ref: "User",
       // Not required initially as rides can be requested before driver assignment
     },
     passengerId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
-      required: [true, "Passenger ID is required"]
+      required:"false",
     },
     pickupLocation: {
       type: {

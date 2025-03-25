@@ -1,14 +1,30 @@
-import express from "express"
-import { submitUserKYC, getUserKYCStatus, updateUserKYCStatus } from "../controllers/UserKYCController.js"
-// Import other user controllers as needed
+import express from "express";
+import {
+    submitUserKYC,
+    getUserKYCStatus,
+    updateUserKYCStatus,
+    getAllUsersWithKYC,
+    getPendingUserKYC, getVerifiedUserKYC,
+} from "../controllers/UserKYCController.js";
 
-const router = express.Router()
+const router = express.Router();
 
-// User KYC routes
-router.post("/kyc", submitUserKYC) // Keep the original route
-router.post("/kyc/:userId", submitUserKYC) // Add a new route that accepts userId as a parameter
-router.get("/kyc/status/:userId", getUserKYCStatus)
-router.put("/kyc/verify/:userId", updateUserKYCStatus)
+// 1) Submit/Update KYC
+router.post("/kyc", submitUserKYC);         // no userId param
+router.post("/kyc/:userId", submitUserKYC); // with userId param
 
-// Add other user routes as needed
-export default router
+// 2) Single user's KYC status
+router.get("/kyc/status/:userId", getUserKYCStatus);
+
+// 3) Admin: get ALL KYC (any status)
+router.get("/all", getAllUsersWithKYC);
+
+// 4) Admin: get only pending KYC requests
+router.get("/pending", getPendingUserKYC);
+
+router.get("/verified", getVerifiedUserKYC);
+
+// 5) Admin: verify/reject user KYC
+router.put("/kyc/verify/:userId", updateUserKYCStatus);
+
+export default router;

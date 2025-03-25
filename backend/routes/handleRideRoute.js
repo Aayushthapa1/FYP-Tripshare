@@ -7,7 +7,8 @@ import {
   getActiveRide,
   updatePaymentStatus,
   searchDrivers,
-  rateRide
+  rateRide,
+  getPendingRides
 } from "../controllers/handleRideController.js";
 
 const router = express.Router();
@@ -21,5 +22,6 @@ router.get("/activeride", getActiveRide);
 router.put("/paymentstatus", updatePaymentStatus);
 router.get("/searchdrivers", searchDrivers);
 router.post("/rateride", rateRide);
+router.get("/pending", getPendingRides);
 
 export default router;

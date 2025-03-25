@@ -58,26 +58,10 @@ const getUserKYCStatus = async (userId) => {
     }
 };
 
-// 3) **Fetch All Users with KYC (Admin)**
-const getAllUsersKYC = async () => {
-    try {
-        console.log("Fetching all users with KYC");
-        const response = await axiosInstance.get(`${Base_Backend_Url}/api/admin/userkyc/all`);
-        console.log("Fetched users with KYC successfully:", response.data);
-        return response.data;
-    } catch (error) {
-        console.error("Error fetching users with KYC:", error.response?.data || error.message);
-        const formattedError = formatError(error);
-        console.log("Formatted error in getAllUsersKYC:", formattedError);
-        throw formattedError;
-    }
-};
-
-// 4) **Fetch Pending User KYC Requests (Admin)**
 const getPendingUserKYC = async () => {
     try {
         console.log("Fetching pending user KYC requests");
-        const response = await axiosInstance.get(`${Base_Backend_Url}/api/admin/userkyc/pending`);
+        const response = await axiosInstance.get(`${Base_Backend_Url}/api/userkyc/pending`);
         console.log("Fetched pending user KYC requests successfully:", response.data);
         return response.data;
     } catch (error) {
@@ -88,6 +72,20 @@ const getPendingUserKYC = async () => {
     }
 };
 
+// -- New function: GET all users with any KYC status
+const getAllUsersKYC = async () => {
+    try {
+        console.log("Fetching all users with KYC");
+        const response = await axiosInstance.get(`${Base_Backend_Url}/api/userkyc/all`);
+        console.log("Fetched users with KYC successfully:", response.data);
+        return response.data;
+    } catch (error) {
+        console.error("Error fetching users with KYC:", error.response?.data || error.message);
+        const formattedError = formatError(error);
+        console.log("Formatted error in getAllUsersKYC:", formattedError);
+        throw formattedError;
+    }
+};
 // 5) **Update User KYC Verification (Admin)**
 const updateUserKYCVerification = async (userId, status, rejectionReason = null) => {
     try {
@@ -106,6 +104,21 @@ const updateUserKYCVerification = async (userId, status, rejectionReason = null)
     }
 };
 
+// 6) Get Verified User KYC
+const getVerifiedUserKYC = async () => {
+    try {
+      console.log("Fetching verified user KYC requests");
+      const response = await axiosInstance.get(`${Base_Backend_Url}/api/userkyc/verified`);
+      console.log("Fetched verified user KYC successfully:", response.data);
+      return response.data;
+    } catch (error) {
+      console.error("Error fetching verified user KYC:", error.response?.data || error.message);
+      const formattedError = formatError(error);
+      console.log("Formatted error in getVerifiedUserKYC:", formattedError);
+      throw formattedError;
+    }
+  };
+
 // Exporting all service functions
 const userKYCService = {
     submitUserKYC,
@@ -113,6 +126,7 @@ const userKYCService = {
     getAllUsersKYC,
     getPendingUserKYC,
     updateUserKYCVerification,
+    getVerifiedUserKYC,
 }
 
 export default userKYCService

@@ -1,15 +1,24 @@
-import React from "react";
+"use client";
+import { motion } from "framer-motion";
 
-export default function FeatureCard({ icon: Icon, title, description }) {
-  console.log(Icon);
+export default function FeatureCard({
+  icon: Icon,
+  title,
+  description,
+  color = "bg-green-50 text-green-600",
+}) {
   return (
-    <div className="group p-8 bg-white rounded-xl shadow-sm hover:shadow-md transition-all duration-300">
-  <div className="inline-flex items-center justify-center p-3 bg-green-50 rounded-xl group-hover:bg-green-100 transition-colors duration-300">
-    {Icon ? <Icon className="h-6 w-6 text-green-500" /> : <div className="h-6 w-6 bg-gray-500"></div>}  {/* Fallback */}
-  </div>
-  <h3 className="mt-6 text-xl font-semibold text-gray-900">{title}</h3>
-  <p className="mt-4 text-gray-600 leading-relaxed">{description}</p>
-</div>
-
+    <motion.div
+      whileHover={{ y: -5, transition: { duration: 0.2 } }}
+      className="h-full bg-white rounded-2xl shadow-sm hover:shadow-md transition-all duration-300 p-6 border border-gray-100 flex flex-col"
+    >
+      <div
+        className={`rounded-full w-12 h-12 flex items-center justify-center mb-5 ${color}`}
+      >
+        <Icon className="w-6 h-6" />
+      </div>
+      <h3 className="text-xl font-semibold text-gray-900 mb-3">{title}</h3>
+      <p className="text-gray-600 leading-relaxed flex-grow">{description}</p>
+    </motion.div>
   );
 }

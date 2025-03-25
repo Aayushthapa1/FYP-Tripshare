@@ -1,242 +1,161 @@
-import axios from "axios"
-import { Base_Backend_Url } from "../../constant"
-import formatError from "../utils/errorUtils"
-import axiosInstance from "../utils/axiosInstance"
+// src/services/rideService.js
+import axiosInstance from "../utils/axiosInstance";
+import { Base_Backend_Url } from "../../constant";
+import formatError from "../utils/errorUtils";
 
-const requestRide = async (rideData) => {
+/** 
+ * POST /api/rides/postride 
+ * Driver posts an available ride
+ */
+const postRide = async (postData) => {
   try {
-    console.log("Requesting ride with data:", JSON.stringify(rideData));
-    
+    // e.g. postData = { driverId, pickupLocation, dropoffLocation, ... }
     const response = await axiosInstance.post(
-      `${Base_Backend_Url}/api/rides/requestride`,
-      rideData
+      `/api/rides/postride`,
+      postData
     );
-    console.log("Request ride API response:", JSON.stringify(response.data));
-    return response.data;
+    return response.data; // { success: true, data: ride }
   } catch (error) {
-    console.error("Request ride error details:", error);
-    console.error("Response data:", error.response?.data);
-    console.error("Response status:", error.response?.status);
-    
-    const formattedError = formatError(error);
-    console.log("Formatted request ride error:", formattedError);
-    throw formattedError;
+    throw formatError(error);
   }
 };
 
-
-const updateRideStatus = async (updateData) => {
+/** 
+ * POST /api/rides/requestride 
+ * Passenger requests a ride
+ */
+const requestRide = async (requestData) => {
   try {
-    console.log("Updating ride status with data:", JSON.stringify(updateData));
-    
+    // e.g. requestData = { passengerId, pickupLocation, dropoffLocation, etc. }
+    const response = await axiosInstance.post(
+      `/api/rides/requestride`,
+      requestData
+    );
+    return response.data;
+  } catch (error) {
+    throw formatError(error);
+  }
+};
+
+/** 
+ * PUT /api/rides/updateridestatus 
+ * Update ride status (requested -> accepted -> picked up -> completed, etc.)
+ */
+const updateRideStatus = async (statusData) => {
+  try {
+    // e.g. statusData = { rideId, status, fare, cancelReason }
     const response = await axiosInstance.put(
-      `${Base_Backend_Url}/api/rides/updateridestatus`,
-      updateData
+      `/api/rides/updateridestatus`,
+      statusData
     );
-    
-    console.log("Update ride status API response:", JSON.stringify(response.data));
     return response.data;
   } catch (error) {
-    console.error("Update ride status error details:", error);
-    console.error("Response data:", error.response?.data);
-    
-    const formattedError = formatError(error);
-    console.log("Formatted update ride status error:", formattedError);
-    throw formattedError;
+    throw formatError(error);
   }
 };
 
-
-const getActiveRide = async (params) => {
-  try {
-    console.log("Fetching active ride with params:", JSON.stringify(params));
-    
-    const response = await axiosInstance.get(
-      `${Base_Backend_Url}/api/rides/activeride`,
-      { params }
-    );
-    
-    console.log("Get active ride API response:", JSON.stringify(response.data));
-    return response.data;
-  } catch (error) {
-    console.error("Get active ride error details:", error);
-    console.error("Response data:", error.response?.data);
-    
-    // If 404 (no active ride), let the thunk handle it
-    if (error.response && error.response.status === 404) {
-      throw { status: 404, message: "No active ride found" };
-    }
-    
-    const formattedError = formatError(error);
-    console.log("Formatted get active ride error:", formattedError);
-    throw formattedError;
-  }
-};
-
-
+/** 
+ * GET /api/rides/ridehistory 
+ * Get ride history for a user
+ * query params: userId=..., userType=..., page=..., limit=..., status=...
+ */
 const getRideHistory = async (params) => {
   try {
-    console.log("Fetching ride history with params:", JSON.stringify(params));
-    
+    // e.g. params = { userId, userType, page, limit, status }
+    const queryString = new URLSearchParams(params).toString();
     const response = await axiosInstance.get(
-      `${Base_Backend_Url}/api/rides/ridehistory`,
-      { params }
+      `/api/rides/ridehistory?${queryString}`
     );
-    
-    console.log("Get ride history API response:", JSON.stringify(response.data));
     return response.data;
   } catch (error) {
-    console.error("Get ride history error details:", error);
-    console.error("Response data:", error.response?.data);
-    
-    const formattedError = formatError(error);
-    console.log("Formatted get ride history error:", formattedError);
-    throw formattedError;
+    throw formatError(error);
   }
 };
 
-
-const searchDrivers = async (params) => {
+/** 
+ * GET /api/rides/activeride 
+ * Get the active ride (if any) for a user
+ * query params: { userId, userType }
+ */
+const getActiveRide = async (params) => {
   try {
-    console.log("Searching drivers with params:", JSON.stringify(params));
-    
+    const queryString = new URLSearchParams(params).toString();
     const response = await axiosInstance.get(
-      `${Base_Backend_Url}/api/rides/searchdrivers`,
-      { params }
+      `/api/rides/activeride?${queryString}`
     );
-    
-    console.log("Search drivers API response:", JSON.stringify(response.data));
     return response.data;
   } catch (error) {
-    console.error("Search drivers error details:", error);
-    console.error("Response data:", error.response?.data);
-    
-    const formattedError = formatError(error);
-    console.log("Formatted search drivers error:", formattedError);
-    throw formattedError;
+    throw formatError(error);
   }
 };
 
-
+/** 
+ * PUT /api/rides/paymentstatus 
+ * Update payment status
+ */
 const updatePaymentStatus = async (paymentData) => {
   try {
-    console.log("Updating payment status with data:", JSON.stringify(paymentData));
-    
+    // e.g. paymentData = { rideId, paymentStatus, paymentMethod }
     const response = await axiosInstance.put(
-      `${Base_Backend_Url}/api/rides/paymentstatus`,
+      `/api/rides/paymentstatus`,
       paymentData
     );
-    
-    console.log("Update payment status API response:", JSON.stringify(response.data));
     return response.data;
   } catch (error) {
-    console.error("Update payment status error details:", error);
-    console.error("Response data:", error.response?.data);
-    
-    const formattedError = formatError(error);
-    console.log("Formatted update payment status error:", formattedError);
-    throw formattedError;
+    throw formatError(error);
   }
 };
 
-
-const rateRide = async (ratingData) => {
+/** 
+ * GET /api/rides/searchdrivers 
+ * Search for drivers by vehicleType, location, radius
+ * query params: { vehicleType, latitude, longitude, radius }
+ */
+const searchDrivers = async (params) => {
   try {
-    console.log("Rating ride with data:", JSON.stringify(ratingData));
-    
-    const response = await axiosInstance.post(
-      `${Base_Backend_Url}/api/rides/rateride`,
-      ratingData
-    );
-    
-    console.log("Rate ride API response:", JSON.stringify(response.data));
-    return response.data;
-  } catch (error) {
-    console.error("Rate ride error details:", error);
-    console.error("Response data:", error.response?.data);
-    
-    const formattedError = formatError(error);
-    console.log("Formatted rate ride error:", formattedError);
-    throw formattedError;
-  }
-};
-
-
-const postRide = async (rideData) => {
-  try {
-    console.log("Posting ride with data:", JSON.stringify(rideData));
-    
-    const response = await axiosInstance.post(
-      `${Base_Backend_Url}/api/rides/postride`,
-      rideData
-    );
-    
-    console.log("Post ride API response:", JSON.stringify(response.data));
-    return response.data;
-  } catch (error) {
-    console.error("Post ride error details:", error);
-    console.error("Response data:", error.response?.data);
-    
-    const formattedError = formatError(error);
-    console.log("Formatted post ride error:", formattedError);
-    throw formattedError;
-  }
-};
-
-
-const calculateFareEstimate = async (rideData) => {
-  try {
-    console.log("Calculating fare estimate with data:", JSON.stringify(rideData));
-    
-    const response = await axiosInstance.post(
-      `${Base_Backend_Url}/api/rides/estimate-fare`,
-      rideData
-    );
-    
-    console.log("Calculate fare estimate API response:", JSON.stringify(response.data));
-    return response.data;
-  } catch (error) {
-    console.error("Calculate fare estimate error details:", error);
-    console.error("Response data:", error.response?.data);
-    
-    const formattedError = formatError(error);
-    console.log("Formatted calculate fare estimate error:", formattedError);
-    throw formattedError;
-  }
-};
-
-
-const getRideById = async (rideId) => {
-  try {
-    console.log("Fetching ride by ID:", rideId);
-    
+    const queryString = new URLSearchParams(params).toString();
     const response = await axiosInstance.get(
-      `${Base_Backend_Url}/api/rides/${rideId}`
+      `/api/rides/searchdrivers?${queryString}`
     );
-    
-    console.log("Get ride by ID API response:", JSON.stringify(response.data));
     return response.data;
   } catch (error) {
-    console.error("Get ride by ID error details:", error);
-    console.error("Response data:", error.response?.data);
-    
-    const formattedError = formatError(error);
-    console.log("Formatted get ride by ID error:", formattedError);
-    throw formattedError;
+    throw formatError(error);
   }
+};
+
+/** 
+ * POST /api/rides/rateride 
+ * Rate a completed ride
+ */
+const rateRide = async (rateData) => {
+  try {
+    // e.g. rateData = { rideId, rating, feedback }
+    const response = await axiosInstance.post(
+      `/api/rides/rateride`,
+      rateData
+    );
+    return response.data;
+  } catch (error) {
+    throw formatError(error);
+  }
+};
+
+const getPendingRides = async () => {
+  // Just call /api/rides/pending
+  const response = await axiosInstance.get("/api/rides/pending");
+  return response.data; // { success: true, data: [...] }
 };
 
 const rideService = {
+  postRide,
   requestRide,
   updateRideStatus,
-  getActiveRide,
   getRideHistory,
-  searchDrivers,
+  getActiveRide,
   updatePaymentStatus,
+  searchDrivers,
   rateRide,
-  postRide,
-  calculateFareEstimate,
-  getRideById
+  getPendingRides
 };
 
 export default rideService;

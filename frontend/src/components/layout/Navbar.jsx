@@ -1,90 +1,63 @@
 import { useState, useEffect } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import {
-  Car,
-  Menu,
-  X,
-  UserCircle,
-  Search,
-  Plus,
-  LogOut,
   Bell,
   AlertCircle,
+  UserCircle,
+  LogOut,
+  Menu,
+  X,
+  Car,
+  Plus,
 } from "lucide-react";
 import { toast, Toaster } from "sonner";
+import { useNavigate } from "react-router-dom";
+
+// Thunk to get the user's KYC status from Redux
+import { getUserKYCStatus } from "../Slices/userKYCSlice";
+
+// Action to log out the user
+import { logoutUser } from "../Slices/authSlice";
+
+// Components
 import NavLinks from "./NavLinks";
 import MobileMenu from "./MobileMenu";
-import Button from "../button.jsx";
-import { useNavigate } from "react-router-dom";
-import { logoutUser } from "../Slices/authSlice"; // import your logout action
-import ProfileModal from "../auth/ProfileModal.jsx"; // Import the new ProfileModal component
-import { fetchDriverById } from "../Slices/driverKYCSlice.js"; // Import KYC action
+import SearchBar from "./SearchBar";
+import ProfileModal from "../auth/ProfileModal.jsx";
 import UserKycModal from "../driver/UserKYCModal";
 import DriverKycModal from "../driver/DriverKYCModal.jsx";
+import Button from "../button.jsx";
 
 export default function Navbar() {
+  const dispatch = useDispatch();
+  const navigate = useNavigate();
+
+  // ----- Redux: auth state -----
+  const { user } = useSelector((state) => state.auth) || {};
+  const isAuthenticated = !!user?._id;
+  const userRole = user?.role || "user";
+  const userName = user?.userName || "User";
+
+  // ----- Redux: userKYC state -----
+  const { kycStatus } = useSelector((state) => state.userKYC) || {};
+
+  // ----- Local UI states -----
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isScrolled, setIsScrolled] = useState(false);
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
-  const [showProfileModal, setShowProfileModal] = useState(false); // New state for profile modal
   const [showNotificationDropdown, setShowNotificationDropdown] =
     useState(false);
-  const [isBlinking, setIsBlinking] = useState(true);
-  const [kycStatus, setKycStatus] = useState(null);
+  const [isBlinking, setIsBlinking] = useState(false);
+
+  // **Use a single state for the profile modal**
+  const [showProfileModal, setShowProfileModal] = useState(false);
+
+  // KYC modals
   const [showUserKycModal, setShowUserKycModal] = useState(false);
   const [showDriverKycModal, setShowDriverKycModal] = useState(false);
 
-  const dispatch = useDispatch();
-  const navigate = useNavigate();
-
-  // From Redux: e.g. state.auth.user = { _id, role, userName, ... }
-  const { user } = useSelector((state) => state.auth) || {};
-  const { currentDriver } = useSelector((state) => state.driver) || {};
-
-  // If we have user._id, user is considered logged in
-  const isAuthenticated = !!user?._id;
-  const userRole = user?.role;
-  const userName = user?.userName || "User";
-
-  // Check KYC status when user is authenticated
-  useEffect(() => {
-    if (isAuthenticated && user?._id) {
-      // For drivers, fetch their KYC status
-      if (userRole === "driver") {
-        dispatch(fetchDriverById(user._id))
-          .unwrap()
-          .then((response) => {
-            if (response && response.data) {
-              setKycStatus(response.data.status || "pending");
-            } else {
-              setKycStatus("incomplete");
-            }
-          })
-          .catch((error) => {
-            console.error("Error fetching driver KYC status:", error);
-            setKycStatus("incomplete");
-          });
-      } else {
-        // For regular users, check if they have completed KYC
-        // This would depend on your backend implementation
-        // For now, we'll assume it's incomplete if not a driver
-        setKycStatus("incomplete");
-      }
-    }
-  }, [isAuthenticated, user, userRole, dispatch]);
-
-  // Blinking effect for notification
-  useEffect(() => {
-    if (kycStatus === "incomplete" || kycStatus === "pending") {
-      const blinkInterval = setInterval(() => {
-        setIsBlinking((prev) => !prev);
-      }, 800);
-
-      return () => clearInterval(blinkInterval);
-    }
-  }, [kycStatus]);
-
+  // ----- On mount: check if user is scrolled -----
   useEffect(() => {
     const handleScroll = () => {
       setIsScrolled(window.scrollY > 0);
@@ -93,28 +66,33 @@ export default function Navbar() {
     return () => window.removeEventListener("scroll", handleScroll);
   }, []);
 
-  // Close user menu when clicking outside
+  // ----- Dispatch getUserKYCStatus once we know user is authenticated -----
   useEffect(() => {
-    const handleClickOutside = (event) => {
-      if (isUserMenuOpen && !event.target.closest(".user-menu-container")) {
-        setIsUserMenuOpen(false);
-      }
+    if (isAuthenticated && user?._id) {
+      dispatch(getUserKYCStatus(user._id));
+    }
+  }, [isAuthenticated, user, dispatch]);
 
-      if (
-        showNotificationDropdown &&
-        !event.target.closest(".notification-container")
-      ) {
-        setShowNotificationDropdown(false);
-      }
-    };
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, [isUserMenuOpen, showNotificationDropdown]);
+  // ----- Possibly animate blinking if KYC is pending or not_submitted -----
+  useEffect(() => {
+    if (kycStatus === "pending" || kycStatus === "not_submitted") {
+      setIsBlinking(true);
+      const blinkInterval = setInterval(() => {
+        setIsBlinking((prev) => !prev);
+      }, 800);
 
+      return () => clearInterval(blinkInterval);
+    } else {
+      setIsBlinking(false);
+    }
+  }, [kycStatus]);
+
+  // ----- Helper: navigate to a path -----
   const handleNavigate = (path) => {
     navigate(path);
   };
 
+  // ----- Confirm Logout Toast -----
   const confirmLogout = () => {
     setShowLogoutConfirm(true);
     toast.custom(
@@ -150,6 +128,7 @@ export default function Navbar() {
     );
   };
 
+  // ----- Actual Logout Handler -----
   const handleLogout = () => {
     // Clear token from localStorage
     localStorage.removeItem("token");
@@ -172,38 +151,8 @@ export default function Navbar() {
     navigate("/"); // redirect to home
   };
 
-  // Handle opening the profile modal
-  const handleOpenProfile = () => {
-    setIsUserMenuOpen(false); // Close the dropdown
-    setShowProfileModal(true); // Open the profile modal
-  };
-
-  // Get notification message based on user role and KYC status
-  const getNotificationMessage = () => {
-    if (!isAuthenticated || kycStatus === "verified") {
-      return null;
-    }
-
-    if (userRole === "driver") {
-      if (kycStatus === "incomplete") {
-        return "Complete your KYC to start earning with us!";
-      } else if (kycStatus === "pending") {
-        return "Your driver verification is pending approval.";
-      } else if (kycStatus === "rejected") {
-        return "Your driver verification was rejected. Please update your information.";
-      }
-    } else {
-      // Regular user
-      return "Please complete your personal information for KYC verification.";
-    }
-
-    return null;
-  };
-
-  // Handle opening the appropriate KYC modal based on user role
+  // ----- Handle opening KYC modals based on role -----
   const handleOpenKycModal = () => {
-    setShowNotificationDropdown(false);
-
     if (userRole === "driver") {
       setShowDriverKycModal(true);
     } else {
@@ -211,8 +160,32 @@ export default function Navbar() {
     }
   };
 
-  const notificationMessage = getNotificationMessage();
+  // ----- Generate a notification message based on status -----
+  const notificationMessage = (() => {
+    if (!isAuthenticated || kycStatus === "verified") {
+      return null;
+    }
 
+    if (userRole === "driver") {
+      if (kycStatus === "not_submitted")
+        return "Complete your Driver KYC to start earning!";
+      if (kycStatus === "pending")
+        return "Your driver verification is pending approval.";
+      if (kycStatus === "rejected")
+        return "Your driver verification was rejected. Please update your info.";
+    } else {
+      // user role = "user"
+      if (kycStatus === "not_submitted")
+        return "Please complete your personal information for KYC verification.";
+      if (kycStatus === "pending") return "Your KYC is pending approval.";
+      if (kycStatus === "rejected")
+        return "Your KYC was rejected. Please update your info.";
+    }
+
+    return null;
+  })();
+
+  // ----- Render -----
   return (
     <nav
       className={`fixed w-full z-50 bg-white border-b border-gray-200 transition-shadow duration-300 ${
@@ -221,53 +194,48 @@ export default function Navbar() {
     >
       <Toaster richColors />
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex justify-between items-center h-16">
+        <div className="flex items-center justify-between h-16 max-w-full">
           {/* Left: Logo */}
           <div
-            className="flex items-center space-x-2 cursor-pointer"
+            className="flex items-center cursor-pointer pl-2"
             onClick={() => handleNavigate("/")}
           >
-            <Car className="h-8 w-8 text-green-500" />
+            <Car className="h-8 w-8 text-green-500 mr-2" />
             <span className="text-2xl font-bold text-gray-900 tracking-tight">
               TripShare
             </span>
           </div>
 
-          {/* Middle: Nav Links (Desktop) */}
-          <div className="hidden md:flex items-center space-x-8">
+          {/* Middle: Nav Links */}
+          <div className="flex-1 flex items-center justify-center">
             <NavLinks />
           </div>
 
-          {/* Right: Search, Publish/View Ride, Notifications, and User Menu */}
-          <div className="flex items-center space-x-6">
-            {/* Search Button (Desktop only) */}
-            <button className="hidden md:flex items-center space-x-2 text-gray-600 hover:text-gray-900 transition-colors">
-              <Search className="h-5 w-5" />
-              <span className="font-medium">Search</span>
-            </button>
+          {/* Right: Search, Rides, Notifications, User Menu */}
+          <div className="flex items-center space-x-4 pr-2">
+            {/* Search Bar */}
+            <SearchBar />
 
-            {/* If user is driver, show "Publish a Ride". Otherwise "View Rides" */}
-            {isAuthenticated ? (
-              userRole === "driver" ? (
+            {/* Rides Button: Driver => Publish, else => View Rides */}
+            {isAuthenticated &&
+              (userRole === "driver" ? (
                 <button
                   onClick={() => handleNavigate("/tripForm")}
-                  className="hidden md:inline-flex items-center justify-center px-4 py-2 rounded-lg bg-green-500 text-white font-medium text-sm hover:bg-green-600 transition-all duration-200 shadow-sm space-x-2"
+                  className="hidden md:flex items-center justify-center px-4 py-2 rounded-lg bg-green-500 text-white font-medium text-sm hover:bg-green-600 transition-all duration-200 shadow-sm"
                 >
-                  <Plus className="h-4 w-4" />
+                  <Plus className="h-4 w-4 mr-2" />
                   <span>Publish a Ride</span>
                 </button>
               ) : (
                 <button
                   onClick={() => handleNavigate("/trips")}
-                  className="hidden md:inline-flex items-center justify-center px-4 py-2 rounded-lg bg-green-500 text-white font-medium text-sm hover:bg-green-600 transition-all duration-200 shadow-sm space-x-2"
+                  className="hidden md:flex items-center justify-center px-4 py-2 rounded-lg bg-green-500 text-white font-medium text-sm hover:bg-green-600 transition-all duration-200 shadow-sm"
                 >
-                  <Search className="h-4 w-4" />
-                  <span>View Rides</span>
+                  View Rides
                 </button>
-              )
-            ) : null}
+              ))}
 
-            {/* Notification Bell - Only show if authenticated and KYC is not verified */}
+            {/* Notification Bell: if kycStatus != verified */}
             {isAuthenticated && notificationMessage && (
               <div className="relative notification-container">
                 <button
@@ -305,7 +273,10 @@ export default function Navbar() {
                         {notificationMessage}
                       </p>
                       <button
-                        onClick={handleOpenKycModal}
+                        onClick={() => {
+                          setShowNotificationDropdown(false);
+                          handleOpenKycModal();
+                        }}
                         className="w-full px-4 py-2 bg-green-500 text-white text-sm font-medium rounded-lg hover:bg-green-600 transition-colors"
                       >
                         {userRole === "driver"
@@ -332,6 +303,7 @@ export default function Navbar() {
 
                 {isUserMenuOpen && (
                   <div className="absolute right-0 mt-2 w-56 bg-white rounded-xl shadow-xl py-2 border border-gray-100 transform origin-top-right transition-all duration-200 ease-out">
+                    {/* Header: Signed in as */}
                     <div className="px-4 py-3 border-b border-gray-100">
                       <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
                         Signed in as
@@ -340,23 +312,65 @@ export default function Navbar() {
                         {userName}
                       </button>
                     </div>
-                    <button
-                      onClick={() => navigate("/userDashboard")}
-                      className="flex w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 hover:text-green-600 text-left transition-colors"
-                    >
-                      <span className="ml-2"> User Dashboard</span>
-                    </button>
 
+                    {/* 1) Profile Button */}
                     <button
                       onClick={() => {
                         setIsUserMenuOpen(false);
-                        handleOpenKycModal();
+                        setShowProfileModal(true); // <--- use showProfileModal
                       }}
                       className="flex w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 hover:text-green-600 text-left transition-colors"
                     >
-                      <span className="ml-2">KYC Verification</span>
+                      <span className="ml-2">Profile</span>
                     </button>
+
+                    {/* 2) User Dashboard Button */}
+                    <button
+                      onClick={() => {
+                        setIsUserMenuOpen(false);
+                        navigate("/userDashboard");
+                      }}
+                      className="flex w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 hover:text-green-600 text-left transition-colors"
+                    >
+                      <span className="ml-2">User Dashboard</span>
+                    </button>
+
+                    {/* Divider */}
                     <div className="border-t border-gray-100 my-1"></div>
+
+                    {/* Conditionally show KYC Verification vs. Verified */}
+                    {kycStatus !== "verified" ? (
+                      <button
+                        onClick={() => {
+                          setIsUserMenuOpen(false);
+                          handleOpenKycModal();
+                        }}
+                        className="flex w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 hover:text-green-600 text-left transition-colors"
+                      >
+                        <span className="ml-2">KYC Verification</span>
+                      </button>
+                    ) : (
+                      <div className="flex items-center w-full px-4 py-2 text-sm text-green-600">
+                        <svg
+                          className="h-4 w-4 mr-2"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                          viewBox="0 0 24 24"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            d="M5 13l4 4L19 7"
+                          />
+                        </svg>
+                        Verified
+                      </div>
+                    )}
+
+                    <div className="border-t border-gray-100 my-1"></div>
+
+                    {/* Logout Button */}
                     <button
                       onClick={() => {
                         setIsUserMenuOpen(false);
@@ -411,7 +425,7 @@ export default function Navbar() {
       {/* Mobile Menu */}
       <MobileMenu
         isOpen={isMenuOpen}
-        user={user} // pass user object
+        user={user}
         role={userRole}
         isAuthenticated={isAuthenticated}
         onNavigate={handleNavigate}

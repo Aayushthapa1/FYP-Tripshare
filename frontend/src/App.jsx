@@ -15,8 +15,9 @@ import Footer from "./components/layout/Footer";
 import ProfileModal from "./components/auth/ProfileModal.jsx";
 
 //ride
-import RideBooking from "./components/ride/rideBooking.jsx";
-import RideStatus from "./components/ride/rideStatus.jsx";
+import RideBooking from "./components/ride/UserRideBooking.jsx";
+import RideStatus from "./components/ride/UserRideStatus.jsx";
+import DriverRideStatus from "./components/ride/DriverRideStatus.jsx";
 
 // Public/Home
 import HeroSection from "./components/home/HeroSection";
@@ -36,6 +37,7 @@ import ManagePayments from "./components/admin/pages/ManagePayments";
 import ManageDisputes from "./components/admin/pages/ManageDisputes";
 import AdminSettings from "./components/admin/pages/AdminSettings";
 import DriverList from "./components/admin/pages/DriverList";
+import AdminKYCRequests from "./components/admin/pages/KycVerification.jsx";
 
 // User
 import UserLayout from "./components/pages/UserLayout";
@@ -116,6 +118,7 @@ function App() {
 
           <Route path="/ridebooking" element={<RideBooking />} />
           <Route path="/ridestatus" element={<RideStatus />} />
+          <Route path="/driverridestatus" element={<DriverRideStatus />} />
 
           {/* Auth Routes */}
           <Route
@@ -164,7 +167,7 @@ function App() {
             <Route path="settings" element={<AdminSettings />} />
             <Route path="profile" element={<AdminProfile />} />
             <Route path="drivers" element={<DriverList />} />
-            {/* <Route path="kyc" element={<KycVerification />} /> */}
+            <Route path="kyc" element={<AdminKYCRequests />} />
           </Route>
 
           {/* User Routes (Protected) */}
@@ -173,7 +176,7 @@ function App() {
             element={
               <CheckAuth role="user">
                 <UserLayout>
-      
+        
                 </UserLayout>
               </CheckAuth>
             }

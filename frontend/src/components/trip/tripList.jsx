@@ -1,3 +1,5 @@
+"use client";
+
 import { useEffect, useState } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import {
@@ -26,30 +28,22 @@ import {
   Home,
   ToggleLeft,
   ChevronRight,
-  ArrowLeft,
   Plus,
   Save,
   Sliders,
   Search,
   Star,
+  ChevronLeft,
+  ChevronDown,
+  Filter,
 } from "lucide-react";
 import Navbar from "../layout/Navbar";
 import Footer from "../layout/Footer";
-// import { io } from "socket.io-client";
+import Pagination from "../../utils/Pagination.jsx"; // Import your existing Pagination component
 
 const TripList = () => {
   const dispatch = useDispatch();
   const navigate = useNavigate();
-  // const socket = io("http://localhost:5173"); // or your production URL
-
-  // socket.on("connect", () => {
-  //   console.log("Connected with socket ID:", socket.id);
-  // });
-
-  // Listen for "trip_created" event
-  // socket.on("trip_created", (newTrip) => {
-  //   console.log("A new trip was created:", newTrip);
-  // });
 
   // Auth user
   const { user } = useSelector((state) => state.auth) || {};
@@ -69,8 +63,14 @@ const TripList = () => {
   const [statusFilter, setStatusFilter] = useState("all");
   const [searchTerm, setSearchTerm] = useState("");
 
+  // For pagination
+  const [currentPage, setCurrentPage] = useState(1);
+  const [isPaginationLoading, setIsPaginationLoading] = useState(false);
+  const tripsPerPage = 5;
+
   // For mobile view
   const [isMobileView, setIsMobileView] = useState(window.innerWidth < 768);
+  const [showFilters, setShowFilters] = useState(false);
 
   useEffect(() => {
     dispatch(getTrips());
@@ -189,51 +189,35 @@ const TripList = () => {
   };
 
   // Function to process the actual booking with payment method
-  // Function to process the actual booking with payment method
   const processBooking = async () => {
     try {
-      console.log("Processing booking started");
       setIsProcessingPayment(true);
 
       if (selectedPaymentMethod === "online") {
         try {
-          console.log("Initiating online payment...");
-
           // For online payments, initiate payment directly without creating a booking first
           const paymentResponse = await dispatch(
             initiatePayment({
               userId: user._id,
-              tripId: paymentModalTrip._id, // Pass tripId instead of bookingId
-              seats: 1, // Include seats info
+              tripId: paymentModalTrip._id,
+              seats: 1,
               amount: paymentModalTrip.price,
               bookingType: "trip",
             })
           );
 
-          console.log("Payment response:", paymentResponse);
-
-       
-
-          console.log("Redirecting to Khalti payment page...");
-        // In your processBooking function:
-if (paymentResponse) {
-  // Make sure the URL is absolute by checking if it starts with http:// or https://
-  const paymentUrl = paymentResponse?.payload.Result.payment_url;
-    // Use window.location.href for absolute URLs (external websites)
-    window.location.href = paymentUrl;
-  
-  return; // Return to prevent
-} else {
-  throw new Error("No payment URL received");
-}
+          if (paymentResponse) {
+            const paymentUrl = paymentResponse?.payload.Result.payment_url;
+            window.location.href = paymentUrl;
+            return;
+          } else {
+            throw new Error("No payment URL received");
+          }
         } catch (err) {
-          console.error("Error during online payment initiation:", err);
           toast.error(err?.message || "Failed to initiate payment");
           setIsProcessingPayment(false);
         }
       } else {
-        console.log("Processing Cash on Delivery (COD) booking...");
-
         // For COD, create the booking immediately
         const bookingData = {
           tripId: paymentModalTrip._id,
@@ -241,23 +225,15 @@ if (paymentResponse) {
           paymentMethod: "COD",
         };
 
-        console.log("Sending booking request with data:", bookingData);
-
         const result = await dispatch(createBooking(bookingData)).unwrap();
-
-        console.log("Booking successful:", result);
         toast.success("Booking confirmed with Cash on Delivery!");
 
         // Refresh trips to update availability
-        console.log("Refreshing trip and booking data...");
         dispatch(getTrips());
         dispatch(getMyBookings());
-
-        console.log("Closing payment modal...");
         closePaymentModal();
       }
     } catch (err) {
-      console.error("Error during booking process:", err);
       toast.error(err?.message || "Failed to book trip");
       setIsProcessingPayment(false);
     }
@@ -266,6 +242,7 @@ if (paymentResponse) {
   const handleSearch = () => {
     if (searchTerm.trim()) {
       dispatch(searchTrips(searchTerm));
+      setCurrentPage(1);
     } else {
       dispatch(getTrips());
     }
@@ -293,13 +270,36 @@ if (paymentResponse) {
   today.setHours(0, 0, 0, 0);
 
   // Filter trips
-  const displayTrips = trips.filter((trip) => {
+  const filteredTrips = trips.filter((trip) => {
     const tripDate = new Date(trip.departureDate);
     tripDate.setHours(0, 0, 0, 0);
 
-    // Only filter out trips with dates in the past or today
-    return tripDate > today;
+    // Filter by date (only future trips)
+    const dateFilter = tripDate >= today;
+
+    // Filter by status
+    const statusFilterMatch =
+      statusFilter === "all" || trip.status === statusFilter;
+
+    return dateFilter && statusFilterMatch;
   });
+
+  // Pagination logic
+  const indexOfLastTrip = currentPage * tripsPerPage;
+  const indexOfFirstTrip = indexOfLastTrip - tripsPerPage;
+  const currentTrips = filteredTrips.slice(indexOfFirstTrip, indexOfLastTrip);
+  const totalPages = Math.ceil(filteredTrips.length / tripsPerPage);
+
+  // Handle page change with loading state
+  const handlePageChange = (pageNumber) => {
+    setIsPaginationLoading(true);
+    setCurrentPage(pageNumber);
+
+    // Simulate loading for better UX
+    setTimeout(() => {
+      setIsPaginationLoading(false);
+    }, 500);
+  };
 
   if (loading) {
     return (
@@ -342,70 +342,41 @@ if (paymentResponse) {
       <Toaster position="top-right" richColors />
 
       {/* Header */}
-      <header className="bg-white shadow-sm border-b border-gray-200 sticky top-16 z-10">
+      <div className="bg-white shadow-sm border-b border-gray-200 sticky top-0 z-10">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div className="flex items-center justify-between">
             <div className="flex items-center">
               <button
                 onClick={() => navigate("/")}
                 className="mr-4 p-2 rounded-full hover:bg-gray-100 transition-colors"
                 aria-label="Go back"
               >
-                <ArrowLeft size={20} className="text-gray-600" />
+                <ChevronLeft size={20} className="text-gray-600" />
               </button>
               <h1 className="text-2xl font-bold text-gray-800">
                 Trip Listings
               </h1>
             </div>
 
-            <div className="flex flex-wrap items-center gap-3">
-              {/* Status filter */}
-              <div className="flex items-center bg-white border border-gray-300 rounded-lg overflow-hidden">
-                <button
-                  onClick={() => setStatusFilter("all")}
-                  className={`px-3 py-1.5 text-sm font-medium ${
-                    statusFilter === "all"
-                      ? "bg-green-500 text-white"
-                      : "text-gray-700 hover:bg-gray-100"
-                  }`}
-                >
-                  All
-                </button>
-                <button
-                  onClick={() => setStatusFilter("scheduled")}
-                  className={`px-3 py-1.5 text-sm font-medium ${
-                    statusFilter === "scheduled"
-                      ? "bg-green-500 text-white"
-                      : "text-gray-700 hover:bg-gray-100"
-                  }`}
-                >
-                  Scheduled
-                </button>
-                <button
-                  onClick={() => setStatusFilter("cancelled")}
-                  className={`px-3 py-1.5 text-sm font-medium ${
-                    statusFilter === "cancelled"
-                      ? "bg-green-500 text-white"
-                      : "text-gray-700 hover:bg-gray-100"
-                  }`}
-                >
-                  Cancelled
-                </button>
-              </div>
-
-              {/* Search input */}
-              <div className="flex items-center bg-white border border-gray-300 rounded-lg overflow-hidden">
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setShowFilters(!showFilters)}
+                className="md:hidden p-2 rounded-full bg-gray-100 hover:bg-gray-200 transition-colors"
+              >
+                <Filter size={18} className="text-gray-700" />
+              </button>
+              <div className="hidden md:flex items-center bg-white border border-gray-300 rounded-full overflow-hidden">
                 <input
                   type="text"
                   placeholder="Search trips..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                   onKeyPress={handleKeyPress}
-                  className="px-3 py-1.5 text-sm border-none focus:outline-none"
+                  className="px-4 py-2 text-sm border-none focus:outline-none w-64"
                 />
                 <button
                   onClick={handleSearch}
-                  className="px-3 py-1.5 text-sm bg-green-500 text-white hover:bg-green-600"
+                  className="px-4 py-2 bg-green-500 text-white hover:bg-green-600"
                 >
                   <Search size={16} />
                 </button>
@@ -413,75 +384,143 @@ if (paymentResponse) {
             </div>
           </div>
         </div>
-      </header>
+      </div>
+
+      {/* Filter Bar */}
+      <div
+        className={`bg-white shadow-sm border-b border-gray-200 transition-all duration-300 ${
+          showFilters ? "max-h-96" : "max-h-16"
+        } md:max-h-none overflow-hidden`}
+      >
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div className="flex items-center justify-between md:justify-start">
+              <div className="flex items-center space-x-2">
+                <button
+                  onClick={() => setStatusFilter("all")}
+                  className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${
+                    statusFilter === "all"
+                      ? "bg-green-500 text-white"
+                      : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                  }`}
+                >
+                  All
+                </button>
+                <button
+                  onClick={() => setStatusFilter("scheduled")}
+                  className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${
+                    statusFilter === "scheduled"
+                      ? "bg-green-500 text-white"
+                      : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                  }`}
+                >
+                  Scheduled
+                </button>
+                <button
+                  onClick={() => setStatusFilter("cancelled")}
+                  className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${
+                    statusFilter === "cancelled"
+                      ? "bg-green-500 text-white"
+                      : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                  }`}
+                >
+                  Cancelled
+                </button>
+              </div>
+              <button
+                onClick={() => setShowFilters(!showFilters)}
+                className="md:hidden"
+              >
+                <ChevronDown
+                  size={20}
+                  className={`text-gray-500 transition-transform ${
+                    showFilters ? "rotate-180" : ""
+                  }`}
+                />
+              </button>
+            </div>
+
+            <div className="md:hidden flex items-center bg-white border border-gray-300 rounded-full overflow-hidden mt-2">
+              <input
+                type="text"
+                placeholder="Search trips..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                onKeyPress={handleKeyPress}
+                className="px-4 py-2 text-sm border-none focus:outline-none flex-1"
+              />
+              <button
+                onClick={handleSearch}
+                className="px-4 py-2 bg-green-500 text-white hover:bg-green-600"
+              >
+                <Search size={16} />
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
 
       {/* Main Content */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20">
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 md:py-10">
         <div className="flex flex-col lg:flex-row gap-6">
           {/* Trip List Section */}
           <div className="lg:w-1/2 space-y-4">
-            {displayTrips.length > 0 ? (
-              displayTrips.map((trip) => {
-                let statusClasses = "bg-red-100 text-red-800";
-                let statusIcon = <X size={14} className="mr-1" />;
-                if (trip.status === "scheduled") {
-                  statusClasses = "bg-green-100 text-green-800";
-                  statusIcon = <Check size={14} className="mr-1" />;
-                } else if (trip.status === "in-progress") {
-                  statusClasses = "bg-yellow-100 text-yellow-800";
-                  statusIcon = <Clock size={14} className="mr-1" />;
-                } else if (trip.status === "completed") {
-                  statusClasses = "bg-blue-100 text-blue-800";
-                  statusIcon = <Check size={14} className="mr-1" />;
-                }
-                const isDriver = trip.driver?._id === user?._id;
-                return (
-                  <div
-                    key={trip._id}
-                    className="bg-white rounded-lg p-4 hover:shadow-lg transition-all duration-200 border border-gray-100"
-                  >
-                    {/* Status Badge */}
-                    <div className="flex justify-between items-start mb-3">
-                      <span
-                        className={`inline-flex items-center px-2.5 py-1 text-xs font-medium rounded-full ${
-                          trip.status === "scheduled"
-                            ? "bg-green-100 text-green-800"
-                            : trip.status === "in-progress"
-                            ? "bg-yellow-100 text-yellow-800"
-                            : trip.status === "completed"
-                            ? "bg-blue-100 text-blue-800"
-                            : "bg-red-100 text-red-800"
-                        }`}
-                      >
-                        {trip.status === "scheduled" && (
-                          <Check size={12} className="mr-1" />
-                        )}
-                        {trip.status === "in-progress" && (
-                          <Clock size={12} className="mr-1" />
-                        )}
-                        {trip.status === "completed" && (
-                          <Check size={12} className="mr-1" />
-                        )}
-                        {trip.status === "cancelled" && (
-                          <X size={12} className="mr-1" />
-                        )}
-                        {trip.status}
-                      </span>
-                      <span className="text-2xl font-bold text-green-600">
-                        ₹{trip.price}
-                      </span>
-                    </div>
+            {isPaginationLoading ? (
+              <div className="flex justify-center items-center py-20">
+                <div className="w-10 h-10 border-4 border-green-500 border-t-transparent rounded-full animate-spin"></div>
+              </div>
+            ) : currentTrips.length > 0 ? (
+              currentTrips.map((trip) => (
+                <div
+                  key={trip._id}
+                  className="bg-white rounded-lg shadow-sm hover:shadow-md transition-all duration-200 overflow-hidden"
+                >
+                  {/* Status Badge */}
+                  <div className="relative">
+                    <span
+                      className={`absolute top-4 left-4 inline-flex items-center px-2.5 py-1 text-xs font-medium rounded-full ${
+                        trip.status === "scheduled"
+                          ? "bg-green-100 text-green-800"
+                          : trip.status === "in-progress"
+                          ? "bg-yellow-100 text-yellow-800"
+                          : trip.status === "completed"
+                          ? "bg-blue-100 text-blue-800"
+                          : "bg-red-100 text-red-800"
+                      }`}
+                    >
+                      {trip.status === "scheduled" && (
+                        <Check size={12} className="mr-1" />
+                      )}
+                      {trip.status === "in-progress" && (
+                        <Clock size={12} className="mr-1" />
+                      )}
+                      {trip.status === "completed" && (
+                        <Check size={12} className="mr-1" />
+                      )}
+                      {trip.status === "cancelled" && (
+                        <X size={12} className="mr-1" />
+                      )}
+                      {trip.status}
+                    </span>
+                    <span className="absolute top-4 right-4 text-xl font-bold text-white bg-green-500 px-3 py-1 rounded-full shadow-sm">
+                      ₹{trip.price}
+                    </span>
+                  </div>
 
+                  <div className="p-5 pt-14">
                     {/* Route Info */}
                     <div className="mb-4">
-                      <div className="flex items-center text-gray-600 mb-1">
-                        <MapPin size={16} className="mr-2 text-green-500" />
-                        <span className="font-medium text-gray-900">
+                      <div className="flex items-center text-gray-700 mb-2">
+                        <MapPin
+                          size={16}
+                          className="mr-2 text-green-500 flex-shrink-0"
+                        />
+                        <span className="font-medium text-gray-900 mr-2">
                           {trip.departureLocation}
                         </span>
                         <ChevronRight
                           size={16}
-                          className="mx-2 text-gray-400"
+                          className="mx-1 text-gray-400 flex-shrink-0"
                         />
                         <span className="font-medium text-gray-900">
                           {trip.destinationLocation}
@@ -495,19 +534,19 @@ if (paymentResponse) {
                     {/* Trip Details Grid */}
                     <div className="grid grid-cols-3 gap-4 py-3 border-y border-gray-100">
                       <div className="flex flex-col">
-                        <span className="text-sm text-gray-500 mb-1">Date</span>
+                        <span className="text-xs text-gray-500 mb-1">Date</span>
                         <span className="font-medium text-gray-900">
                           {formatDate(trip.departureDate)}
                         </span>
                       </div>
                       <div className="flex flex-col">
-                        <span className="text-sm text-gray-500 mb-1">Time</span>
+                        <span className="text-xs text-gray-500 mb-1">Time</span>
                         <span className="font-medium text-gray-900">
                           {trip.departureTime}
                         </span>
                       </div>
                       <div className="flex flex-col">
-                        <span className="text-sm text-gray-500 mb-1">
+                        <span className="text-xs text-gray-500 mb-1">
                           Seats
                         </span>
                         <span className="font-medium text-gray-900">
@@ -551,7 +590,7 @@ if (paymentResponse) {
                           <Info size={18} />
                         </button>
 
-                        {isDriver ? (
+                        {trip.driver?._id === user?._id ? (
                           <>
                             <button
                               onClick={() =>
@@ -581,6 +620,7 @@ if (paymentResponse) {
                           <button
                             onClick={() => handleBooking(trip)}
                             className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center"
+                            disabled={trip.availableSeats < 1}
                           >
                             <Check size={16} className="mr-1.5" /> Book Now
                           </button>
@@ -588,8 +628,8 @@ if (paymentResponse) {
                       </div>
                     </div>
                   </div>
-                );
-              })
+                </div>
+              ))
             ) : (
               <div className="bg-white rounded-xl shadow-sm p-8 text-center">
                 <div className="flex flex-col items-center">
@@ -620,6 +660,17 @@ if (paymentResponse) {
                     </button>
                   )}
                 </div>
+              </div>
+            )}
+
+            {/* Pagination */}
+            {filteredTrips.length > tripsPerPage && (
+              <div className="mt-6">
+                <Pagination
+                  currentPage={currentPage}
+                  totalPages={totalPages}
+                  onPageChange={handlePageChange}
+                />
               </div>
             )}
           </div>
@@ -781,6 +832,7 @@ if (paymentResponse) {
                       handleBooking(selectedTrip);
                     }}
                     className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center"
+                    disabled={selectedTrip.availableSeats < 1}
                   >
                     <Check size={16} className="mr-1.5" /> Book This Trip
                   </button>

@@ -1,196 +1,205 @@
-
-import { useState, useEffect } from "react"
-import { useDispatch, useSelector } from "react-redux"
-import { toast } from "sonner"
-import { X, Upload, Check, AlertCircle } from "lucide-react"
-import { submitUserKYC } from "../Slices/userKYCSlice"
+import { useState, useEffect } from "react";
+import { useDispatch, useSelector } from "react-redux";
+import { toast } from "sonner";
+import { X, Upload, Check, AlertCircle } from "lucide-react";
+import { submitUserKYC } from "../Slices/userKYCSlice";
 
 const UserKycModal = ({ isOpen, onClose, userId }) => {
-  const dispatch = useDispatch()
-  const { loading } = useSelector((state) => state.userKYC) || {}
-  const { user: authUser } = useSelector((state) => state.auth) || {}
-  const effectiveUserId = userId || authUser?._id
+  const dispatch = useDispatch();
+  const { loading } = useSelector((state) => state.userKYC) || {};
+  // If you have an auth slice with a logged-in user, you can get their ID:
+  const { user: authUser } = useSelector((state) => state.auth) || {};
+
+  // Choose whichever ID is available: passed in as prop, or from logged-in user
+  const effectiveUserId = userId || authUser?._id;
 
   const [formData, setFormData] = useState({
     fullName: "",
     address: "",
     email: "",
-    gender: "Male",
+    gender: "male", 
     dob: "",
     citizenshipNumber: "",
-  })
+  });
 
-  const [citizenshipFront, setCitizenshipFront] = useState(null)
-  const [citizenshipBack, setCitizenshipBack] = useState(null)
-  const [photo, setPhoto] = useState(null)
-  const [photoPreview, setPhotoPreview] = useState(null)
-  const [citizenshipFrontPreview, setCitizenshipFrontPreview] = useState(null)
-  const [citizenshipBackPreview, setCitizenshipBackPreview] = useState(null)
-  const [errors, setErrors] = useState({})
+  const [citizenshipFront, setCitizenshipFront] = useState(null);
+  const [citizenshipBack, setCitizenshipBack] = useState(null);
+  const [photo, setPhoto] = useState(null);
+  const [photoPreview, setPhotoPreview] = useState(null);
+  const [citizenshipFrontPreview, setCitizenshipFrontPreview] = useState(null);
+  const [citizenshipBackPreview, setCitizenshipBackPreview] = useState(null);
+  const [errors, setErrors] = useState({});
 
   useEffect(() => {
-    console.log("UserKycModal mounted with userId:", effectiveUserId)
+    console.log("UserKycModal mounted with userId:", effectiveUserId);
     if (!effectiveUserId) {
-      console.error("WARNING: UserKycModal initialized without a userId")
+      console.error("WARNING: UserKycModal initialized without a userId");
     }
-  }, [effectiveUserId])
+  }, [effectiveUserId]);
 
-  if (!isOpen) return null
+  // If modal should not be shown, return null.
+  if (!isOpen) return null;
 
   const handleInputChange = (e) => {
-    const { name, value } = e.target
-    setFormData({
-      ...formData,
-      [name]: value,
-    })
-    // Clear error when user types
+    const { name, value } = e.target;
+    setFormData((prev) => ({ ...prev, [name]: value }));
+
+    // Clear out any existing error for that field
     if (errors[name]) {
-      setErrors({
-        ...errors,
-        [name]: null,
-      })
+      setErrors((prev) => ({ ...prev, [name]: null }));
     }
-  }
+  };
 
   const handleFileChange = (e) => {
-    const { name, files } = e.target
-    const file = files[0]
-
-    if (!file) return
+    const { name, files } = e.target;
+    const file = files[0];
+    if (!file) return;
 
     // Check file size (max 5MB)
     if (file.size > 5 * 1024 * 1024) {
-      toast.error("File size should be less than 5MB")
-      return
+      toast.error("File size should be less than 5MB");
+      return;
     }
 
     // Check file type
-    const allowedTypes = ["image/jpeg", "image/png", "image/jpg"]
+    const allowedTypes = ["image/jpeg", "image/png", "image/jpg"];
     if (!allowedTypes.includes(file.type)) {
-      toast.error("Only JPG, JPEG, and PNG files are allowed")
-      return
+      toast.error("Only JPG, JPEG, and PNG files are allowed");
+      return;
     }
 
-    // Create preview URL
-    const reader = new FileReader()
+    // Create a preview URL
+    const reader = new FileReader();
     reader.onloadend = () => {
       if (name === "photo") {
-        setPhoto(file)
-        setPhotoPreview(reader.result)
+        setPhoto(file);
+        setPhotoPreview(reader.result);
       } else if (name === "citizenshipFront") {
-        setCitizenshipFront(file)
-        setCitizenshipFrontPreview(reader.result)
+        setCitizenshipFront(file);
+        setCitizenshipFrontPreview(reader.result);
       } else if (name === "citizenshipBack") {
-        setCitizenshipBack(file)
-        setCitizenshipBackPreview(reader.result)
+        setCitizenshipBack(file);
+        setCitizenshipBackPreview(reader.result);
       }
-    }
-    reader.readAsDataURL(file)
+    };
+    reader.readAsDataURL(file);
 
-    // Clear error
+    // Clear any existing error for that field
     if (errors[name]) {
-      setErrors({
-        ...errors,
-        [name]: null,
-      })
+      setErrors((prev) => ({ ...prev, [name]: null }));
     }
-  }
+  };
 
   const validateForm = () => {
-    const newErrors = {}
+    const newErrors = {};
 
-    if (!formData.fullName.trim()) newErrors.fullName = "Full name is required"
-    if (!formData.address.trim()) newErrors.address = "Address is required"
-    if (!formData.email.trim()) newErrors.email = "Email is required"
-    if (!formData.gender) newErrors.gender = "Gender is required"
-    if (!formData.dob) newErrors.dob = "Date of birth is required"
-    if (!formData.citizenshipNumber.trim()) newErrors.citizenshipNumber = "Citizenship number is required"
-    if (!citizenshipFront) newErrors.citizenshipFront = "Citizenship front image is required"
-    if (!citizenshipBack) newErrors.citizenshipBack = "Citizenship back image is required"
-    if (!effectiveUserId) newErrors.userId = "User ID is required"
+    if (!formData.fullName.trim()) newErrors.fullName = "Full name is required";
+    if (!formData.address.trim()) newErrors.address = "Address is required";
+    if (!formData.email.trim()) newErrors.email = "Email is required";
+    if (!formData.gender) newErrors.gender = "Gender is required";
+    if (!formData.dob) newErrors.dob = "Date of birth is required";
+    if (!formData.citizenshipNumber.trim()) {
+      newErrors.citizenshipNumber = "Citizenship number is required";
+    }
+    if (!citizenshipFront)
+      newErrors.citizenshipFront = "Citizenship front image is required";
+    if (!citizenshipBack)
+      newErrors.citizenshipBack = "Citizenship back image is required";
+    if (!effectiveUserId) newErrors.userId = "User ID is required";
 
-    setErrors(newErrors)
-    return Object.keys(newErrors).length === 0
-  }
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
 
   const handleSubmit = async (e) => {
-    e.preventDefault()
+    e.preventDefault();
 
     if (!validateForm()) {
-      toast.error("Please fill in all required fields")
-      return
+      toast.error("Please fill in all required fields");
+      return;
     }
 
     if (!effectiveUserId) {
-      toast.error("User ID is missing or invalid. Please try again.")
-      return
+      toast.error("User ID is missing or invalid. Please try again.");
+      return;
     }
 
-    // Create a new FormData object
-    const kycFormData = new FormData()
+    // Prepare the multipart/form-data
+    const kycFormData = new FormData();
+    kycFormData.append("userId", effectiveUserId);
+    kycFormData.append("fullName", formData.fullName);
+    kycFormData.append("address", formData.address);
+    kycFormData.append("email", formData.email);
+    kycFormData.append("gender", formData.gender);
+    kycFormData.append("dob", formData.dob);
+    kycFormData.append("citizenshipNumber", formData.citizenshipNumber);
 
-    // Add userId
-    kycFormData.append("userId", effectiveUserId)
-
-    // Add text fields
-    kycFormData.append("fullName", formData.fullName)
-    kycFormData.append("address", formData.address)
-    kycFormData.append("email", formData.email)
-    kycFormData.append("gender", formData.gender)
-    kycFormData.append("dob", formData.dob)
-    kycFormData.append("citizenshipNumber", formData.citizenshipNumber)
-
-    // Add file fields - make sure to use the actual File objects
+    // Add files
     if (citizenshipFront) {
-      kycFormData.append("citizenshipFront", citizenshipFront)
-      console.log("Added citizenshipFront file:", citizenshipFront.name)
+      kycFormData.append("citizenshipFront", citizenshipFront);
+      console.log("Added citizenshipFront file:", citizenshipFront.name);
     }
-
     if (citizenshipBack) {
-      kycFormData.append("citizenshipBack", citizenshipBack)
-      console.log("Added citizenshipBack file:", citizenshipBack.name)
+      kycFormData.append("citizenshipBack", citizenshipBack);
+      console.log("Added citizenshipBack file:", citizenshipBack.name);
     }
-
     if (photo) {
-      kycFormData.append("photo", photo)
-      console.log("Added photo file:", photo.name)
+      kycFormData.append("photo", photo);
+      console.log("Added photo file:", photo.name);
     }
 
-    console.log("Submitting User KYC with validated userId:", effectiveUserId)
+    console.log("Submitting User KYC with userId:", effectiveUserId);
 
     try {
-      await dispatch(submitUserKYC(kycFormData)).unwrap()
-      toast.success("KYC information submitted successfully!")
-      onClose()
+      await dispatch(submitUserKYC(kycFormData)).unwrap();
+      toast.success("KYC information submitted successfully!");
+      onClose();
     } catch (error) {
-      console.error("Error in handleSubmit:", error)
-      toast.error(`Failed to submit KYC: ${error.message || "Unknown error"}`)
+      console.error("Error in handleSubmit:", error);
+      toast.error(`Failed to submit KYC: ${error.message || "Unknown error"}`);
     }
-  }
+  };
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-lg shadow-xl w-full max-w-md max-h-[90vh] overflow-y-auto">
+        {/* Header */}
         <div className="flex justify-between items-center p-4 border-b">
-          <h2 className="text-xl font-semibold text-gray-800">Complete Your KYC</h2>
-          <button onClick={onClose} className="text-gray-500 hover:text-gray-700 transition-colors">
+          <h2 className="text-xl font-semibold text-gray-800">
+            Complete Your KYC
+          </h2>
+          <button
+            onClick={onClose}
+            className="text-gray-500 hover:text-gray-700 transition-colors"
+          >
             <X size={20} />
           </button>
         </div>
 
+        {/* Body */}
         <div className="p-4">
+          {/* Info Banner */}
           <div className="bg-blue-50 border-l-4 border-blue-500 p-3 mb-4">
             <div className="flex">
               <AlertCircle className="h-5 w-5 text-blue-500 mr-2" />
               <p className="text-sm text-blue-700">
-                Please provide your personal information for KYC verification. This is required to use our services.
+                Please provide your personal information for KYC verification.
+                This is required to use our services.
               </p>
             </div>
           </div>
 
-          <form onSubmit={handleSubmit} className="space-y-4" encType="multipart/form-data">
+          {/* Form */}
+          <form
+            onSubmit={handleSubmit}
+            className="space-y-4"
+            encType="multipart/form-data"
+          >
+            {/* Full Name */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Full Name *</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Full Name *
+              </label>
               <input
                 type="text"
                 name="fullName"
@@ -200,11 +209,16 @@ const UserKycModal = ({ isOpen, onClose, userId }) => {
                   errors.fullName ? "border-red-500" : "border-gray-300"
                 } rounded-md focus:outline-none focus:ring-2 focus:ring-green-500`}
               />
-              {errors.fullName && <p className="text-red-500 text-xs mt-1">{errors.fullName}</p>}
+              {errors.fullName && (
+                <p className="text-red-500 text-xs mt-1">{errors.fullName}</p>
+              )}
             </div>
 
+            {/* Email */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Email *</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Email *
+              </label>
               <input
                 type="email"
                 name="email"
@@ -214,11 +228,16 @@ const UserKycModal = ({ isOpen, onClose, userId }) => {
                   errors.email ? "border-red-500" : "border-gray-300"
                 } rounded-md focus:outline-none focus:ring-2 focus:ring-green-500`}
               />
-              {errors.email && <p className="text-red-500 text-xs mt-1">{errors.email}</p>}
+              {errors.email && (
+                <p className="text-red-500 text-xs mt-1">{errors.email}</p>
+              )}
             </div>
 
+            {/* Address */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Address *</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Address *
+              </label>
               <input
                 type="text"
                 name="address"
@@ -228,12 +247,18 @@ const UserKycModal = ({ isOpen, onClose, userId }) => {
                   errors.address ? "border-red-500" : "border-gray-300"
                 } rounded-md focus:outline-none focus:ring-2 focus:ring-green-500`}
               />
-              {errors.address && <p className="text-red-500 text-xs mt-1">{errors.address}</p>}
+              {errors.address && (
+                <p className="text-red-500 text-xs mt-1">{errors.address}</p>
+              )}
             </div>
 
+            {/* Gender & DOB */}
             <div className="grid grid-cols-2 gap-4">
+              {/* Gender */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Gender *</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Gender *
+                </label>
                 <select
                   name="gender"
                   value={formData.gender}
@@ -242,15 +267,21 @@ const UserKycModal = ({ isOpen, onClose, userId }) => {
                     errors.gender ? "border-red-500" : "border-gray-300"
                   } rounded-md focus:outline-none focus:ring-2 focus:ring-green-500`}
                 >
-                  <option value="Male">Male</option>
-                  <option value="Female">Female</option>
-                  <option value="Other">Other</option>
+                  {/* The backend now accepts both lower & upper, so these are fine */}
+                  <option value="male">Male</option>
+                  <option value="female">Female</option>
+                  <option value="other">Other</option>
                 </select>
-                {errors.gender && <p className="text-red-500 text-xs mt-1">{errors.gender}</p>}
+                {errors.gender && (
+                  <p className="text-red-500 text-xs mt-1">{errors.gender}</p>
+                )}
               </div>
 
+              {/* Date of Birth */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Date of Birth *</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Date of Birth *
+                </label>
                 <input
                   type="date"
                   name="dob"
@@ -260,27 +291,40 @@ const UserKycModal = ({ isOpen, onClose, userId }) => {
                     errors.dob ? "border-red-500" : "border-gray-300"
                   } rounded-md focus:outline-none focus:ring-2 focus:ring-green-500`}
                 />
-                {errors.dob && <p className="text-red-500 text-xs mt-1">{errors.dob}</p>}
+                {errors.dob && (
+                  <p className="text-red-500 text-xs mt-1">{errors.dob}</p>
+                )}
               </div>
             </div>
 
+            {/* Citizenship Number */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Citizenship Number *</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Citizenship Number *
+              </label>
               <input
                 type="text"
                 name="citizenshipNumber"
                 value={formData.citizenshipNumber}
                 onChange={handleInputChange}
                 className={`w-full px-3 py-2 border ${
-                  errors.citizenshipNumber ? "border-red-500" : "border-gray-300"
+                  errors.citizenshipNumber
+                    ? "border-red-500"
+                    : "border-gray-300"
                 } rounded-md focus:outline-none focus:ring-2 focus:ring-green-500`}
               />
-              {errors.citizenshipNumber && <p className="text-red-500 text-xs mt-1">{errors.citizenshipNumber}</p>}
+              {errors.citizenshipNumber && (
+                <p className="text-red-500 text-xs mt-1">
+                  {errors.citizenshipNumber}
+                </p>
+              )}
             </div>
 
             {/* Citizenship Front */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Citizenship Front *</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Citizenship Front *
+              </label>
               <div
                 className={`border-2 border-dashed rounded-lg p-4 ${
                   errors.citizenshipFront ? "border-red-500" : "border-gray-300"
@@ -290,15 +334,15 @@ const UserKycModal = ({ isOpen, onClose, userId }) => {
                   {citizenshipFrontPreview ? (
                     <div className="relative">
                       <img
-                        src={citizenshipFrontPreview || "/placeholder.svg"}
+                        src={citizenshipFrontPreview}
                         alt="Citizenship Front"
                         className="w-full h-32 object-cover rounded-lg mb-2"
                       />
                       <button
                         type="button"
                         onClick={() => {
-                          setCitizenshipFrontPreview(null)
-                          setCitizenshipFront(null)
+                          setCitizenshipFrontPreview(null);
+                          setCitizenshipFront(null);
                         }}
                         className="absolute top-0 right-0 bg-red-500 text-white rounded-full p-1"
                       >
@@ -327,12 +371,18 @@ const UserKycModal = ({ isOpen, onClose, userId }) => {
                   </div>
                 </div>
               </div>
-              {errors.citizenshipFront && <p className="text-red-500 text-xs mt-1">{errors.citizenshipFront}</p>}
+              {errors.citizenshipFront && (
+                <p className="text-red-500 text-xs mt-1">
+                  {errors.citizenshipFront}
+                </p>
+              )}
             </div>
 
             {/* Citizenship Back */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Citizenship Back *</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Citizenship Back *
+              </label>
               <div
                 className={`border-2 border-dashed rounded-lg p-4 ${
                   errors.citizenshipBack ? "border-red-500" : "border-gray-300"
@@ -342,15 +392,15 @@ const UserKycModal = ({ isOpen, onClose, userId }) => {
                   {citizenshipBackPreview ? (
                     <div className="relative">
                       <img
-                        src={citizenshipBackPreview || "/placeholder.svg"}
+                        src={citizenshipBackPreview}
                         alt="Citizenship Back"
                         className="w-full h-32 object-cover rounded-lg mb-2"
                       />
                       <button
                         type="button"
                         onClick={() => {
-                          setCitizenshipBackPreview(null)
-                          setCitizenshipBack(null)
+                          setCitizenshipBackPreview(null);
+                          setCitizenshipBack(null);
                         }}
                         className="absolute top-0 right-0 bg-red-500 text-white rounded-full p-1"
                       >
@@ -379,12 +429,18 @@ const UserKycModal = ({ isOpen, onClose, userId }) => {
                   </div>
                 </div>
               </div>
-              {errors.citizenshipBack && <p className="text-red-500 text-xs mt-1">{errors.citizenshipBack}</p>}
+              {errors.citizenshipBack && (
+                <p className="text-red-500 text-xs mt-1">
+                  {errors.citizenshipBack}
+                </p>
+              )}
             </div>
 
             {/* Profile Photo (Optional) */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Your Photo (Optional)</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Your Photo (Optional)
+              </label>
               <div
                 className={`border-2 border-dashed rounded-lg p-4 ${
                   errors.photo ? "border-red-500" : "border-gray-300"
@@ -394,15 +450,15 @@ const UserKycModal = ({ isOpen, onClose, userId }) => {
                   {photoPreview ? (
                     <div className="relative">
                       <img
-                        src={photoPreview || "/placeholder.svg"}
+                        src={photoPreview}
                         alt="Preview"
                         className="w-32 h-32 object-cover rounded-lg mb-2"
                       />
                       <button
                         type="button"
                         onClick={() => {
-                          setPhotoPreview(null)
-                          setPhoto(null)
+                          setPhotoPreview(null);
+                          setPhoto(null);
                         }}
                         className="absolute top-0 right-0 bg-red-500 text-white rounded-full p-1"
                       >
@@ -430,18 +486,23 @@ const UserKycModal = ({ isOpen, onClose, userId }) => {
                     </label>
                     <p className="pl-1">or drag and drop</p>
                   </div>
-                  <p className="text-xs text-gray-500">PNG, JPG, GIF up to 10MB</p>
+                  <p className="text-xs text-gray-500">PNG, JPG, up to 10MB</p>
                 </div>
               </div>
-              {errors.photo && <p className="text-red-500 text-xs mt-1">{errors.photo}</p>}
+              {errors.photo && (
+                <p className="text-red-500 text-xs mt-1">{errors.photo}</p>
+              )}
             </div>
 
-            {/* Display userId for debugging */}
+            {/* Debug: show userId */}
             <div className="text-xs text-gray-500">
               User ID: {effectiveUserId || "Not available"}
-              {errors.userId && <p className="text-red-500 text-xs mt-1">{errors.userId}</p>}
+              {errors.userId && (
+                <p className="text-red-500 text-xs mt-1">{errors.userId}</p>
+              )}
             </div>
 
+            {/* Submit Button */}
             <div className="pt-4 border-t">
               <button
                 type="submit"
@@ -484,8 +545,7 @@ const UserKycModal = ({ isOpen, onClose, userId }) => {
         </div>
       </div>
     </div>
-  )
-}
+  );
+};
 
-export default UserKycModal
-
+export default UserKycModal;

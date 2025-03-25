@@ -2,21 +2,12 @@ import Ride from "../models/handleRideModel.js";
 import User from "../models/userModel.js";
 import mongoose from "mongoose";
 
-/**
- * Utility function to validate MongoDB ObjectId
- * @param {string} id - The ID to validate
- * @returns {boolean} - Whether the ID is valid
- */
+
 const isValidObjectId = (id) => {
   return mongoose.Types.ObjectId.isValid(id);
 };
 
-/**
- * Calculate fare based on distance and vehicle type
- * @param {number} distance - Distance in kilometers
- * @param {string} vehicleType - Type of vehicle (Bike, Car, Electric)
- * @returns {number} - Calculated fare
- */
+
 const calculateFare = (distance, vehicleType) => {
   if (typeof distance !== 'number' || distance < 0) {
     throw new Error('Invalid distance value');
@@ -45,10 +36,7 @@ const calculateFare = (distance, vehicleType) => {
   return Math.round(baseFare + distance * ratePerKm);
 };
 
-/**
- * Post a ride (Driver)
- * @route POST /api/rides/ride
- */
+
 export const postRide = async (req, res) => {
   try {
     const { driverId, pickupLocation, dropoffLocation } = req.body;
@@ -108,10 +96,7 @@ export const postRide = async (req, res) => {
   }
 };
 
-/**
- * Request a ride (Passenger)
- * @route POST /api/rides/request
- */
+
 export const requestRide = async (req, res) => {
   try {
     const {
@@ -245,10 +230,7 @@ export const requestRide = async (req, res) => {
   }
 };
 
-/**
- * Update ride status (Driver)
- * @route PUT /api/rides/update
- */
+
 export const updateRideStatus = async (req, res) => {
   try {
     const { rideId, status, fare, cancelReason } = req.body;
@@ -360,10 +342,6 @@ export const updateRideStatus = async (req, res) => {
   }
 };
 
-/**
- * Get ride history for a user
- * @route GET /api/rides/history
- */
 export const getRideHistory = async (req, res) => {
   try {
     const { userId, userType, page = 1, limit = 10, status } = req.query;
@@ -458,10 +436,7 @@ export const getRideHistory = async (req, res) => {
   }
 };
 
-/**
- * Get active ride for a user
- * @route GET /api/rides/active
- */
+
 export const getActiveRide = async (req, res) => {
   try {
     const { userId, userType } = req.query;
@@ -525,10 +500,7 @@ export const getActiveRide = async (req, res) => {
   }
 };
 
-/**
- * Update payment status
- * @route PUT /api/rides/payment
- */
+
 export const updatePaymentStatus = async (req, res) => {
   try {
     const { rideId, paymentStatus, paymentMethod } = req.body;
@@ -602,10 +574,7 @@ export const updatePaymentStatus = async (req, res) => {
   }
 };
 
-/**
- * Search for available drivers
- * @route GET /api/rides/search-drivers
- */
+
 export const searchDrivers = async (req, res) => {
   try {
     const { vehicleType, latitude, longitude, radius = 5 } = req.query; // radius in km
@@ -691,10 +660,7 @@ export const searchDrivers = async (req, res) => {
   }
 };
 
-/**
- * Rate a completed ride
- * @route POST /api/rides/rate
- */
+
 export const rateRide = async (req, res) => {
   try {
     const { rideId, rating, feedback } = req.body;
@@ -747,10 +713,7 @@ export const rateRide = async (req, res) => {
 
     await ride.save();
 
-    // Optionally, update driver's average rating
-    // This would require adding an averageRating field to the Driver model
-    // and updating it whenever a ride is rated
-
+   
     res.status(200).json({
       success: true,
       data: ride
@@ -761,6 +724,36 @@ export const rateRide = async (req, res) => {
       success: false,
       message: "Failed to rate ride", 
       error: error.message 
+    });
+  }
+};
+
+/**
+ * Get all rides that are "requested" and have no driverId assigned
+ * e.g. GET /api/rides/pending
+ */
+export const getPendingRides = async (req, res) => {
+  try {
+    // Find all rides where status is "requested" and driverId is null or not set
+    const rides = await Ride.find({
+      status: "requested",
+      $or: [
+        { driverId: null },          // driverId is null
+        { driverId: { $exists: false } }, // or driverId field doesn't exist
+      ],
+    })
+      .sort({ createdAt: -1 }); // newest first, optional
+
+    return res.status(200).json({
+      success: true,
+      data: rides,
+    });
+  } catch (error) {
+    console.error("Error fetching pending rides:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to fetch pending rides",
+      error: error.message,
     });
   }
 };

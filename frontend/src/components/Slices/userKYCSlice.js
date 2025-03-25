@@ -1,9 +1,11 @@
 import { createSlice, createAsyncThunk } from "@reduxjs/toolkit";
-import userKYCService from "../../services/userKYCService"; // Make sure the import path is correct
+import userKYCService from "../../services/userKYCService"; // Adjust path if needed
 
+// Initial state now includes verifiedUsers array
 const initialState = {
     users: [],
     pendingUsers: [],
+    verifiedUsers: [],
     currentUser: null,
     loading: false,
     updateLoading: false,
@@ -12,7 +14,7 @@ const initialState = {
     message: null,
 };
 
-// 1) **Submit User KYC (Personal Info Only)**
+// 1) Submit User KYC
 export const submitUserKYC = createAsyncThunk(
     "userKYC/submitUserKYC",
     async (formData, { rejectWithValue }) => {
@@ -26,48 +28,49 @@ export const submitUserKYC = createAsyncThunk(
     }
 );
 
-// 2) **Get User KYC Status**
+// 2) Get User KYC Status
 export const getUserKYCStatus = createAsyncThunk(
     "userKYC/getUserKYCStatus",
     async (userId, { rejectWithValue }) => {
-        try {
-            return await userKYCService.getUserKYCStatus(userId);
-        } catch (error) {
-            console.error(`Error getting KYC status for user ${userId}:`, error.message);
-            return rejectWithValue(error.message);
-        }
+      try {
+        // calls your service to get the user's KYC
+        const data = await userKYCService.getUserKYCStatus(userId);
+        return data; // usually returns { success: true, kycStatus, user } 
+      } catch (error) {
+        return rejectWithValue(error.message);
+      }
     }
-);
+  );
 
-// 3) **Fetch All Users with KYC (Admin)**
+// 3) Fetch All Users with KYC (Admin)
 export const fetchAllUsersKYC = createAsyncThunk(
     "userKYC/fetchAllUsersKYC",
     async (_, { rejectWithValue }) => {
         try {
             const response = await userKYCService.getAllUsersKYC();
-            return response.users || response; // Handle both response formats
+            // The backend should return { success: true, users: [...] }
+            // so we fall back to response if users is not nested
+            return response.users || response;
         } catch (error) {
-            console.error("Error fetching users KYC:", error.message);
             return rejectWithValue(error.message);
         }
     }
 );
 
-// 4) **Fetch Pending User KYC Requests (Admin)**
+// 4) Fetch Pending User KYC Requests (Admin)
 export const fetchPendingUserKYC = createAsyncThunk(
     "userKYC/fetchPendingUserKYC",
     async (_, { rejectWithValue }) => {
         try {
             const response = await userKYCService.getPendingUserKYC();
-            return response.users || response; // Handle both response formats
+            return response.users || response;
         } catch (error) {
-            console.error("Error fetching pending user KYC requests:", error.message);
             return rejectWithValue(error.message);
         }
     }
 );
 
-// 5) **Update User KYC Verification (Admin)**
+// 5) Update User KYC Verification (Admin)
 export const updateUserKYCStatus = createAsyncThunk(
     "userKYC/updateUserKYCStatus",
     async ({ userId, status, rejectionReason }, { rejectWithValue }) => {
@@ -75,6 +78,20 @@ export const updateUserKYCStatus = createAsyncThunk(
             return await userKYCService.updateUserKYCVerification(userId, status, rejectionReason);
         } catch (error) {
             console.error(`Error updating verification for user ${userId}:`, error.message);
+            return rejectWithValue(error.message);
+        }
+    }
+);
+
+// 6) Fetch Verified Users KYC
+export const fetchVerifiedUserKYC = createAsyncThunk(
+    "userKYC/fetchVerifiedUserKYC",
+    async (_, { rejectWithValue }) => {
+        try {
+            const response = await userKYCService.getVerifiedUserKYC();
+            // Typically returns { success: true, users: [...] }
+            return response.users || response;
+        } catch (error) {
             return rejectWithValue(error.message);
         }
     }
@@ -99,13 +116,14 @@ const userKYCSlice = createSlice({
         resetUserKYCState: (state) => {
             state.users = [];
             state.pendingUsers = [];
+            state.verifiedUsers = [];
             state.currentUser = null;
             state.loading = false;
             state.updateLoading = false;
             state.error = null;
             state.kycStatus = null;
             state.message = null;
-        }
+        },
     },
     extraReducers: (builder) => {
         builder
@@ -142,16 +160,12 @@ const userKYCSlice = createSlice({
                 state.error = null;
             })
             .addCase(getUserKYCStatus.fulfilled, (state, action) => {
-                state.loading = false;
                 state.kycStatus = action.payload.kycStatus;
-                if (action.payload.user) {
-                    state.currentUser = action.payload.user;
-                }
             })
             .addCase(getUserKYCStatus.rejected, (state, action) => {
                 state.loading = false;
                 state.error = action.payload;
-                state.kycStatus = "not_submitted"; // Default if error
+                state.kycStatus = "not_submitted"; // default if error
             })
 
             // 3) Fetch All Users KYC
@@ -161,7 +175,7 @@ const userKYCSlice = createSlice({
             })
             .addCase(fetchAllUsersKYC.fulfilled, (state, action) => {
                 state.loading = false;
-                state.users = action.payload.users || action.payload;
+                state.users = action.payload; // e.g., array of all KYC users
             })
             .addCase(fetchAllUsersKYC.rejected, (state, action) => {
                 state.loading = false;
@@ -175,9 +189,24 @@ const userKYCSlice = createSlice({
             })
             .addCase(fetchPendingUserKYC.fulfilled, (state, action) => {
                 state.loading = false;
-                state.pendingUsers = action.payload.users || action.payload;
+                state.pendingUsers = action.payload;
             })
             .addCase(fetchPendingUserKYC.rejected, (state, action) => {
+                state.loading = false;
+                state.error = action.payload;
+            })
+
+            // 6) Fetch Verified User KYC
+            .addCase(fetchVerifiedUserKYC.pending, (state) => {
+                state.loading = true;
+                state.error = null;
+            })
+            .addCase(fetchVerifiedUserKYC.fulfilled, (state, action) => {
+                state.loading = false;
+                // store verified users in verifiedUsers
+                state.verifiedUsers = action.payload;
+            })
+            .addCase(fetchVerifiedUserKYC.rejected, (state, action) => {
                 state.loading = false;
                 state.error = action.payload;
             })
@@ -206,7 +235,7 @@ const userKYCSlice = createSlice({
                     if (status === "verified" || status === "rejected") {
                         state.pendingUsers = state.pendingUsers.filter((u) => u._id !== updatedUser._id);
                     } else {
-                        // Update in pending array
+                        // Otherwise, just update in pending array
                         state.pendingUsers[pendingIndex] = updatedUser;
                     }
                 }
@@ -230,7 +259,7 @@ export const {
     clearUserKYCMessage,
     setCurrentUser,
     clearCurrentUser,
-    resetUserKYCState
+    resetUserKYCState,
 } = userKYCSlice.actions;
 
 export default userKYCSlice.reducer;
