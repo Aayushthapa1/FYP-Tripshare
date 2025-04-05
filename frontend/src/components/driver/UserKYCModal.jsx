@@ -7,17 +7,15 @@ import { submitUserKYC } from "../Slices/userKYCSlice";
 const UserKycModal = ({ isOpen, onClose, userId }) => {
   const dispatch = useDispatch();
   const { loading } = useSelector((state) => state.userKYC) || {};
-  // If you have an auth slice with a logged-in user, you can get their ID:
   const { user: authUser } = useSelector((state) => state.auth) || {};
 
-  // Choose whichever ID is available: passed in as prop, or from logged-in user
   const effectiveUserId = userId || authUser?._id;
 
   const [formData, setFormData] = useState({
     fullName: "",
     address: "",
     email: "",
-    gender: "male", 
+    gender: "male",
     dob: "",
     citizenshipNumber: "",
   });
@@ -25,9 +23,11 @@ const UserKycModal = ({ isOpen, onClose, userId }) => {
   const [citizenshipFront, setCitizenshipFront] = useState(null);
   const [citizenshipBack, setCitizenshipBack] = useState(null);
   const [photo, setPhoto] = useState(null);
+
   const [photoPreview, setPhotoPreview] = useState(null);
   const [citizenshipFrontPreview, setCitizenshipFrontPreview] = useState(null);
   const [citizenshipBackPreview, setCitizenshipBackPreview] = useState(null);
+
   const [errors, setErrors] = useState({});
 
   useEffect(() => {
@@ -40,35 +40,31 @@ const UserKycModal = ({ isOpen, onClose, userId }) => {
   // If modal should not be shown, return null.
   if (!isOpen) return null;
 
+  // Handle text inputs
   const handleInputChange = (e) => {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
-
-    // Clear out any existing error for that field
     if (errors[name]) {
       setErrors((prev) => ({ ...prev, [name]: null }));
     }
   };
 
+  // Handle file inputs
   const handleFileChange = (e) => {
     const { name, files } = e.target;
     const file = files[0];
     if (!file) return;
 
-    // Check file size (max 5MB)
     if (file.size > 5 * 1024 * 1024) {
       toast.error("File size should be less than 5MB");
       return;
     }
-
-    // Check file type
     const allowedTypes = ["image/jpeg", "image/png", "image/jpg"];
     if (!allowedTypes.includes(file.type)) {
       toast.error("Only JPG, JPEG, and PNG files are allowed");
       return;
     }
 
-    // Create a preview URL
     const reader = new FileReader();
     reader.onloadend = () => {
       if (name === "photo") {
@@ -84,12 +80,12 @@ const UserKycModal = ({ isOpen, onClose, userId }) => {
     };
     reader.readAsDataURL(file);
 
-    // Clear any existing error for that field
     if (errors[name]) {
       setErrors((prev) => ({ ...prev, [name]: null }));
     }
   };
 
+  // Basic validation
   const validateForm = () => {
     const newErrors = {};
 
@@ -111,9 +107,11 @@ const UserKycModal = ({ isOpen, onClose, userId }) => {
     return Object.keys(newErrors).length === 0;
   };
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-
+  // Manual submit handler
+  const handleSubmitKyc = async (e) => {
+    e.preventDefault(); // Add event prevention
+    e.stopPropagation();
+    
     if (!validateForm()) {
       toast.error("Please fill in all required fields");
       return;
@@ -134,7 +132,6 @@ const UserKycModal = ({ isOpen, onClose, userId }) => {
     kycFormData.append("dob", formData.dob);
     kycFormData.append("citizenshipNumber", formData.citizenshipNumber);
 
-    // Add files
     if (citizenshipFront) {
       kycFormData.append("citizenshipFront", citizenshipFront);
       console.log("Added citizenshipFront file:", citizenshipFront.name);
@@ -189,12 +186,7 @@ const UserKycModal = ({ isOpen, onClose, userId }) => {
             </div>
           </div>
 
-          {/* Form */}
-          <form
-            onSubmit={handleSubmit}
-            className="space-y-4"
-            encType="multipart/form-data"
-          >
+          <div className="space-y-4">
             {/* Full Name */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -267,7 +259,6 @@ const UserKycModal = ({ isOpen, onClose, userId }) => {
                     errors.gender ? "border-red-500" : "border-gray-300"
                   } rounded-md focus:outline-none focus:ring-2 focus:ring-green-500`}
                 >
-                  {/* The backend now accepts both lower & upper, so these are fine */}
                   <option value="male">Male</option>
                   <option value="female">Female</option>
                   <option value="other">Other</option>
@@ -334,7 +325,7 @@ const UserKycModal = ({ isOpen, onClose, userId }) => {
                   {citizenshipFrontPreview ? (
                     <div className="relative">
                       <img
-                        src={citizenshipFrontPreview}
+                        src={citizenshipFrontPreview || "/placeholder.svg"}
                         alt="Citizenship Front"
                         className="w-full h-32 object-cover rounded-lg mb-2"
                       />
@@ -392,7 +383,7 @@ const UserKycModal = ({ isOpen, onClose, userId }) => {
                   {citizenshipBackPreview ? (
                     <div className="relative">
                       <img
-                        src={citizenshipBackPreview}
+                        src={citizenshipBackPreview || "/placeholder.svg"}
                         alt="Citizenship Back"
                         className="w-full h-32 object-cover rounded-lg mb-2"
                       />
@@ -450,7 +441,7 @@ const UserKycModal = ({ isOpen, onClose, userId }) => {
                   {photoPreview ? (
                     <div className="relative">
                       <img
-                        src={photoPreview}
+                        src={photoPreview || "/placeholder.svg"}
                         alt="Preview"
                         className="w-32 h-32 object-cover rounded-lg mb-2"
                       />
@@ -494,54 +485,48 @@ const UserKycModal = ({ isOpen, onClose, userId }) => {
               )}
             </div>
 
-            {/* Debug: show userId */}
-            <div className="text-xs text-gray-500">
-              User ID: {effectiveUserId || "Not available"}
-              {errors.userId && (
-                <p className="text-red-500 text-xs mt-1">{errors.userId}</p>
-              )}
-            </div>
+          </div>
 
-            {/* Submit Button */}
-            <div className="pt-4 border-t">
-              <button
-                type="submit"
-                disabled={loading}
-                className="w-full py-2 px-4 bg-green-500 hover:bg-green-600 text-white font-medium rounded-lg transition-colors flex items-center justify-center"
-              >
-                {loading ? (
-                  <>
-                    <svg
-                      className="animate-spin -ml-1 mr-2 h-4 w-4 text-white"
-                      xmlns="http://www.w3.org/2000/svg"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                    >
-                      <circle
-                        className="opacity-25"
-                        cx="12"
-                        cy="12"
-                        r="10"
-                        stroke="currentColor"
-                        strokeWidth="4"
-                      ></circle>
-                      <path
-                        className="opacity-75"
-                        fill="currentColor"
-                        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                      ></path>
-                    </svg>
-                    Submitting...
-                  </>
-                ) : (
-                  <>
-                    <Check className="mr-2 h-4 w-4" />
-                    Submit KYC Information
-                  </>
-                )}
-              </button>
-            </div>
-          </form>
+          {/* Submit Button (type="button" so it won't auto-submit) */}
+          <div className="pt-4 border-t">
+            <button
+              type="button"
+              onClick={handleSubmitKyc}
+              disabled={loading}
+              className="w-full py-2 px-4 bg-green-500 hover:bg-green-600 text-white font-medium rounded-lg transition-colors flex items-center justify-center"
+            >
+              {loading ? (
+                <>
+                  {/* <svg
+                    className="animate-spin -ml-1 mr-2 h-4 w-4 text-white"
+                    xmlns="http://www.w3.org/2000/svg"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                  >
+                    <circle
+                      className="opacity-25"
+                      cx="12"
+                      cy="12"
+                      r="10"
+                      stroke="currentColor"
+                      strokeWidth="4"
+                    ></circle>
+                    <path
+                      className="opacity-75"
+                      fill="currentColor"
+                      d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                    ></path>
+                  </svg> */}
+                  
+                </>
+              ) : (
+                <>
+                  <Check className="mr-2 h-4 w-4" />
+                  Submit KYC Information
+                </>
+              )}
+            </button>
+          </div>
         </div>
       </div>
     </div>

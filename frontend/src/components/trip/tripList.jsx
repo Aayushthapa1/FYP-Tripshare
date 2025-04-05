@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import {
   deleteTrip,
@@ -9,7 +9,7 @@ import {
   getTripById,
   searchTrips,
 } from "../Slices/tripSlice";
-import { getMyBookings, createBooking } from "../Slices/bookingSlice";
+import { fetchMyBookings, createBooking } from "../Slices/bookingSlice";
 import { useNavigate } from "react-router-dom";
 import { Toaster, toast } from "sonner";
 import { initiatePayment } from "../Slices/paymentSlice";
@@ -39,11 +39,210 @@ import {
 } from "lucide-react";
 import Navbar from "../layout/Navbar";
 import Footer from "../layout/Footer";
-import Pagination from "../../utils/Pagination.jsx"; // Import your existing Pagination component
+import Pagination from "../../utils/Pagination.jsx";
+import { useSearchParams } from "react-router-dom";
+
+// Google Maps Component
+const GoogleMapComponent = ({ trips, apiKey }) => {
+  const mapRef = useRef(null);
+  const [map, setMap] = useState(null);
+  const [currentLocation, setCurrentLocation] = useState(null);
+
+  useEffect(() => {
+    // Load Google Maps script
+    const script = document.createElement("script");
+    script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places`;
+    script.async = true;
+    script.defer = true;
+    script.onload = initMap;
+    document.head.appendChild(script);
+
+    return () => {
+      document.head.removeChild(script);
+    };
+  }, [apiKey]);
+
+  const initMap = () => {
+    if (!mapRef.current) return;
+
+    // Default center (Nepal)
+    const defaultCenter = { lat: 27.7172, lng: 85.324 };
+
+    const newMap = new window.google.maps.Map(mapRef.current, {
+      zoom: 7,
+      center: defaultCenter,
+      mapTypeControl: true,
+      streetViewControl: false,
+      fullscreenControl: true,
+    });
+
+    setMap(newMap);
+
+    // Try to get user's current location
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          const userLocation = {
+            lat: position.coords.latitude,
+            lng: position.coords.longitude,
+          };
+          setCurrentLocation(userLocation);
+          newMap.setCenter(userLocation);
+          newMap.setZoom(10);
+
+          // Add marker for user's location
+          new window.google.maps.Marker({
+            position: userLocation,
+            map: newMap,
+            icon: {
+              path: window.google.maps.SymbolPath.CIRCLE,
+              scale: 10,
+              fillColor: "#4285F4",
+              fillOpacity: 1,
+              strokeColor: "#ffffff",
+              strokeWeight: 2,
+            },
+            title: "Your Location",
+          });
+        },
+        () => {
+          // Handle geolocation error
+          console.log("Error: The Geolocation service failed.");
+        }
+      );
+    }
+  };
+
+  // Add markers for trips when trips or map changes
+  useEffect(() => {
+    if (!map || !trips.length) return;
+
+    // Clear existing markers
+    map.data.forEach((feature) => {
+      map.data.remove(feature);
+    });
+
+    // Known city coordinates in Nepal
+    const cityCoordinates = {
+      Kathmandu: { lat: 27.7172, lng: 85.324 },
+      Pokhara: { lat: 28.2096, lng: 83.9856 },
+      Itahari: { lat: 26.6631, lng: 87.2773 },
+      Biratnagar: { lat: 26.4525, lng: 87.2718 },
+      Birgunj: { lat: 27.0104, lng: 84.877 },
+      Dharan: { lat: 26.8065, lng: 87.2846 },
+      Butwal: { lat: 27.7006, lng: 83.4482 },
+      Nepalgunj: { lat: 28.05, lng: 81.6167 },
+      Bhaktapur: { lat: 27.671, lng: 85.4298 },
+      Lalitpur: { lat: 27.6588, lng: 85.3247 },
+    };
+
+    // Add markers for each trip
+    trips.forEach((trip) => {
+      // Check if we have coordinates for departure location
+      if (cityCoordinates[trip.departureLocation]) {
+        const marker = new window.google.maps.Marker({
+          position: cityCoordinates[trip.departureLocation],
+          map: map,
+          title: `From: ${trip.departureLocation}`,
+          icon: {
+            url: "http://maps.google.com/mapfiles/ms/icons/green-dot.png",
+          },
+        });
+
+        // Add info window
+        const infoWindow = new window.google.maps.InfoWindow({
+          content: `
+            <div style="padding: 10px; max-width: 200px;">
+              <h3 style="margin: 0 0 5px; font-weight: bold;">${
+                trip.departureLocation
+              }</h3>
+              <p style="margin: 0 0 5px;">To: ${trip.destinationLocation}</p>
+              <p style="margin: 0 0 5px;">Date: ${formatDate(
+                trip.departureDate
+              )}</p>
+              <p style="margin: 0;">Price: Rs${trip.price}</p>
+            </div>
+          `,
+        });
+
+        marker.addListener("click", () => {
+          infoWindow.open(map, marker);
+        });
+      }
+
+      // Check if we have coordinates for destination location
+      if (cityCoordinates[trip.destinationLocation]) {
+        const marker = new window.google.maps.Marker({
+          position: cityCoordinates[trip.destinationLocation],
+          map: map,
+          title: `To: ${trip.destinationLocation}`,
+          icon: {
+            url: "http://maps.google.com/mapfiles/ms/icons/red-dot.png",
+          },
+        });
+
+        // Add info window
+        const infoWindow = new window.google.maps.InfoWindow({
+          content: `
+            <div style="padding: 10px; max-width: 200px;">
+              <h3 style="margin: 0 0 5px; font-weight: bold;">${
+                trip.destinationLocation
+              }</h3>
+              <p style="margin: 0 0 5px;">From: ${trip.departureLocation}</p>
+              <p style="margin: 0 0 5px;">Date: ${formatDate(
+                trip.departureDate
+              )}</p>
+              <p style="margin: 0;">Price: Rs${trip.price}</p>
+            </div>
+          `,
+        });
+
+        marker.addListener("click", () => {
+          infoWindow.open(map, marker);
+        });
+      }
+
+      // Draw route line between departure and destination if both exist
+      if (
+        cityCoordinates[trip.departureLocation] &&
+        cityCoordinates[trip.destinationLocation]
+      ) {
+        const directionsService = new window.google.maps.DirectionsService();
+        const directionsRenderer = new window.google.maps.DirectionsRenderer({
+          map: map,
+          suppressMarkers: true,
+          polylineOptions: {
+            strokeColor: "#4285F4",
+            strokeWeight: 4,
+            strokeOpacity: 0.7,
+          },
+        });
+
+        directionsService.route(
+          {
+            origin: cityCoordinates[trip.departureLocation],
+            destination: cityCoordinates[trip.destinationLocation],
+            travelMode: window.google.maps.TravelMode.DRIVING,
+          },
+          (response, status) => {
+            if (status === "OK") {
+              directionsRenderer.setDirections(response);
+            }
+          }
+        );
+      }
+    });
+  }, [trips, map]);
+
+  return <div ref={mapRef} style={{ width: "100%", height: "100%" }} />;
+};
+
+// Import your existing Pagination component
 
 const TripList = () => {
   const dispatch = useDispatch();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
 
   // Auth user
   const { user } = useSelector((state) => state.auth) || {};
@@ -73,8 +272,43 @@ const TripList = () => {
   const [showFilters, setShowFilters] = useState(false);
 
   useEffect(() => {
+    const handlePaymentCompletion = async () => {
+      try {
+        const pidx = searchParams.get("pidx");
+        const transaction_id = searchParams.get("transaction_id");
+        const amount = searchParams.get("amount");
+        const purchase_order_id = searchParams.get("purchase_order_id");
+
+        if (pidx && transaction_id && amount && purchase_order_id) {
+          const result = await dispatch(
+            completePayment({ pidx, transaction_id, amount, purchase_order_id })
+          ).unwrap();
+
+          if (result.IsSuccess) {
+            toast.success("Payment Successful", {
+              description: "Your payment has been completed successfully.",
+            });
+            navigate("/payment-success", {
+              state: { transactionDetails: result },
+            });
+          } else {
+            throw new Error("Payment verification failed.");
+          }
+        }
+      } catch (error) {
+        toast.error("Payment Failed", {
+          description: error.message || "Payment verification failed.",
+        });
+        navigate("/payment-failed");
+      }
+    };
+
+    handlePaymentCompletion();
+  }, [searchParams, dispatch, navigate]);
+
+  useEffect(() => {
     dispatch(getTrips());
-    dispatch(getMyBookings());
+    dispatch(fetchMyBookings());
 
     const handleResize = () => {
       setIsMobileView(window.innerWidth < 768);
@@ -195,27 +429,28 @@ const TripList = () => {
 
       if (selectedPaymentMethod === "online") {
         try {
-          // For online payments, initiate payment directly without creating a booking first
+          // For online payments, initiate payment directly
           const paymentResponse = await dispatch(
             initiatePayment({
               userId: user._id,
               tripId: paymentModalTrip._id,
-              seats: 1,
+              seats: 1, // Assuming 1 seat by default
               amount: paymentModalTrip.price,
               bookingType: "trip",
             })
-          );
+          ).unwrap();
+          console.log("The payment response is", paymentResponse);
 
-          if (paymentResponse) {
-            const paymentUrl = paymentResponse?.payload.Result.payment_url;
-            window.location.href = paymentUrl;
-            return;
+          if (paymentResponse?.Result?.payment_url) {
+            window.location.href = paymentResponse.Result.payment_url;
           } else {
             throw new Error("No payment URL received");
           }
         } catch (err) {
-          toast.error(err?.message || "Failed to initiate payment");
-          setIsProcessingPayment(false);
+          console.error("Payment initiation error:", err);
+          toast.error("Payment Failed", {
+            description: err?.message || "Failed to initiate payment",
+          });
         }
       } else {
         // For COD, create the booking immediately
@@ -226,7 +461,9 @@ const TripList = () => {
         };
 
         const result = await dispatch(createBooking(bookingData)).unwrap();
-        toast.success("Booking confirmed with Cash on Delivery!");
+        toast.success("Booking Confirmed", {
+          description: "Your trip has been booked with Cash on Delivery!",
+        });
 
         // Refresh trips to update availability
         dispatch(getTrips());
@@ -234,7 +471,11 @@ const TripList = () => {
         closePaymentModal();
       }
     } catch (err) {
-      toast.error(err?.message || "Failed to book trip");
+      console.error("Booking error:", err);
+      toast.error("Booking Failed", {
+        description: err?.message || "Failed to book trip",
+      });
+    } finally {
       setIsProcessingPayment(false);
     }
   };
@@ -274,14 +515,17 @@ const TripList = () => {
     const tripDate = new Date(trip.departureDate);
     tripDate.setHours(0, 0, 0, 0);
 
-    // Filter by date (only future trips)
-    const dateFilter = tripDate >= today;
+    // Filter out trips with 0 available seats
+    const hasAvailableSeats = trip.availableSeats > 0;
+
+    // Filter out trips with past departure dates
+    const isFutureTrip = tripDate >= today;
 
     // Filter by status
     const statusFilterMatch =
       statusFilter === "all" || trip.status === statusFilter;
 
-    return dateFilter && statusFilterMatch;
+    return hasAvailableSeats && isFutureTrip && statusFilterMatch;
   });
 
   // Pagination logic
@@ -503,7 +747,7 @@ const TripList = () => {
                       {trip.status}
                     </span>
                     <span className="absolute top-4 right-4 text-xl font-bold text-white bg-green-500 px-3 py-1 rounded-full shadow-sm">
-                      ₹{trip.price}
+                      Rs{trip.price}
                     </span>
                   </div>
 
@@ -677,15 +921,10 @@ const TripList = () => {
 
           {/* Map Section */}
           <div className="lg:w-1/2 bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden h-[calc(100vh-200px)] sticky top-32">
-            <iframe
-              src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3532.2585013276936!2d85.31192801506156!3d27.709862982790663!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x39eb19c1b0b6c9b7%3A0x3c7cfe7c7b3b1446!2sKathmandu%2C%20Nepal!5e0!3m2!1sen!2sus!4v1651234567890!5m2!1sen!2sus"
-              width="100%"
-              height="100%"
-              style={{ border: 0 }}
-              allowFullScreen=""
-              loading="lazy"
-              referrerPolicy="no-referrer-when-downgrade"
-            ></iframe>
+            <GoogleMapComponent
+              trips={currentTrips}
+              apiKey={import.meta.env.VITE_GOOGLE_MAPS_API_KEY}
+            />
           </div>
         </div>
       </main>
@@ -727,7 +966,7 @@ const TripList = () => {
                     <DollarSign size={14} className="mr-1.5" /> Price
                   </div>
                   <p className="text-gray-900 font-medium">
-                    ₹{selectedTrip.price}
+                    Rs{selectedTrip.price}
                   </p>
                   <div className="flex items-center text-gray-500 text-sm mb-1">
                     <User size={14} className="mr-1.5" /> Available Seats
@@ -929,11 +1168,11 @@ const TripList = () => {
                   <div className="space-y-2">
                     <label className="flex items-center text-sm font-medium text-gray-700">
                       <DollarSign size={14} className="mr-1.5 text-gray-500" />{" "}
-                      Price (₹)
+                      Price (Rs)
                     </label>
                     <div className="relative">
                       <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">
-                        ₹
+                        Rs
                       </span>
                       <input
                         type="number"
@@ -1155,7 +1394,7 @@ const TripList = () => {
               <div className="mb-6">
                 <p className="text-gray-700 mb-2">Trip Cost:</p>
                 <p className="text-2xl font-bold text-gray-900">
-                  ₹{paymentModalTrip.price}
+                  Rs{paymentModalTrip.price}
                 </p>
               </div>
 

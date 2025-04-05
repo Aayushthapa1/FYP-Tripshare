@@ -13,6 +13,7 @@ import {
 } from "../utils/generateAuthToken.js";
 import { createResponse } from "../utils/responseHelper.js";
 
+
 // Utility function to generate OTP
 const generateOTP = () => Math.floor(100000 + Math.random() * 900000).toString();
 
@@ -51,6 +52,19 @@ export const userRegister = async (req, res, next) => {
       password: hashedPassword,
       role
     });
+
+    
+    try {
+      await sendEmail({
+        to: email,
+        subject: "Welcome to Our Service",
+        template: "registration",  // Changed from "registrationEmailTemplate"
+        context: { name: fullName }
+      });
+      console.log(`Registration email sent to ${email}`);
+    } catch (emailError) {
+      console.error("Failed to send registration email:", emailError);
+    }
 
     const userObj = newUser.toObject();
     delete userObj.password;
@@ -312,8 +326,8 @@ export const forgotPassword = async (req, res, next) => {
 
     console.log("Sending OTP to email:", normalizedEmail); // Debugging log
 
-    await transporter.sendMail({
-      from: process.env.EMAIL,
+    await transporter.sendEmail({
+      from: process.env.SMTP_FROM,
       to: normalizedEmail,
       subject: "Password Reset OTP",
       text: `Your OTP for password reset is: ${resetOTP}. Valid for 10 minutes.`,

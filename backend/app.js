@@ -9,7 +9,7 @@ import globalErrorHandler, {
 import authRoute from "./routes/authRoute.js";
 
 import tripRoute from "./routes/tripRoute.js";
-import driverRoute from "./routes/driverRoute.js";
+import driverKYCRoute from "./routes/driverKYCRoute.js";
 import handleRideRoute from "./routes/handleRideRoute.js";
 import userRoute from "./routes/userRoute.js";
 import bookingRoutes from "./routes/bookingRoute.js";
@@ -17,6 +17,7 @@ import paymentRoutes from "./routes/paymentRoute.js";
 import chatRoutes from "./routes/chatRoute.js";
 import UserKYCRoute from "./routes/UserKYCRoute.js"
 import fileUpload from "express-fileupload"
+import notificationRoute from "./routes/notificationRoute.js"
 
 const app = express();
 
@@ -45,13 +46,14 @@ app.use(cookieParser());
 app.use("/api/trips", tripRoute);
 app.use("/api/auth", authRoute);
 app.use("/api/users", userRoute);
-app.use("/api/drivers", driverRoute);
+app.use("/api/drivers", driverKYCRoute);
 app.use("/api/rides", handleRideRoute);
 app.use("/api/user", userRoute);
 app.use("/api/bookings", bookingRoutes);
 app.use("/api/payments", paymentRoutes);
 app.use("/api/chats", chatRoutes);
 app.use("/api/userkyc", UserKYCRoute);
+app.use("/api/notifications", notificationRoute);
 // Root route
 app.get("/", (req, res) => {
   res.send("Ride Share platform running...");

@@ -1,3 +1,5 @@
+"use client";
+
 import { useState, useEffect } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import {
@@ -9,15 +11,14 @@ import {
   X,
   Car,
   Plus,
+  CheckCircle,
 } from "lucide-react";
 import { toast, Toaster } from "sonner";
 import { useNavigate } from "react-router-dom";
 
-// Thunk to get the user's KYC status from Redux
-import { getUserKYCStatus } from "../Slices/userKYCSlice";
-
-// Action to log out the user
-import { logoutUser } from "../Slices/authSlice";
+import { getUserKYCStatus } from "../Slices/userKYCSlice"; // to get the user's KYC status
+import { logoutUser } from "../Slices/authSlice"; // action to log out the user
+import socketService from "../socket/socketService.js";
 
 // Components
 import NavLinks from "./NavLinks";
@@ -25,8 +26,9 @@ import MobileMenu from "./MobileMenu";
 import SearchBar from "./SearchBar";
 import ProfileModal from "../auth/ProfileModal.jsx";
 import UserKycModal from "../driver/UserKYCModal";
-import DriverKycModal from "../driver/DriverKYCModal.jsx";
+import DriverKycModal from "../driver/DriverKycModal.jsx";
 import Button from "../button.jsx";
+import NotificationDropdown from "../socket/notificationDropdown"; // Import the NotificationDropdown component
 
 export default function Navbar() {
   const dispatch = useDispatch();
@@ -41,6 +43,11 @@ export default function Navbar() {
   // ----- Redux: userKYC state -----
   const { kycStatus } = useSelector((state) => state.userKYC) || {};
 
+  // ----- Redux: notification state -----
+  const { notifications } = useSelector((state) => state.notification) || {
+    notifications: [],
+  };
+
   // ----- Local UI states -----
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isScrolled, setIsScrolled] = useState(false);
@@ -49,15 +56,45 @@ export default function Navbar() {
   const [showNotificationDropdown, setShowNotificationDropdown] =
     useState(false);
   const [isBlinking, setIsBlinking] = useState(false);
+  const [localNotifications, setLocalNotifications] = useState([]);
 
-  // **Use a single state for the profile modal**
+  // Profile modal
   const [showProfileModal, setShowProfileModal] = useState(false);
 
   // KYC modals
   const [showUserKycModal, setShowUserKycModal] = useState(false);
   const [showDriverKycModal, setShowDriverKycModal] = useState(false);
 
-  // ----- On mount: check if user is scrolled -----
+  // ----- 1) Listen for "trip_created" from the server -----
+  useEffect(() => {
+    const socket = socketService.getSocket();
+    if (!socket) return;
+
+    const handleTripCreated = (newTrip) => {
+      // Add to notifications array
+      setLocalNotifications((prev) => [
+        {
+          id: Date.now(),
+          type: "trip",
+          message: `New trip from ${newTrip.departureLocation} to ${newTrip.destinationLocation}!`,
+          timestamp: new Date(),
+        },
+        ...prev,
+      ]);
+
+      toast.success(
+        `New trip from ${newTrip.departureLocation} to ${newTrip.destinationLocation}!`
+      );
+    };
+
+    socket.on("trip_created", handleTripCreated);
+
+    return () => {
+      socket.off("trip_created", handleTripCreated);
+    };
+  }, []);
+
+  // ----- 2) Listen for scrolling to add shadow on the navbar -----
   useEffect(() => {
     const handleScroll = () => {
       setIsScrolled(window.scrollY > 0);
@@ -66,14 +103,14 @@ export default function Navbar() {
     return () => window.removeEventListener("scroll", handleScroll);
   }, []);
 
-  // ----- Dispatch getUserKYCStatus once we know user is authenticated -----
+  // ----- 3) Get user KYC status if authenticated -----
   useEffect(() => {
     if (isAuthenticated && user?._id) {
       dispatch(getUserKYCStatus(user._id));
     }
   }, [isAuthenticated, user, dispatch]);
 
-  // ----- Possibly animate blinking if KYC is pending or not_submitted -----
+  // ----- 4) Animate the bell icon if KYC is pending or not submitted -----
   useEffect(() => {
     if (kycStatus === "pending" || kycStatus === "not_submitted") {
       setIsBlinking(true);
@@ -87,12 +124,12 @@ export default function Navbar() {
     }
   }, [kycStatus]);
 
-  // ----- Helper: navigate to a path -----
+  // Helper: navigate to a path
   const handleNavigate = (path) => {
     navigate(path);
   };
 
-  // ----- Confirm Logout Toast -----
+  // Confirm Logout Toast
   const confirmLogout = () => {
     setShowLogoutConfirm(true);
     toast.custom(
@@ -128,30 +165,24 @@ export default function Navbar() {
     );
   };
 
-  // ----- Actual Logout Handler -----
+  // Actual Logout Handler
   const handleLogout = () => {
-    // Clear token from localStorage
     localStorage.removeItem("token");
     localStorage.removeItem("userInfo");
 
-    // Clear cookies
     document.cookie.split(";").forEach((cookie) => {
       document.cookie = cookie
         .replace(/^ +/, "")
         .replace(/=.*/, `=;expires=${new Date(0).toUTCString()};path=/`);
     });
 
-    // Dispatch Redux logout action
     dispatch(logoutUser());
-
-    // Show success toast
     toast.success("Successfully logged out");
-
     setIsUserMenuOpen(false);
-    navigate("/"); // redirect to home
+    navigate("/");
   };
 
-  // ----- Handle opening KYC modals based on role -----
+  // Handle opening KYC modals based on role
   const handleOpenKycModal = () => {
     if (userRole === "driver") {
       setShowDriverKycModal(true);
@@ -160,7 +191,7 @@ export default function Navbar() {
     }
   };
 
-  // ----- Generate a notification message based on status -----
+  // Generate a notification message based on KYC status
   const notificationMessage = (() => {
     if (!isAuthenticated || kycStatus === "verified") {
       return null;
@@ -185,7 +216,34 @@ export default function Navbar() {
     return null;
   })();
 
-  // ----- Render -----
+  // Navigate to appropriate dashboard based on role
+  const navigateToDashboard = () => {
+    if (userRole === "driver") {
+      navigate("/driverdashboard");
+    } else {
+      navigate("/userDashboard");
+    }
+    setIsUserMenuOpen(false);
+  };
+
+  // Format time for notifications
+  const formatTime = (date) => {
+    const now = new Date();
+    const diff = now - date;
+
+    if (diff < 60000) {
+      return "Just now";
+    }
+    if (diff < 3600000) {
+      return `${Math.floor(diff / 60000)} min ago`;
+    }
+    if (diff < 86400000) {
+      return `${Math.floor(diff / 3600000)} hours ago`;
+    }
+    return date.toLocaleDateString();
+  };
+
+  // Render
   return (
     <nav
       className={`fixed w-full z-50 bg-white border-b border-gray-200 transition-shadow duration-300 ${
@@ -193,6 +251,7 @@ export default function Navbar() {
       }`}
     >
       <Toaster richColors />
+
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16 max-w-full">
           {/* Left: Logo */}
@@ -216,7 +275,7 @@ export default function Navbar() {
             {/* Search Bar */}
             <SearchBar />
 
-            {/* Rides Button: Driver => Publish, else => View Rides */}
+            {/* Rides Button */}
             {isAuthenticated &&
               (userRole === "driver" ? (
                 <button
@@ -235,56 +294,30 @@ export default function Navbar() {
                 </button>
               ))}
 
-            {/* Notification Bell: if kycStatus != verified */}
-            {isAuthenticated && notificationMessage && (
+            {/* Regular Notification Bell: show for all authenticated users */}
+            {isAuthenticated && (
               <div className="relative notification-container">
                 <button
                   onClick={() =>
                     setShowNotificationDropdown(!showNotificationDropdown)
                   }
-                  className={`flex items-center p-2 rounded-full ${
-                    isBlinking
-                      ? "animate-pulse bg-amber-100"
-                      : "hover:bg-gray-100"
-                  } transition-colors`}
+                  className="flex items-center p-2 rounded-full hover:bg-gray-100 transition-colors"
                   aria-expanded={showNotificationDropdown}
                   aria-haspopup="true"
                 >
-                  <Bell
-                    className={`h-6 w-6 ${
-                      isBlinking ? "text-amber-500" : "text-gray-700"
-                    }`}
-                  />
-                  <span className="absolute top-0 right-0 h-3 w-3 rounded-full bg-red-500"></span>
+                  <Bell className="h-6 w-6 text-gray-700" />
+                  {(notifications.length > 0 ||
+                    localNotifications.length > 0) && (
+                    <span className="absolute top-0 right-0 h-3 w-3 rounded-full bg-red-500"></span>
+                  )}
                 </button>
 
                 {showNotificationDropdown && (
-                  <div className="absolute right-0 mt-2 w-80 bg-white rounded-xl shadow-xl py-2 border border-gray-100 transform origin-top-right transition-all duration-200 ease-out z-50">
-                    <div className="px-4 py-3 border-b border-gray-100">
-                      <div className="flex items-center">
-                        <AlertCircle className="h-5 w-5 text-amber-500 mr-2" />
-                        <p className="text-sm font-semibold text-gray-900">
-                          Action Required
-                        </p>
-                      </div>
-                    </div>
-                    <div className="px-4 py-3">
-                      <p className="text-sm text-gray-700 mb-4">
-                        {notificationMessage}
-                      </p>
-                      <button
-                        onClick={() => {
-                          setShowNotificationDropdown(false);
-                          handleOpenKycModal();
-                        }}
-                        className="w-full px-4 py-2 bg-green-500 text-white text-sm font-medium rounded-lg hover:bg-green-600 transition-colors"
-                      >
-                        {userRole === "driver"
-                          ? "Complete Driver KYC"
-                          : "Complete KYC"}
-                      </button>
-                    </div>
-                  </div>
+                  <NotificationDropdown
+                    onClose={() => setShowNotificationDropdown(false)}
+                    localNotifications={localNotifications}
+                    clearLocalNotifications={() => setLocalNotifications([])}
+                  />
                 )}
               </div>
             )}
@@ -311,28 +344,37 @@ export default function Navbar() {
                       <button className="text-sm font-medium text-gray-900 hover:text-green-600 cursor-pointer mt-1">
                         {userName}
                       </button>
+                      <div className="flex items-center mt-1">
+                        <span className="text-xs text-gray-500 mr-1">
+                          Role:
+                        </span>
+                        <span className="text-xs font-medium capitalize bg-gray-100 px-2 py-0.5 rounded-full">
+                          {userRole}
+                        </span>
+                      </div>
                     </div>
 
                     {/* 1) Profile Button */}
                     <button
                       onClick={() => {
                         setIsUserMenuOpen(false);
-                        setShowProfileModal(true); // <--- use showProfileModal
+                        setShowProfileModal(true);
                       }}
                       className="flex w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 hover:text-green-600 text-left transition-colors"
                     >
                       <span className="ml-2">Profile</span>
                     </button>
 
-                    {/* 2) User Dashboard Button */}
+                    {/* 2) Dashboard Button - conditional based on role */}
                     <button
-                      onClick={() => {
-                        setIsUserMenuOpen(false);
-                        navigate("/userDashboard");
-                      }}
+                      onClick={navigateToDashboard}
                       className="flex w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 hover:text-green-600 text-left transition-colors"
                     >
-                      <span className="ml-2">User Dashboard</span>
+                      <span className="ml-2">
+                        {userRole === "driver"
+                          ? "Driver Dashboard"
+                          : "User Dashboard"}
+                      </span>
                     </button>
 
                     {/* Divider */}
@@ -351,20 +393,8 @@ export default function Navbar() {
                       </button>
                     ) : (
                       <div className="flex items-center w-full px-4 py-2 text-sm text-green-600">
-                        <svg
-                          className="h-4 w-4 mr-2"
-                          fill="none"
-                          stroke="currentColor"
-                          strokeWidth="2"
-                          viewBox="0 0 24 24"
-                        >
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            d="M5 13l4 4L19 7"
-                          />
-                        </svg>
-                        Verified
+                        <CheckCircle className="h-4 w-4 mr-2" />
+                        <span>Verified</span>
                       </div>
                     )}
 
@@ -405,6 +435,27 @@ export default function Navbar() {
               </div>
             )}
 
+            {/* KYC Notification Alert: if kycStatus != verified - Now positioned to the right of profile */}
+            {isAuthenticated && notificationMessage && (
+              <div className="relative kyc-notification-container">
+                <button
+                  onClick={() => handleOpenKycModal()}
+                  className={`flex items-center p-2 rounded-full ${
+                    isBlinking
+                      ? "animate-pulse bg-amber-100"
+                      : "hover:bg-gray-100"
+                  } transition-colors`}
+                >
+                  <AlertCircle
+                    className={`h-6 w-6 ${
+                      isBlinking ? "text-amber-500" : "text-gray-700"
+                    }`}
+                  />
+                  <span className="absolute top-0 right-0 h-3 w-3 rounded-full bg-red-500"></span>
+                </button>
+              </div>
+            )}
+
             {/* Mobile Menu Button */}
             <button
               className="md:hidden p-2 rounded-md hover:bg-gray-100 transition-colors"
@@ -440,6 +491,8 @@ export default function Navbar() {
           setIsMenuOpen(false);
           handleOpenKycModal();
         }}
+        kycStatus={kycStatus}
+        navigateToDashboard={navigateToDashboard}
       />
 
       {/* Profile Modal */}

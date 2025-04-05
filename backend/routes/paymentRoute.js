@@ -5,7 +5,10 @@ import {
    initiatePayment,
    completeKhaltiPayment,
    getPaymentDetails,
-   getAllPayments
+   getAllPayments,
+   getUserPayments,
+   getDriverPayments,
+   getAdminPaymentStats
 } from "../controllers/paymentController.js";
 
 
@@ -14,6 +17,10 @@ const router = express.Router();
 
 // Payment initiation route
 router.post("/initiate", protectRoute, initiatePayment);
+router.get("/user", getUserPayments);
+
+// Driver routes
+router.get("/driver", getDriverPayments);
 
 
 // Khalti callback route (public - called by Khalti)
@@ -24,8 +31,9 @@ router.get("/completeKhaltiPayment", completeKhaltiPayment);
 router.get("/:paymentId", protectRoute, getPaymentDetails);
 
 
-// Get all payments (admin only potentially)
-router.get("/", protectRoute, getAllPayments);
+// Admin routes
+router.get("/admin/stats",  getAdminPaymentStats);
+router.get("/admin/all",  getAllPayments);
 export default router;
 
 

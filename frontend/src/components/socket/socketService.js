@@ -1,21 +1,25 @@
-// Socket service for handling real-time communication
 import io from "socket.io-client"
 
+// We can pass the userId in the connect method so our server knows who is connecting.
 class SocketService {
   socket = null
 
   // Initialize the socket connection
-  connect(url = import.meta.env.VITE_SOCKET_URL || "http://localhost:3301") {
+  connect({ url = import.meta.env.VITE_SOCKET_URL || "http://localhost:3301", userId = null } = {}) {
+    // If already connected, do nothing
     if (this.socket && this.socket.connected) {
       return this.socket
     }
 
+    // Pass userId in the query so the server can identify this user
     this.socket = io(url, {
       transports: ["websocket", "polling"],
       reconnection: true,
       reconnectionAttempts: 5,
       reconnectionDelay: 1000,
       withCredentials: true,
+      // "query" can hold additional handshake data. The server can read socket.handshake.query.userId
+      query: { userId },
     })
 
     this.socket.on("connect", () => {
@@ -80,4 +84,3 @@ class SocketService {
 // Create a singleton instance
 const socketService = new SocketService()
 export default socketService
-

@@ -7,6 +7,8 @@ import {
   updateTrip,
   deleteTrip,
   searchTrips,
+  getDriverTripStats,
+ 
 } from "../controllers/tripController.js";
 import protectRoute from "../middlewares/protectRoute.js";
 import { authorizeRole } from "../middlewares/roleAuth.js";
@@ -32,6 +34,10 @@ router.get("/all", getAllTrips);
 
 // Search trips (public)
 router.get("/search", validateSearchParams, searchTrips);
+
+// Driver statistics routes (driver only)
+router.get("/stats", protectRoute, authorizeRole("driver"), getDriverTripStats);
+
 
 // My trips (driver only)
 router.get("/my-trips", protectRoute, authorizeRole("driver"), getDriverTrips);

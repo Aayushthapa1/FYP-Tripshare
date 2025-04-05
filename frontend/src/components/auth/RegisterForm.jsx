@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import { useState } from "react";
 import { User, Mail, Home, Lock, UserCircle, Phone, Users } from "lucide-react";
 import { useDispatch } from "react-redux";
 import { useNavigate } from "react-router-dom";
@@ -16,7 +16,7 @@ const RegisterForm = () => {
     email: "",
     password: "",
     phoneNumber: "",
-    role: "user" // Default role
+    role: "user", // Default role
   });
 
   const [loading, setLoading] = useState(false);
@@ -34,7 +34,8 @@ const RegisterForm = () => {
   };
 
   const validateForm = (data) => {
-    const { fullName, userName, address, email, password, phoneNumber, role } = data;
+    const { fullName, userName, address, email, password, phoneNumber, role } =
+      data;
     let isValid = true;
     const errors = [];
 
@@ -117,19 +118,14 @@ const RegisterForm = () => {
   };
 
   return (
-    <div className="w-full max-w-lg mx-auto bg-white p-8 rounded-xl shadow-lg">
+    <div className="w-full">
       <Toaster position="top-right" />
-      {loading && (
-        <div className="absolute inset-0 flex items-center justify-center bg-white bg-opacity-70 rounded-xl">
-          <div className="loader ease-linear border-4 border-t-4 border-green-500 h-10 w-10 rounded-full animate-spin"></div>
-        </div>
-      )}
-      <form className="space-y-6" onSubmit={handleSubmit}>
-        {/* Existing fields remain the same */}
+
+      <form className="space-y-4" onSubmit={handleSubmit}>
         {/* Full Name */}
-        <div className="relative group">
-          <div className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-green-600 transition-colors">
-            <User size={20} />
+        <div className="relative">
+          <div className="absolute left-3 top-1/2 -translate-y-1/2 text-green-600">
+            <User size={18} />
           </div>
           <input
             type="text"
@@ -137,16 +133,16 @@ const RegisterForm = () => {
             name="fullName"
             value={formData.fullName}
             onChange={handleChange}
-            className="w-full px-10 py-3 bg-gray-50 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all duration-200 text-gray-800 placeholder-gray-400"
+            className="w-full px-10 py-3 bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-green-500 focus:border-green-500 transition-all duration-200 text-gray-800 placeholder-gray-400"
             placeholder="Full Name"
             required
           />
         </div>
 
         {/* Username */}
-        <div className="relative group">
-          <div className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-green-600 transition-colors">
-            <UserCircle size={20} />
+        <div className="relative">
+          <div className="absolute left-3 top-1/2 -translate-y-1/2 text-green-600">
+            <UserCircle size={18} />
           </div>
           <input
             type="text"
@@ -154,16 +150,16 @@ const RegisterForm = () => {
             name="userName"
             value={formData.userName}
             onChange={handleChange}
-            className="w-full px-10 py-3 bg-gray-50 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all duration-200 text-gray-800 placeholder-gray-400"
+            className="w-full px-10 py-3 bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-green-500 focus:border-green-500 transition-all duration-200 text-gray-800 placeholder-gray-400"
             placeholder="Username"
             required
           />
         </div>
 
-        {/* Phone Number - New Field */}
-        <div className="relative group">
-          <div className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-green-600 transition-colors">
-            <Phone size={20} />
+        {/* Phone Number */}
+        <div className="relative">
+          <div className="absolute left-3 top-1/2 -translate-y-1/2 text-green-600">
+            <Phone size={18} />
           </div>
           <input
             type="tel"
@@ -171,7 +167,7 @@ const RegisterForm = () => {
             name="phoneNumber"
             value={formData.phoneNumber}
             onChange={handleChange}
-            className="w-full px-10 py-3 bg-gray-50 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all duration-200 text-gray-800 placeholder-gray-400"
+            className="w-full px-10 py-3 bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-green-500 focus:border-green-500 transition-all duration-200 text-gray-800 placeholder-gray-400"
             placeholder="Phone Number"
             required
             pattern="[0-9]{10}"
@@ -179,9 +175,9 @@ const RegisterForm = () => {
         </div>
 
         {/* Address */}
-        <div className="relative group">
-          <div className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-green-600 transition-colors">
-            <Home size={20} />
+        <div className="relative">
+          <div className="absolute left-3 top-1/2 -translate-y-1/2 text-green-600">
+            <Home size={18} />
           </div>
           <input
             type="text"
@@ -189,16 +185,16 @@ const RegisterForm = () => {
             name="address"
             value={formData.address}
             onChange={handleChange}
-            className="w-full px-10 py-3 bg-gray-50 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all duration-200 text-gray-800 placeholder-gray-400"
+            className="w-full px-10 py-3 bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-green-500 focus:border-green-500 transition-all duration-200 text-gray-800 placeholder-gray-400"
             placeholder="Address"
             required
           />
         </div>
 
         {/* Email */}
-        <div className="relative group">
-          <div className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-green-600 transition-colors">
-            <Mail size={20} />
+        <div className="relative">
+          <div className="absolute left-3 top-1/2 -translate-y-1/2 text-green-600">
+            <Mail size={18} />
           </div>
           <input
             type="email"
@@ -206,34 +202,50 @@ const RegisterForm = () => {
             name="email"
             value={formData.email}
             onChange={handleChange}
-            className="w-full px-10 py-3 bg-gray-50 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all duration-200 text-gray-800 placeholder-gray-400"
+            className="w-full px-10 py-3 bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-green-500 focus:border-green-500 transition-all duration-200 text-gray-800 placeholder-gray-400"
             placeholder="Email"
             required
           />
         </div>
 
-        {/* Role Selection - New Field */}
-        <div className="relative group">
-          <div className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-green-600 transition-colors">
-            <Users size={20} />
+        {/* Role Selection */}
+        <div className="relative">
+          <div className="absolute left-3 top-1/2 -translate-y-1/2 text-green-600">
+            <Users size={18} />
           </div>
           <select
             id="role"
             name="role"
             value={formData.role}
             onChange={handleChange}
-            className="w-full px-10 py-3 bg-gray-50 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all duration-200 text-gray-800"
+            className="w-full px-10 py-3 bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-green-500 focus:border-green-500 transition-all duration-200 text-gray-800 appearance-none"
             required
           >
             <option value="user">Passenger</option>
             <option value="driver">Driver</option>
           </select>
+          <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none">
+            <svg
+              className="w-4 h-4 text-gray-500"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+              xmlns="http://www.w3.org/2000/svg"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth="2"
+                d="M19 9l-7 7-7-7"
+              ></path>
+            </svg>
+          </div>
         </div>
 
         {/* Password */}
-        <div className="relative group">
-          <div className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-green-600 transition-colors">
-            <Lock size={20} />
+        <div className="relative">
+          <div className="absolute left-3 top-1/2 -translate-y-1/2 text-green-600">
+            <Lock size={18} />
           </div>
           <input
             type={showPassword ? "text" : "password"}
@@ -241,14 +253,14 @@ const RegisterForm = () => {
             name="password"
             value={formData.password}
             onChange={handleChange}
-            className="w-full px-10 py-3 bg-gray-50 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all duration-200 text-gray-800 placeholder-gray-400"
+            className="w-full px-10 py-3 bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-green-500 focus:border-green-500 transition-all duration-200 text-gray-800 placeholder-gray-400"
             placeholder="Password"
             required
           />
           <button
             type="button"
             onClick={togglePasswordVisibility}
-            className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-green-600 focus:outline-none"
+            className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 focus:outline-none"
           >
             {showPassword ? (
               <svg
@@ -282,20 +294,33 @@ const RegisterForm = () => {
           </button>
         </div>
 
-        <button
-          type="submit"
-          className="w-full py-3 px-4 bg-gradient-to-r from-green-600 to-green-700 text-white font-medium rounded-lg hover:from-green-700 hover:to-green-800 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 transform transition-all duration-200 hover:scale-[1.02] disabled:opacity-50 disabled:cursor-not-allowed"
-          disabled={loading}
-        >
-          {loading ? (
-            <div className="flex items-center justify-center space-x-2">
-              <div className="w-5 h-5 border-t-2 border-b-2 border-white rounded-full animate-spin"></div>
-              <span>Creating account...</span>
-            </div>
-          ) : (
-            "Create Account"
-          )}
-        </button>
+        <div className="pt-4">
+          <button
+            type="submit"
+            className="w-full py-3 px-4 bg-green-600 text-white font-medium rounded-lg hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 transform transition-all duration-200 hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
+            disabled={loading}
+          >
+            {loading ? (
+              <div className="flex items-center justify-center space-x-2">
+                <div className="w-4 h-4 border-2 border-t-transparent border-white rounded-full animate-spin"></div>
+                <span>Creating account...</span>
+              </div>
+            ) : (
+              "Create Account"
+            )}
+          </button>
+        </div>
+
+        <div className="text-xs text-center text-gray-500 mt-4">
+          By creating an account, you agree to our
+          <a href="#" className="text-green-600 hover:underline mx-1">
+            Terms of Service
+          </a>
+          and
+          <a href="#" className="text-green-600 hover:underline mx-1">
+            Privacy Policy
+          </a>
+        </div>
       </form>
     </div>
   );

@@ -8,46 +8,120 @@ const RegisterPage = () => {
   const navigate = useNavigate();
   const { isAuthenticated } = useSelector((state) => state?.auth);
 
- 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-green-50 via-emerald-50 to-teal-50 flex items-center justify-center py-8 px-4 sm:px-6 lg:px-8">
-      <div className="flex flex-col md:flex-row bg-white w-full max-w-4xl h-[750px] rounded-3xl shadow-[0_20px_50px_rgba(8,_112,_84,_0.15)] overflow-hidden">
+    <div className="min-h-screen bg-gradient-to-br from-green-50 via-emerald-50 to-teal-50 flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
+      <div className="flex flex-col md:flex-row bg-white w-full max-w-5xl rounded-2xl shadow-[0_10px_40px_rgba(8,_112,_84,_0.12)] overflow-hidden">
         {/* Left Side - Decorative Area */}
-        <div className="w-full md:w-5/12 bg-gradient-to-br from-green-600 via-green-700 to-green-800 p-6 md:p-8 flex flex-col justify-center relative overflow-hidden">
-          {/* Decorative circles */}
-          <div className="absolute top-0 left-0 w-76 h-64 bg-white/5 rounded-full -translate-x-1/2 -translate-y-1/2" />
-          <div className="absolute bottom-0 right-0 w-96 h-96 bg-black/5 rounded-full translate-x-1/2 translate-y-1/2" />
-          
-          <div className="text-center text-white relative z-10">
-            <h1 className="text-4xl font-bold mb-4 text-transparent bg-clip-text bg-gradient-to-r from-white to-green-100">
-              Join Our Community!
+        <div className="w-full md:w-5/12 bg-gradient-to-br from-green-500 via-green-600 to-green-700 p-8 md:p-12 flex flex-col justify-center relative overflow-hidden">
+          {/* Decorative elements */}
+          <div className="absolute top-0 left-0 w-64 h-64 bg-white/5 rounded-full -translate-x-1/3 -translate-y-1/3" />
+          <div className="absolute bottom-0 right-0 w-80 h-80 bg-black/5 rounded-full translate-x-1/3 translate-y-1/3" />
+          <div className="absolute top-1/2 left-1/2 w-40 h-40 bg-white/5 rounded-full -translate-x-1/2 -translate-y-1/2" />
+
+          <div className="text-left relative z-10 max-w-sm">
+            <h1 className="text-3xl md:text-4xl font-bold mb-6 text-white">
+              Welcome to <span className="text-green-100">TripShare</span>
             </h1>
-            <p className="text-green-100 text-lg mb-8 font-light">
-              Create your account and start sharing rides with fellow travelers
+            <p className="text-green-100 text-lg mb-8 font-light leading-relaxed">
+              Join our community and start sharing eco-friendly rides with
+              fellow travelers today.
             </p>
-            <div className="w-3/4 max-w-[280px] mx-auto">
-              {/* Optional: Add an illustration or icon here */}
-  
+
+            <div className="space-y-4 mt-8">
+              <div className="flex items-center space-x-3">
+                <div className="bg-white/10 p-2 rounded-full">
+                  <svg
+                    className="w-5 h-5 text-green-100"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                    xmlns="http://www.w3.org/2000/svg"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth="2"
+                      d="M5 13l4 4L19 7"
+                    ></path>
+                  </svg>
+                </div>
+                <p className="text-green-100">Reduce your carbon footprint</p>
+              </div>
+              <div className="flex items-center space-x-3">
+                <div className="bg-white/10 p-2 rounded-full">
+                  <svg
+                    className="w-5 h-5 text-green-100"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                    xmlns="http://www.w3.org/2000/svg"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth="2"
+                      d="M5 13l4 4L19 7"
+                    ></path>
+                  </svg>
+                </div>
+                <p className="text-green-100">Save money on transportation</p>
+              </div>
+              <div className="flex items-center space-x-3">
+                <div className="bg-white/10 p-2 rounded-full">
+                  <svg
+                    className="w-5 h-5 text-green-100"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                    xmlns="http://www.w3.org/2000/svg"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth="2"
+                      d="M5 13l4 4L19 7"
+                    ></path>
+                  </svg>
+                </div>
+                <p className="text-green-100">
+                  Connect with like-minded people
+                </p>
+              </div>
             </div>
           </div>
         </div>
 
         {/* Right Side - Form Area */}
-        <div className="w-full md:w-7/12 bg-white p-6 md:p-8 overflow-y-auto relative">
+        <div className="w-full md:w-7/12 bg-white p-6 md:p-12 overflow-y-auto">
           {/* Subtle top decoration */}
           <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-transparent via-green-500/20 to-transparent" />
-          
-          <div className="max-w-[400px] mx-auto py-2">
-            <div className="mb-2">
-              <h2 className="text-3xl font-bold text-gray-800 ">
+
+          <div className="max-w-md mx-auto">
+            <div className="mb-6 flex items-center justify-between">
+              <h2 className="text-2xl font-semibold text-gray-800">
                 Create Account
               </h2>
-  
+              <div className="h-10 w-10 rounded-full bg-green-50 flex items-center justify-center">
+                <svg
+                  className="w-6 h-6 text-green-600"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                  xmlns="http://www.w3.org/2000/svg"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth="2"
+                    d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"
+                  ></path>
+                </svg>
+              </div>
             </div>
 
             <RegisterForm />
 
-            <div className="mt-4 text-center">
+            <div className="mt-8 text-center">
               <p className="text-sm text-gray-600">
                 Already have an account?{" "}
                 <a
@@ -55,16 +129,16 @@ const RegisterPage = () => {
                   className="text-green-600 hover:text-green-700 font-medium transition-colors inline-flex items-center gap-1 hover:gap-2 duration-200"
                 >
                   Sign in
-                  <svg 
-                    className="w-4 h-4" 
-                    fill="none" 
-                    stroke="currentColor" 
+                  <svg
+                    className="w-4 h-4"
+                    fill="none"
+                    stroke="currentColor"
                     viewBox="0 0 24 24"
                   >
-                    <path 
-                      strokeLinecap="round" 
-                      strokeLinejoin="round" 
-                      strokeWidth="2" 
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth="2"
                       d="M9 5l7 7-7 7"
                     />
                   </svg>

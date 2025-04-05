@@ -1,5 +1,3 @@
-"use client";
-
 import React, { useEffect, useState } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { getPendingRides, updateRideStatus } from "../Slices/rideSlice";
@@ -148,7 +146,6 @@ const DriverPendingRides = () => {
   return (
     <>
       <Navbar />
-      <Toaster richColors position="top-center" />
 
       <div className="bg-gray-50 min-h-screen py-8">
         <div className="container mx-auto px-4 max-w-4xl">

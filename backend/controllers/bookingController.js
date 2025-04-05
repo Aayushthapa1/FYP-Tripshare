@@ -1,7 +1,37 @@
+
 import mongoose from "mongoose";
 import Booking from "../models/bookingModel.js";
 import Trip from "../models/TripModel.js";
 import { createResponse } from "../utils/responseHelper.js";
+
+// 1) Import the "io" from server.js
+import { io } from "../server.js";
+
+
+export const initializeChatAfterBooking = async (booking, req) => {
+  try {
+    // Populate necessary fields
+    const populatedBooking = await Booking.findById(booking._id)
+      .populate("trip")
+      .populate("user", "fullName")
+      .exec();
+
+    if (!populatedBooking || !populatedBooking.trip) {
+      console.error("Could not find booking or trip details for chat initialization");
+      return;
+    }
+
+    const tripId = populatedBooking.trip._id;
+    const userId = populatedBooking.user._id;
+
+    // Create a welcome message (assuming "initializeChat" is imported from chatController)
+    const message = `Booking confirmed! ${populatedBooking.user.fullName} has booked ${populatedBooking.seatsBooked} seat(s).`;
+
+    return await initializeChat(tripId, userId, message, req);
+  } catch (error) {
+    console.error("Error initializing chat after booking:", error);
+  }
+};
 
 /**
  * CREATE a new booking
@@ -12,85 +42,103 @@ export const createBooking = async (req, res, next) => {
     let { tripId, seats = 1, paymentMethod } = req.body;
     console.log("Request values:", tripId, seats, paymentMethod);
 
-    // Ensure seats is a number
+    // (A) Validate, find trip, handle seats, etc...
     seats = Number(seats);
     if (isNaN(seats) || seats < 1) {
-      return res.status(400).json(createResponse(400, false, [{ message: "Invalid seats value. Must be a positive number." }]));
+      return res.status(400).json({
+        success: false,
+        message: "Invalid seats value. Must be a positive number."
+      });
     }
 
-    // Validate payment method
     if (!["COD", "online"].includes(paymentMethod)) {
-      return res.status(400).json(createResponse(400, false, [{ message: "Invalid payment method" }]));
+      return res.status(400).json({
+        success: false,
+        message: "Invalid payment method"
+      });
     }
 
-    // Find the trip
     const trip = await Trip.findById(tripId);
     if (!trip) {
-      return res.status(404).json(createResponse(404, false, [{ message: "Trip not found" }]));
+      return res.status(404).json({ success: false, message: "Trip not found" });
     }
 
-    // Check if trip is scheduled (not cancelled)
     if (trip.status !== "scheduled") {
-      return res.status(400).json(createResponse(400, false, [{ message: "Cannot book a trip that is not scheduled" }]));
-    }
-console.log("THE AVAULABE SEATS IS", trip.availableSeats)
-    // Check available seats - improved comparison
-    if (trip.availableSeats < seats) {
-      return res.status(400).json(createResponse(400, false, [{ 
-        message: `Not enough seats available. Requested: ${seats}, Available: ${trip.availableSeats}` 
-      }]));
+      return res.status(400).json({
+        success: false,
+        message: "Cannot book a trip that is not scheduled"
+      });
     }
 
-    // Check for existing bookings by this user for this trip
-    const existingBooking = await Booking.findOne({ 
-      trip: tripId, 
+    if (trip.availableSeats < seats) {
+      return res.status(400).json({
+        success: false,
+        message: `Not enough seats available. Requested: ${seats}, Available: ${trip.availableSeats}`
+      });
+    }
+
+    // (B) Check for existing booking
+    const existingBooking = await Booking.findOne({
+      trip: tripId,
       user: userId,
-      status: { $ne: "cancelled" } // Exclude cancelled bookings
+      status: { $ne: "cancelled" }
     });
 
     if (existingBooking) {
-      return res.status(400).json(createResponse(400, false, [{ 
+      return res.status(400).json({
+        success: false,
         message: "You already have a booking for this trip",
-        existingBooking 
-      }]));
+        existingBooking
+      });
     }
 
-    // Start a session for transaction
+    // (C) Create booking with a transaction
     const session = await mongoose.startSession();
     session.startTransaction();
 
     try {
-      // Decrement available seats and save the trip
       trip.availableSeats -= seats;
       await trip.save({ session });
 
-      // Determine payment status based on method
-      const paymentStatus = paymentMethod === "COD" ? "pending" : "pending"; // Payment is "pending" until online payment is confirmed
+      const paymentStatus = paymentMethod === "COD" ? "pending" : "pending";
 
-      // Create the booking
-      const newBooking = await Booking.create([{
-        trip: trip._id,
-        user: userId,
-        seatsBooked: seats,
-        paymentMethod,
-        paymentStatus,
-        status: "booked"
-      }], { session });
+      const newBooking = await Booking.create(
+        [
+          {
+            trip: trip._id,
+            user: userId,
+            seatsBooked: seats,
+            paymentMethod,
+            paymentStatus,
+            status: "booked"
+          }
+        ],
+        { session }
+      );
 
-      // Commit the transaction
       await session.commitTransaction();
       session.endSession();
 
-      return res.status(201).json(
-        createResponse(201, true, [], {
-          message: paymentMethod === "COD" 
-            ? `Booking confirmed with Cash on Delivery. ${seats} seat(s) reserved for you.` 
+      // (D) Emit a real-time notification that a new booking was created
+      if (io) {
+        io.emit("booking_created", {
+          bookingId: newBooking[0]._id,
+          tripId: trip._id,
+          userId,
+          seats,
+          message: "A new booking has been created"
+        });
+      }
+
+      return res.status(201).json({
+        success: true,
+        message:
+          paymentMethod === "COD"
+            ? `Booking confirmed with Cash on Delivery. ${seats} seat(s) reserved for you.`
             : `Booking created. Please proceed with online payment for ${seats} seat(s).`,
-          booking: newBooking[0],
-        })
-      );
+        booking: newBooking[0]
+      });
     } catch (error) {
-      // Abort transaction on error
       await session.abortTransaction();
       session.endSession();
       throw error;
@@ -100,6 +148,7 @@ console.log("THE AVAULABE SEATS IS", trip.availableSeats)
     next(error);
   }
 };
+
 /**
  * GET a single booking's details
  */
@@ -113,7 +162,6 @@ export const getBookingDetails = async (req, res, next) => {
         .json(createResponse(400, false, [{ message: "Invalid booking ID" }]));
     }
 
-    // Populate the trip and, within the trip, populate the driver field
     const booking = await Booking.findById(bookingId)
       .populate({
         path: "trip",
@@ -211,6 +259,16 @@ export const cancelBooking = async (req, res, next) => {
         await booking.trip.save();
       }
       await booking.save();
+
+      // Emit a real-time notification that a booking was cancelled
+      if (io) {
+        io.emit("booking_cancelled", {
+          bookingId: booking._id,
+          tripId: booking.trip._id,
+          userId,
+          message: "A booking has been cancelled"
+        });
+      }
     }
 
     return res.status(200).json(

@@ -2,17 +2,7 @@
 import axiosInstance from "../utils/axiosInstance";
 import formatError from "../utils/errorUtils";
 
-/**
- * handleResponse checks the shape coming back from your server:
- * {
- *   StatusCode: 200,
- *   IsSuccess: true,
- *   ErrorMessage: [],
- *   Result: {
- *     trips: [] or trip: {}
- *   }
- * }
- */
+
 const handleResponse = (response) => {
   // e.g. response.data = that top-level object
   if (!response.data) {
@@ -21,10 +11,7 @@ const handleResponse = (response) => {
   return response.data; // We'll just return it raw
 };
 
-/**
- * handleError prints the error and throws a new error with
- * the relevant message so your slice can catch it.
- */
+
 const handleError = (error) => {
   if (error.response) {
     const formattedError = formatError(error.response.data);

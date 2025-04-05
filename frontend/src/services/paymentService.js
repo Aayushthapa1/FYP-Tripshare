@@ -104,6 +104,76 @@ export const getAllPayments = createAsyncThunk(
   }
 );
 
+
+export const getUserPayments = createAsyncThunk(
+  "payment/getUserPayments",
+  async (filters = {}, { rejectWithValue }) => {
+      try {
+          const response = await PaymentService.getUserPayments(filters);
+          
+          if (!response.success) {
+              return rejectWithValue({
+                  message: response.message || "Failed to get user payments",
+                  errors: response.errors || []
+              });
+          }
+
+          return response.data;
+      } catch (error) {
+          return rejectWithValue({
+              message: error.message || "Failed to get user payments",
+              errors: error.errors || []
+          });
+      }
+  }
+);
+
+export const getDriverPayments = createAsyncThunk(
+  "payment/getDriverPayments",
+  async (filters = {}, { rejectWithValue }) => {
+      try {
+          const response = await PaymentService.getDriverPayments(filters);
+          
+          if (!response.success) {
+              return rejectWithValue({
+                  message: response.message || "Failed to get driver payments",
+                  errors: response.errors || []
+              });
+          }
+
+          return response.data;
+      } catch (error) {
+          return rejectWithValue({
+              message: error.message || "Failed to get driver payments",
+              errors: error.errors || []
+          });
+      }
+  }
+);
+
+// Get admin payment stats
+export const getAdminPaymentStats = createAsyncThunk(
+  "payment/getAdminStats",
+  async (filters = {}, { rejectWithValue }) => {
+      try {
+          const response = await PaymentService.getAdminPaymentStats(filters);
+          
+          if (!response.success) {
+              return rejectWithValue({
+                  message: response.message || "Failed to get admin payment stats",
+                  errors: response.errors || []
+              });
+          }
+
+          return response.data;
+      } catch (error) {
+          return rejectWithValue({
+              message: error.message || "Failed to get admin payment stats",
+              errors: error.errors || []
+          });
+      }
+  }
+);
 // Helper function to handle Khalti redirect
 export const handleKhaltiRedirect = (paymentUrl) => {
   if (paymentUrl) {

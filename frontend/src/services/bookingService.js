@@ -1,124 +1,100 @@
+// bookingService.js
+
+import axios from "axios";
+import { Base_Backend_Url } from "../../constant";
+import formatError from "../utils/errorUtils";
 import axiosInstance from "../utils/axiosInstance";
 
-// Utility functions for response handling
-const handleResponse = (response) => {
-  if (!response.data) {
-    throw new Error("No data received from the server");
-  }
-  return response.data;
-};
-
-const handleError = (error) => {
-  if (error.response) {
-    // Try to extract error messages from the response
-    const errors = error.response.data?.errors;
-    const errMsg =
-      (Array.isArray(errors) && errors.length > 0 && errors[0].message) ||
-      error.response.data?.message ||
-      "Unknown error";
-    throw new Error(errMsg);
-  } else if (error.request) {
-    throw new Error("No response from server");
-  } else {
-    throw new Error(error.message);
-  }
-};
-
 /**
- * Create a booking
+ * CREATE a booking
  * POST /api/bookings
- * Body: { tripId, seats }
  */
-export const createBooking = async ({ tripId, seats = 1, paymentMethod }) => {
+const createBooking = async ({ tripId, seats, paymentMethod }) => {
   try {
-    // Ensure seats is a number
-    seats = Number(seats);
-    if (isNaN(seats) || seats < 1) {
-      throw new Error("Invalid seats value");
-    }
+    console.log("Creating booking with data:", { tripId, seats, paymentMethod });
 
-    // Validate payment method
-    if (!["COD", "online"].includes(paymentMethod)) {
-      throw new Error("Invalid payment method");
-    }
+    // If your backend requires auth headers/cookies, use axiosInstance
+    const response = await axiosInstance.post(
+      `${Base_Backend_Url}/api/bookings`,
+      { tripId, seats, paymentMethod },
+      {
+        withCredentials: true, // If cookies/sessions are needed
+      }
+    );
 
-    // Make the API call to create the booking
-    const response = await axiosInstance.post("/api/bookings", {
-      tripId,
-      seats,
-      paymentMethod,
-    });
-
-    // Handle response from backend
-    const data = handleResponse(response);
-    if (!data.success) {
-      throw new Error(data.message);
-    }
-
-    return data.booking; // Return the created booking object
+    // Return the entire server response or shape it as you prefer
+    return response.data;
   } catch (error) {
-    throw handleError(error);
+    console.error("createBooking error:", error);
+    const formattedError = formatError(error);
+    throw formattedError;
   }
 };
+
 /**
- * Get all bookings for the logged-in user
+ * GET all bookings for the logged-in user
  * GET /api/bookings/my
  */
-export const getMyBookings = async () => {
+const getMyBookings = async () => {
   try {
-    const response = await axiosInstance.get("/api/bookings/my");
-    const data = handleResponse(response);
-    return data.Result?.bookings || [];
+    console.log("Fetching my bookings...");
+
+    const response = await axiosInstance.get(
+      `${Base_Backend_Url}/api/bookings/my`,
+      { withCredentials: true }
+    );
+    return response.data;
   } catch (error) {
-    throw handleError(error);
+    console.error("getMyBookings error:", error);
+    const formattedError = formatError(error);
+    throw formattedError;
   }
 };
 
 /**
- * Get details for a single booking
+ * GET details for a single booking
  * GET /api/bookings/:bookingId
  */
 const fetchBookingDetails = async (bookingId) => {
-  // Validate bookingId format before making the request
-  if (!bookingId || typeof bookingId !== "string" || !bookingId.match(/^[0-9a-fA-F]{24}$/)) {
-    throw new Error("Invalid booking ID format")
-  }
-
   try {
-    const response = await axiosInstance.get(`/api/bookings/${bookingId}`)
-    return response.data
-  } catch (error) {
-    // Enhanced error handling
-    if (error.response) {
-      // The request was made and the server responded with a status code
-      // that falls out of the range of 2xx
-      if (error.response.status === 404) {
-        throw new Error("Booking not found")
-      } else if (error.response.status === 400) {
-        throw new Error("Invalid booking information")
-      } else if (error.response.status === 401 || error.response.status === 403) {
-        throw new Error("Not authorized to access this booking")
-      }
-    }
-    // If it's a network error or something unexpected
-    throw error
-  }
-}
+    console.log("Fetching booking details for ID:", bookingId);
 
-/**
- * Cancel a booking
- * PATCH /api/bookings/:bookingId/cancel
- */
-export const cancelBooking = async (bookingId) => {
-  try {
-    const response = await axiosInstance.patch(`/api/bookings/${bookingId}/cancel`);
-    const data = handleResponse(response);
-    return data.Result?.booking;
+    const response = await axiosInstance.get(
+      `${Base_Backend_Url}/api/bookings/${bookingId}`,
+      { withCredentials: true }
+    );
+    return response.data;
   } catch (error) {
-    throw handleError(error);
+    console.error("fetchBookingDetails error:", error);
+    const formattedError = formatError(error);
+    throw formattedError;
   }
 };
 
+/**
+ * CANCEL a booking
+ * PATCH /api/bookings/:bookingId/cancel
+ */
+const cancelBooking = async (bookingId) => {
+  try {
+    console.log("Cancelling booking for ID:", bookingId);
+
+    const response = await axiosInstance.patch(
+      `${Base_Backend_Url}/api/bookings/${bookingId}/cancel`,
+      {},
+      {
+        withCredentials: true,
+      }
+    );
+    return response.data;
+  } catch (error) {
+    console.error("cancelBooking error:", error);
+    const formattedError = formatError(error);
+    throw formattedError;
+  }
+};
+
+// Combine them into a single object for easy import
 const bookingService = {
   createBooking,
   getMyBookings,

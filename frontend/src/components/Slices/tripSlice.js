@@ -75,7 +75,7 @@ export const searchTrips = createAsyncThunk(
   }
 );
 
-export const getDriverTrips = createAsyncThunk(
+export const fetchDriverTrips = createAsyncThunk(
   "trip/getDriverTrips",
   async (_, { rejectWithValue }) => {
     try {
@@ -251,18 +251,18 @@ const tripSlice = createSlice({
       })
 
       // GET DRIVER TRIPS
-      .addCase(getDriverTrips.pending, (state) => {
+      .addCase(fetchDriverTrips.pending, (state) => {
         state.loading = true;
         state.error = null;
         state.success = false;
       })
-      .addCase(getDriverTrips.fulfilled, (state, action) => {
+      .addCase(fetchDriverTrips.fulfilled, (state, action) => {
         state.loading = false;
         state.success = true;
         state.trips = action.payload; // array of driver trips
         state.lastUpdated = Date.now();
       })
-      .addCase(getDriverTrips.rejected, (state, action) => {
+      .addCase(fetchDriverTrips.rejected, (state, action) => {
         state.loading = false;
         state.success = false;
         state.error = action.payload;

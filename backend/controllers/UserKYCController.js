@@ -1,8 +1,13 @@
-import UserModel from "../models/UserModel.js"
+import User from "../models/UserModel.js"
 import UserKYCModel from "../models/UserKYCModel.js"
 import { uploadToCloudinary } from "../config/cloudinaryConfig.js"
 
-// Submit User KYC (only personal information)
+// 1) Import the "io" from server.js (adjust path if needed)
+import { io } from "../server.js"
+
+/**
+ * SUBMIT USER KYC (Personal Info + Photos)
+ */
 export const submitUserKYC = async (req, res) => {
     try {
         console.log("submitUserKYC request body:", req.body)
@@ -10,12 +15,12 @@ export const submitUserKYC = async (req, res) => {
         console.log("submitUserKYC request params:", req.params)
         console.log("submitUserKYC request query:", req.query)
 
-        // Convert gender to lowercase (before assigning to the model!)
+        // Convert gender to lowercase
         if (req.body.gender) {
             req.body.gender = req.body.gender.toLowerCase()
         }
 
-        // Get userId from request - explicitly check route params, then body, then query
+        // 1) Determine userId from param/body/query
         let userId = req.params.userId
         if (!userId && req.body) {
             userId = req.body.userId || req.body.userID || req.body.userid || req.body.user_id
@@ -31,8 +36,8 @@ export const submitUserKYC = async (req, res) => {
             })
         }
 
-        // Find the user by ID
-        const user = await UserModel.findById(userId)
+        // 2) Find the user
+        const user = await User.findById(userId)
         if (!user) {
             return res.status(404).json({
                 success: false,
@@ -40,7 +45,7 @@ export const submitUserKYC = async (req, res) => {
             })
         }
 
-        // Verify email matches the user's email
+        // 3) Verify email matches the user's email, if provided
         if (req.body.email && req.body.email !== user.email) {
             return res.status(403).json({
                 success: false,
@@ -48,7 +53,7 @@ export const submitUserKYC = async (req, res) => {
             })
         }
 
-        // Handle citizenship front photo upload
+        // 4) Upload citizenship front photo
         let citizenshipFrontUrl = ""
         if (req.files && req.files.citizenshipFront) {
             citizenshipFrontUrl = await uploadToCloudinary(req.files.citizenshipFront.tempFilePath)
@@ -59,7 +64,7 @@ export const submitUserKYC = async (req, res) => {
             })
         }
 
-        // Handle citizenship back photo upload
+        // 5) Upload citizenship back photo
         let citizenshipBackUrl = ""
         if (req.files && req.files.citizenshipBack) {
             citizenshipBackUrl = await uploadToCloudinary(req.files.citizenshipBack.tempFilePath)
@@ -70,7 +75,7 @@ export const submitUserKYC = async (req, res) => {
             })
         }
 
-        // Check if KYC already exists for this user
+        // 6) Check if KYC already exists for this user
         let userKYC = await UserKYCModel.findOne({ userId })
         if (userKYC) {
             // Update existing KYC
@@ -85,7 +90,7 @@ export const submitUserKYC = async (req, res) => {
             // Create new KYC
             userKYC = new UserKYCModel({
                 userId,
-                gender: req.body.gender,            // now guaranteed lowercase
+                gender: req.body.gender,
                 citizenshipNumber: req.body.citizenshipNumber,
                 citizenshipFront: citizenshipFrontUrl,
                 citizenshipBack: citizenshipBackUrl,
@@ -96,7 +101,7 @@ export const submitUserKYC = async (req, res) => {
 
         await userKYC.save()
 
-        // Update user's fullName, address, dob if provided
+        // 7) Update user's personal fields
         if (req.body.fullName) {
             user.fullName = req.body.fullName
         }
@@ -106,8 +111,17 @@ export const submitUserKYC = async (req, res) => {
         if (req.body.dob) {
             user.dob = req.body.dob
         }
-
         await user.save()
+
+        // 8) Emit a real-time event that user submitted KYC
+        //    Broadcasting to all. If you want only the user or admin, use "io.to(...).emit(...)"
+        if (io) {
+            io.emit("kyc_submitted", {
+                userId: user._id,
+                kycStatus: userKYC.kycStatus,
+                message: "User KYC information submitted",
+            })
+        }
 
         return res.status(200).json({
             success: true,
@@ -130,42 +144,44 @@ export const submitUserKYC = async (req, res) => {
     }
 }
 
+/**
+ * GET ALL PENDING USER KYC
+ */
 export const getPendingUserKYC = async (req, res) => {
     try {
-        // Fetch all KYC docs with kycStatus = "pending"
         const pendingList = await UserKYCModel.find({ kycStatus: "pending" })
-            .populate("userId");
+            .populate("userId")
 
-        // Transform the data as needed
         const users = pendingList.map((kyc) => ({
             _id: kyc.userId._id,
             fullName: kyc.userId.fullName,
             email: kyc.userId.email,
             kycStatus: kyc.kycStatus,
-        }));
+        }))
 
         return res.status(200).json({
             success: true,
             users,
-        });
+        })
     } catch (error) {
-        console.error("Error fetching pending user KYC:", error);
+        console.error("Error fetching pending user KYC:", error)
         return res.status(500).json({
             success: false,
             message: "Failed to fetch pending user KYC",
             error: error.message,
-        });
+        })
     }
-};
+}
 
-// Get User KYC Status
+/**
+ * GET USER KYC STATUS
+ */
 export const getUserKYCStatus = async (req, res) => {
     try {
         const { userId } = req.params
 
         // Find the user
-        const user = await UserModel.findById(userId)
-
+        const user = await User.findById(userId)
         if (!user) {
             return res.status(404).json({
                 success: false,
@@ -175,7 +191,6 @@ export const getUserKYCStatus = async (req, res) => {
 
         // Find the KYC information
         const userKYC = await UserKYCModel.findOne({ userId })
-
         if (!userKYC) {
             return res.status(200).json({
                 success: true,
@@ -210,7 +225,9 @@ export const getUserKYCStatus = async (req, res) => {
     }
 }
 
-// Update User KYC Status (for admin)
+/**
+ * UPDATE USER KYC STATUS (FOR ADMIN)
+ */
 export const updateUserKYCStatus = async (req, res) => {
     try {
         const { userId } = req.params
@@ -226,8 +243,7 @@ export const updateUserKYCStatus = async (req, res) => {
         }
 
         // Find user by ID
-        const user = await UserModel.findById(userId)
-
+        const user = await User.findById(userId)
         if (!user) {
             return res.status(404).json({
                 success: false,
@@ -237,7 +253,6 @@ export const updateUserKYCStatus = async (req, res) => {
 
         // Find KYC information
         const userKYC = await UserKYCModel.findOne({ userId })
-
         if (!userKYC) {
             return res.status(404).json({
                 success: false,
@@ -268,6 +283,16 @@ export const updateUserKYCStatus = async (req, res) => {
 
         await userKYC.save()
 
+        // (A) Emit a real-time event for KYC status update
+        //     If you'd prefer separate "kyc_verified" or "kyc_rejected" events, you can do that too.
+        if (io) {
+            io.emit("kyc_status_updated", {
+                userId: user._id,
+                newStatus: status,
+                message: `User KYC status updated to ${status}`,
+            })
+        }
+
         return res.status(200).json({
             success: true,
             message: `User KYC status updated to ${status}`,
@@ -289,9 +314,11 @@ export const updateUserKYCStatus = async (req, res) => {
     }
 }
 
+/**
+ * GET ALL USERS WITH KYC (ANY STATUS)
+ */
 export const getAllUsersWithKYC = async (req, res) => {
     try {
-        // Find all KYC records (any status)
         const allKycList = await UserKYCModel.find().populate("userId")
 
         const users = allKycList.map((kyc) => ({
@@ -299,7 +326,6 @@ export const getAllUsersWithKYC = async (req, res) => {
             fullName: kyc.userId.fullName,
             email: kyc.userId.email,
             kycStatus: kyc.kycStatus,
-            // more fields if needed
         }))
 
         return res.status(200).json({
@@ -316,35 +342,31 @@ export const getAllUsersWithKYC = async (req, res) => {
     }
 }
 
-// Get all verified KYC records
+/**
+ * GET ALL VERIFIED USER KYC
+ */
 export const getVerifiedUserKYC = async (req, res) => {
     try {
-        // Find all records where kycStatus = "verified"
         const verifiedList = await UserKYCModel.find({ kycStatus: "verified" })
-            .populate("userId");
+            .populate("userId")
 
-        // Transform the data as needed
         const users = verifiedList.map((kyc) => ({
             _id: kyc.userId._id,
             fullName: kyc.userId.fullName,
             email: kyc.userId.email,
             kycStatus: kyc.kycStatus,
-            // Add any other fields you want to show from the user or KYC doc
-        }));
+        }))
 
         return res.status(200).json({
             success: true,
             users,
-        });
+        })
     } catch (error) {
-        console.error("Error fetching verified user KYC:", error);
+        console.error("Error fetching verified user KYC:", error)
         return res.status(500).json({
             success: false,
             message: "Failed to fetch verified user KYC",
             error: error.message,
-        });
+        })
     }
-};
-
-
-
+}

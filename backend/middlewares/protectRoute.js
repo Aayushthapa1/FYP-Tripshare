@@ -3,7 +3,7 @@ import _config from "../utils/config.js";
 import User from "../models/userModel.js";
 import { createResponse } from "../utils/responseHelper.js";
 
-const protectRoute = async (req, res, next) => {
+export const protectRoute = async (req, res, next) => {
   try {
     // Grab token from cookies or Authorization header
     const token =

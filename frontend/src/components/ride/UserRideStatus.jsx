@@ -212,7 +212,7 @@ const RideStatus = () => {
       <Navbar />
       <Toaster richColors position="top-center" />
 
-      <div className="bg-gray-50 min-h-screen py-8">
+      <div className="bg-gray-50 min-h-screen pt-20 pb-8">
         <div className="container mx-auto px-4 max-w-lg">
           <div className="bg-white rounded-xl shadow-sm overflow-hidden">
             {/* Header */}

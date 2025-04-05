@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { useDispatch, useSelector } from "react-redux";
 import {
   getUserProfile,
@@ -8,6 +9,7 @@ import { User, Mail, Phone, MapPin, Edit, Save, X, Home } from "lucide-react";
 
 const ProfileModal = ({ isOpen, onClose, userId }) => {
   const dispatch = useDispatch();
+  const navigate = useNavigate();
   const { loading, error } = useSelector((state) => state.user);
   const userData = useSelector(
     (state) => state.user?.userData?.Result?.user_data
@@ -294,13 +296,22 @@ const ProfileModal = ({ isOpen, onClose, userId }) => {
               {/* Quick Links */}
               <div className="px-6 pb-6 sm:px-8 sm:pb-8">
                 <div className="flex flex-wrap gap-3 justify-center">
-                  <button className="px-4 py-2 bg-white border border-gray-300 text-gray-700 font-medium rounded-lg hover:bg-gray-50 transition-all duration-200 text-sm">
+                  <button
+                    onClick={() => navigate("/trips")}
+                    className="px-4 py-2 bg-white border border-gray-300 text-gray-700 font-medium rounded-lg hover:bg-gray-50 transition-all duration-200 text-sm"
+                  >
                     View Trips
                   </button>
-                  <button className="px-4 py-2 bg-white border border-gray-300 text-gray-700 font-medium rounded-lg hover:bg-gray-50 transition-all duration-200 text-sm">
+                  <button
+                    onClick={() => navigate("/payment-methods")}
+                    className="px-4 py-2 bg-white border border-gray-300 text-gray-700 font-medium rounded-lg hover:bg-gray-50 transition-all duration-200 text-sm"
+                  >
                     Payment Methods
                   </button>
-                  <button className="px-4 py-2 bg-white border border-gray-300 text-gray-700 font-medium rounded-lg hover:bg-gray-50 transition-all duration-200 text-sm">
+                  <button
+                    onClick={() => navigate("/helpcenter")}
+                    className="px-4 py-2 bg-white border border-gray-300 text-gray-700 font-medium rounded-lg hover:bg-gray-50 transition-all duration-200 text-sm"
+                  >
                     Contact Support
                   </button>
                 </div>

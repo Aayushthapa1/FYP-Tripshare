@@ -27,7 +27,7 @@ export const createBooking = createAsyncThunk(
 );
 
 // 2) Get all bookings for current user
-export const getMyBookings = createAsyncThunk(
+export const fetchMyBookings = createAsyncThunk(
   "booking/getMyBookings",
   async (_, { rejectWithValue }) => {
     try {
@@ -71,7 +71,8 @@ const bookingSlice = createSlice({
     error: null,
     myBookings: [],       // Store user’s bookings
     currentBooking: null, // Store a single booking detail
-    lastAction: null,     // Track last update time
+    lastAction: null,  
+       // Track last update time
   },
   reducers: {
     clearBookingError: (state) => {
@@ -102,31 +103,32 @@ const bookingSlice = createSlice({
       })
 
       // GET MY BOOKINGS
-      .addCase(getMyBookings.pending, (state) => {
+      .addCase(fetchMyBookings.pending, (state) => {
         state.loading = true;
         state.error = null;
       })
-      .addCase(getMyBookings.fulfilled, (state, action) => {
+      .addCase(fetchMyBookings.fulfilled, (state, action) => {
         state.loading = false;
-        state.myBookings = action.payload;
+        // If your service returns an array of bookings, store it:
+        state.myBookings = action.payload?.Result?.bookings || action.payload.bookings || [];
       })
-      .addCase(getMyBookings.rejected, (state, action) => {
+      .addCase(fetchMyBookings.rejected, (state, action) => {
         state.loading = false;
         state.error = action.payload;
       })
 
       // GET BOOKING DETAILS
       .addCase(getBookingDetails.pending, (state) => {
-        state.isLoading = true
+        state.loading = true
       })
       .addCase(getBookingDetails.fulfilled, (state, action) => {
-        state.isLoading = false
+        state.loading = false
         state.isSuccess = true
         state.booking = action.payload.data.booking
       })
       .addCase(getBookingDetails.rejected, (state, action) => {
-        state.isLoading = false
-        state.isError = true
+        state.loading = false
+        state.error = true
         state.message = action.payload
       })
 

@@ -25,9 +25,7 @@ const submitUserKYC = async (formData) => {
             }
         }
 
-        // Important: Do not create a new FormData object, use the one passed in
-        // This ensures the file objects remain intact
-        const response = await axios.post(`${Base_Backend_Url}/api/userkyc/kyc/${userId}`, formData, {
+        const response = await axios.post(`/api/userkyc/kyc/${userId}`, formData, {
             headers: {
                 "Content-Type": "multipart/form-data",
             },
@@ -47,7 +45,7 @@ const submitUserKYC = async (formData) => {
 const getUserKYCStatus = async (userId) => {
     try {
         console.log(`Getting KYC status for user ${userId}`);
-        const response = await axiosInstance.get(`${Base_Backend_Url}/api/userkyc/kyc/status/${userId}`);
+        const response = await axiosInstance.get(`/api/userkyc/kyc/status/${userId}`);
         console.log("User KYC status fetched successfully:", response.data);
         return response.data;
     } catch (error) {

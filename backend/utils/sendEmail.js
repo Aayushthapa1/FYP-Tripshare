@@ -21,14 +21,17 @@ export async function sendEmail({ to, subject, template, context }) {
             user: process.env.EMAIL,
             pass: process.env.EMAIL_PASSWORD,
         },
-    })
+    });
 
     // Select the appropriate HTML template based on the "template" parameter.
-    let html
-    if (template === "registration") {
-        html = registrationEmailTemplate(context)
-    } else {
-        html = `<p>No template found for ${template}</p>`
+    let html;
+    switch (template) {
+        case "registration":
+            html = registrationEmailTemplate(context);
+            break;
+        // Add more cases for other templates if needed
+        default:
+            html = `<p>No template found for ${template}</p>`;
     }
 
     // Send mail with the defined transport object.
@@ -37,9 +40,9 @@ export async function sendEmail({ to, subject, template, context }) {
         to,
         subject,
         html,
-    })
+    });
 
-    console.log("Message sent: %s", info.messageId)
-    return info
+    console.log("Message sent: %s", info.messageId);
+    return info;
 }
 

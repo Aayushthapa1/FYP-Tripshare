@@ -1,51 +1,49 @@
-"use client";
-
 import { useState, useEffect } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { toast } from "sonner";
-import { X, Upload, AlertCircle, ChevronRight } from "lucide-react";
+import { X, Upload, Check, AlertCircle } from "lucide-react";
 import {
-  savePersonalInfo,
-  saveLicenseInfo,
-  saveVehicleInfo,
+  createDriverKYCAction,
+  updateDriverKYCAction,
+  clearKYCError,
 } from "../Slices/driverKYCSlice";
 
-const DriverKycModal = ({ isOpen, onClose, userId }) => {
+const DriverKYCModal = ({ isOpen, onClose, userId, existingData = null }) => {
   const dispatch = useDispatch();
-  const { loading, currentDriver } = useSelector((state) => state.driver) || {};
+  const { loading, error, status } = useSelector((state) => state.driverKYC);
+  const { user: authUser } = useSelector((state) => state.auth) || {};
 
+  const effectiveUserId = userId || authUser?._id;
+
+  // Form steps
   const [step, setStep] = useState(1);
-  const [driverId, setDriverId] = useState(null);
-  const [errors, setErrors] = useState({});
+  const totalSteps = 3;
 
   // Form data state
-  const [personalInfo, setPersonalInfo] = useState({
+  const [formData, setFormData] = useState({
     fullName: "",
     address: "",
     email: "",
     gender: "Male",
     dob: "",
     citizenshipNumber: "",
-    photo: null,
-  });
-
-  const [licenseInfo, setLicenseInfo] = useState({
     licenseNumber: "",
-    frontPhoto: null,
-    backPhoto: null,
-  });
-
-  const [vehicleInfo, setVehicleInfo] = useState({
-    vehicleType: "Car",
+    vehicleType: "",
     numberPlate: "",
     productionYear: "",
-    vehiclePhoto: null,
-    vehicleDetailPhoto: null,
-    ownerDetailPhoto: null,
-    renewalDetailPhoto: null,
+    vehicleDetail: "",
   });
 
-  // Image previews
+  // File states
+  const [photo, setPhoto] = useState(null);
+  const [frontPhoto, setFrontPhoto] = useState(null);
+  const [backPhoto, setBackPhoto] = useState(null);
+  const [vehiclePhoto, setVehiclePhoto] = useState(null);
+  const [vehicleDetailPhoto, setVehicleDetailPhoto] = useState(null);
+  const [ownerDetailPhoto, setOwnerDetailPhoto] = useState(null);
+  const [renewalDetailPhoto, setRenewalDetailPhoto] = useState(null);
+
+  // Preview states
   const [photoPreview, setPhotoPreview] = useState(null);
   const [frontPhotoPreview, setFrontPhotoPreview] = useState(null);
   const [backPhotoPreview, setBackPhotoPreview] = useState(null);
@@ -56,1176 +54,348 @@ const DriverKycModal = ({ isOpen, onClose, userId }) => {
   const [renewalDetailPhotoPreview, setRenewalDetailPhotoPreview] =
     useState(null);
 
-  const [modalOpen, setModalOpen] = useState(false);
+  // Form validation errors
+  const [errors, setErrors] = useState({});
 
+  // Populate form with existing data if available
   useEffect(() => {
-    setModalOpen(isOpen);
-  }, [isOpen]);
+    if (existingData) {
+      const formattedData = { ...existingData };
 
-  // Set driverId if currentDriver is available
+      // Format date for input
+      if (formattedData.dob) {
+        const date = new Date(formattedData.dob);
+        formattedData.dob = date.toISOString().split("T")[0];
+      }
+
+      setFormData({
+        fullName: formattedData.fullName || "",
+        address: formattedData.address || "",
+        email: formattedData.email || "",
+        gender: formattedData.gender || "Male",
+        dob: formattedData.dob || "",
+        citizenshipNumber: formattedData.citizenshipNumber || "",
+        licenseNumber: formattedData.licenseNumber || "",
+        vehicleType: formattedData.vehicleType || "",
+        numberPlate: formattedData.numberPlate || "",
+        productionYear: formattedData.productionYear?.toString() || "",
+      });
+
+      // Set image previews if available
+      if (formattedData.photo) setPhotoPreview(formattedData.photo);
+      if (formattedData.frontPhoto)
+        setFrontPhotoPreview(formattedData.frontPhoto);
+      if (formattedData.backPhoto) setBackPhotoPreview(formattedData.backPhoto);
+      if (formattedData.vehiclePhoto)
+        setVehiclePhotoPreview(formattedData.vehiclePhoto);
+      if (formattedData.vehicleDetailPhoto)
+        setVehicleDetailPhotoPreview(formattedData.vehicleDetailPhoto);
+      if (formattedData.ownerDetailPhoto)
+        setOwnerDetailPhotoPreview(formattedData.ownerDetailPhoto);
+      if (formattedData.renewalDetailPhoto)
+        setRenewalDetailPhotoPreview(formattedData.renewalDetailPhoto);
+    }
+  }, [existingData]);
+
+  // Reset form when modal closes
   useEffect(() => {
-    console.log("DriverKycModal - Current driver updated:", currentDriver);
-    if (currentDriver && currentDriver._id) {
-      console.log("Setting driverId from currentDriver:", currentDriver._id);
-      setDriverId(currentDriver._id);
-    }
-  }, [currentDriver]);
+    if (!isOpen) {
+      setStep(1);
+      if (!existingData) {
+        setFormData({
+          fullName: "",
+          address: "",
+          email: "",
+          gender: "Male",
+          dob: "",
+          citizenshipNumber: "",
+          licenseNumber: "",
+          vehicleType: "",
+          numberPlate: "",
+          productionYear: "",
+        });
 
-  // Add a new useEffect to validate userId on mount
+        // Reset file states
+        setPhoto(null);
+        setFrontPhoto(null);
+        setBackPhoto(null);
+        setVehiclePhoto(null);
+        setVehicleDetailPhoto(null);
+        setOwnerDetailPhoto(null);
+        setRenewalDetailPhoto(null);
+
+        // Reset preview states
+        setPhotoPreview(null);
+        setFrontPhotoPreview(null);
+        setBackPhotoPreview(null);
+        setVehiclePhotoPreview(null);
+        setVehicleDetailPhotoPreview(null);
+        setOwnerDetailPhotoPreview(null);
+        setRenewalDetailPhotoPreview(null);
+      }
+      setErrors({});
+      dispatch(clearKYCError());
+    }
+  }, [isOpen, dispatch, existingData]);
+
+  // Close modal on successful submission
   useEffect(() => {
-    console.log("DriverKycModal mounted with userId:", userId);
-    if (!userId) {
-      console.error("WARNING: DriverKycModal initialized without a userId");
-    }
-  }, [userId]);
-
-  // Conditionally render the modal content
-  if (!modalOpen) return null;
-
-  const handlePersonalInfoChange = (e) => {
-    const { name, value } = e.target;
-    setPersonalInfo({
-      ...personalInfo,
-      [name]: value,
-    });
-    // Clear error when user types
-    if (errors[name]) {
-      setErrors({
-        ...errors,
-        [name]: null,
-      });
-    }
-  };
-
-  const handleLicenseInfoChange = (e) => {
-    const { name, value } = e.target;
-    setLicenseInfo({
-      ...licenseInfo,
-      [name]: value,
-    });
-    // Clear error when user types
-    if (errors[name]) {
-      setErrors({
-        ...errors,
-        [name]: null,
-      });
-    }
-  };
-
-  const handleVehicleInfoChange = (e) => {
-    const { name, value } = e.target;
-    setVehicleInfo({
-      ...vehicleInfo,
-      [name]: value,
-    });
-    // Clear error when user types
-    if (errors[name]) {
-      setErrors({
-        ...errors,
-        [name]: null,
-      });
-    }
-  };
-
-  const handlePersonalPhotoChange = (e) => {
-    const file = e.target.files[0];
-    if (file) {
-      setPersonalInfo({
-        ...personalInfo,
-        photo: file,
-      });
-
-      // Create preview URL
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setPhotoPreview(reader.result);
-      };
-      reader.readAsDataURL(file);
-
-      // Clear error
-      if (errors.photo) {
-        setErrors({
-          ...errors,
-          photo: null,
-        });
-      }
-    }
-  };
-
-  const handleLicensePhotoChange = (e) => {
-    const { name } = e.target;
-    const file = e.target.files[0];
-
-    if (file) {
-      setLicenseInfo({
-        ...licenseInfo,
-        [name]: file,
-      });
-
-      // Create preview URL
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        if (name === "frontPhoto") {
-          setFrontPhotoPreview(reader.result);
-        } else if (name === "backPhoto") {
-          setBackPhotoPreview(reader.result);
-        }
-      };
-      reader.readAsDataURL(file);
-
-      // Clear error
-      if (errors[name]) {
-        setErrors({
-          ...errors,
-          [name]: null,
-        });
-      }
-    }
-  };
-
-  const handleVehiclePhotoChange = (e) => {
-    const { name } = e.target;
-    const file = e.target.files[0];
-
-    if (file) {
-      setVehicleInfo({
-        ...vehicleInfo,
-        [name]: file,
-      });
-
-      // Create preview URL
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        if (name === "vehiclePhoto") {
-          setVehiclePhotoPreview(reader.result);
-        } else if (name === "vehicleDetailPhoto") {
-          setVehicleDetailPhotoPreview(reader.result);
-        } else if (name === "ownerDetailPhoto") {
-          setOwnerDetailPhotoPreview(reader.result);
-        } else if (name === "renewalDetailPhoto") {
-          setRenewalDetailPhotoPreview(reader.result);
-        }
-      };
-      reader.readAsDataURL(file);
-
-      // Clear error
-      if (errors[name]) {
-        setErrors({
-          ...errors,
-          [name]: null,
-        });
-      }
-    }
-  };
-
-  const validatePersonalInfo = () => {
-    const newErrors = {};
-
-    if (!personalInfo.fullName.trim())
-      newErrors.fullName = "Full name is required";
-    if (!personalInfo.address.trim()) newErrors.address = "Address is required";
-    if (!personalInfo.email.trim()) newErrors.email = "Email is required";
-    if (!personalInfo.gender) newErrors.gender = "Gender is required";
-    if (!personalInfo.dob) newErrors.dob = "Date of birth is required";
-    if (!personalInfo.citizenshipNumber.trim())
-      newErrors.citizenshipNumber = "Citizenship number is required";
-    if (!personalInfo.photo) newErrors.photo = "Photo is required";
-    if (!userId) newErrors.userId = "User ID is required";
-
-    setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
-  };
-
-  const validateLicenseInfo = () => {
-    const newErrors = {};
-
-    if (!licenseInfo.licenseNumber.trim())
-      newErrors.licenseNumber = "License number is required";
-    if (!licenseInfo.frontPhoto)
-      newErrors.frontPhoto = "Front photo of license is required";
-    if (!userId) newErrors.userId = "User ID is required";
-
-    setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
-  };
-
-  // Update the validateVehicleInfo function to match the required fields in the controller
-  const validateVehicleInfo = () => {
-    const newErrors = {};
-
-    if (!vehicleInfo.numberPlate.trim())
-      newErrors.numberPlate = "Number plate is required";
-    if (!vehicleInfo.productionYear)
-      newErrors.productionYear = "Production year is required";
-    if (!vehicleInfo.vehiclePhoto)
-      newErrors.vehiclePhoto = "Vehicle photo is required";
-    if (!vehicleInfo.vehicleDetailPhoto)
-      newErrors.vehicleDetailPhoto = "Vehicle detail photo is required";
-    if (!vehicleInfo.ownerDetailPhoto)
-      newErrors.ownerDetailPhoto = "Owner detail photo is required";
-    if (!vehicleInfo.renewalDetailPhoto)
-      newErrors.renewalDetailPhoto = "Renewal detail photo is required";
-    if (!userId) newErrors.userId = "User ID is required";
-
-    setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
-  };
-
-  const handleSubmitPersonalInfo = async () => {
-    if (!validatePersonalInfo()) {
-      toast.error("Please fill in all required personal information fields");
-      return;
-    }
-
-    if (!userId || userId === "undefined" || userId === "null") {
-      console.error(
-        "Invalid userId detected in personal info submission:",
-        userId
-      );
-      toast.error(
-        "User ID is missing or invalid. Please try again or contact support."
-      );
-      return;
-    }
-
-    const formData = new FormData();
-    formData.append("fullName", personalInfo.fullName);
-    formData.append("address", personalInfo.address);
-    formData.append("email", personalInfo.email);
-    formData.append("gender", personalInfo.gender);
-    formData.append("dob", personalInfo.dob);
-    formData.append("citizenshipNumber", personalInfo.citizenshipNumber);
-    formData.append("photo", personalInfo.photo);
-    formData.append("userId", userId);
-
-    console.log(formData);
-    try {
-      const response = await dispatch(savePersonalInfo(formData)).unwrap();
-      console.log("Personal info response:", response);
-
-      // Handle both response formats
-      const driver = response.driver || response;
-      if (driver && driver._id) {
-        setDriverId(driver._id);
-        toast.success("Personal information saved successfully");
-        setStep(2);
-      } else {
-        toast.error("Failed to save personal information. Please try again.");
-      }
-    } catch (error) {
-      console.error("Error in handleSubmitPersonalInfo:", error);
-      toast.error(
-        `Failed to save personal information: ${
-          error.message || "Unknown error"
-        }`
-      );
-    }
-  };
-
-  const handleSubmitLicenseInfo = async () => {
-    if (!validateLicenseInfo()) {
-      toast.error("Please fill in all required license information fields");
-      return;
-    }
-
-    if (!userId || userId === "undefined" || userId === "null") {
-      console.error(
-        "Invalid userId detected in license info submission:",
-        userId
-      );
-      toast.error(
-        "User ID is missing or invalid. Please try again or contact support."
-      );
-      return;
-    }
-
-    console.log(
-      "License info submission - userId:",
-      userId,
-      "driverId:",
-      driverId
-    );
-
-    const formData = new FormData();
-    formData.append("licenseNumber", licenseInfo.licenseNumber);
-    formData.append("frontPhoto", licenseInfo.frontPhoto);
-    if (licenseInfo.backPhoto) {
-      formData.append("backPhoto", licenseInfo.backPhoto);
-    }
-    formData.append("userId", userId); // Use userId instead of driverId
-
-    console.log("Submitting license info with userId:", userId);
-
-    try {
-      await dispatch(saveLicenseInfo({ driverId, formData })).unwrap();
-      toast.success("License information saved successfully");
-      setStep(3);
-    } catch (error) {
-      console.error("Error in handleSubmitLicenseInfo:", error);
-      toast.error(
-        `Failed to save license information: ${
-          error.message || "Unknown error"
-        }`
-      );
-    }
-  };
-
-  const handleSubmitVehicleInfo = async () => {
-    if (!validateVehicleInfo()) {
-      toast.error("Please fill in all required vehicle information fields");
-      return;
-    }
-
-    if (!userId || userId === "undefined" || userId === "null") {
-      console.error(
-        "Invalid userId detected in vehicle info submission:",
-        userId
-      );
-      toast.error(
-        "User ID is missing or invalid. Please try again or contact support."
-      );
-      return;
-    }
-
-    console.log(
-      "Vehicle info submission - userId:",
-      userId,
-      "driverId:",
-      driverId
-    );
-
-    const formData = new FormData();
-    formData.append("vehicleType", vehicleInfo.vehicleType);
-    formData.append("numberPlate", vehicleInfo.numberPlate);
-    formData.append("productionYear", vehicleInfo.productionYear);
-    formData.append("vehiclePhoto", vehicleInfo.vehiclePhoto);
-
-    if (vehicleInfo.vehicleDetailPhoto) {
-      formData.append("vehicleDetailPhoto", vehicleInfo.vehicleDetailPhoto);
-    }
-    if (vehicleInfo.ownerDetailPhoto) {
-      formData.append("ownerDetailPhoto", vehicleInfo.ownerDetailPhoto);
-    }
-    if (vehicleInfo.renewalDetailPhoto) {
-      formData.append("renewalDetailPhoto", vehicleInfo.renewalDetailPhoto);
-    }
-    formData.append("userId", userId); // Use userId instead of driverId
-
-    console.log("Submitting vehicle info with userId:", userId);
-
-    try {
-      await dispatch(saveVehicleInfo({ driverId, formData })).unwrap();
-      toast.success("Vehicle information saved successfully");
+    if (status === "succeeded" && !loading) {
       toast.success(
-        "KYC information submitted successfully! Your application is under review."
+        existingData
+          ? "KYC updated successfully!"
+          : "KYC submitted successfully!"
       );
       onClose();
-    } catch (error) {
-      console.error("Error in handleSubmitVehicleInfo:", error);
-      toast.error(
-        `Failed to save vehicle information: ${
-          error.message || "Unknown error"
-        }`
-      );
+    }
+  }, [status, loading, onClose, existingData]);
+
+  // Handle input changes
+  const handleInputChange = (e) => {
+    const { name, value } = e.target;
+    setFormData((prev) => ({
+      ...prev,
+      [name]: value,
+    }));
+
+    // Clear validation error when field is updated
+    if (errors[name]) {
+      setErrors((prev) => ({
+        ...prev,
+        [name]: null,
+      }));
     }
   };
 
-  const renderPersonalInfoForm = () => (
-    <div className="space-y-4">
-      <div className="bg-blue-50 border-l-4 border-blue-500 p-3 mb-4">
-        <div className="flex">
-          <AlertCircle className="h-5 w-5 text-blue-500 mr-2" />
-          <p className="text-sm text-blue-700">
-            Please provide your personal information for driver verification.
-            This is required to start earning with us.
-          </p>
-        </div>
-      </div>
+  // Handle file uploads
+  const handleFileChange = (e) => {
+    const { name, files } = e.target;
+    const file = files[0];
+    if (!file) return;
 
-      <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">
-          Full Name *
-        </label>
-        <input
-          type="text"
-          name="fullName"
-          value={personalInfo.fullName}
-          onChange={handlePersonalInfoChange}
-          className={`w-full px-3 py-2 border ${
-            errors.fullName ? "border-red-500" : "border-gray-300"
-          } rounded-md focus:outline-none focus:ring-2 focus:ring-green-500`}
-        />
-        {errors.fullName && (
-          <p className="text-red-500 text-xs mt-1">{errors.fullName}</p>
-        )}
-      </div>
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error("File size should be less than 5MB");
+      return;
+    }
 
-      <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">
-          Email *
-        </label>
-        <input
-          type="email"
-          name="email"
-          value={personalInfo.email}
-          onChange={handlePersonalInfoChange}
-          className={`w-full px-3 py-2 border ${
-            errors.email ? "border-red-500" : "border-gray-300"
-          } rounded-md focus:outline-none focus:ring-2 focus:ring-green-500`}
-        />
-        {errors.email && (
-          <p className="text-red-500 text-xs mt-1">{errors.email}</p>
-        )}
-      </div>
+    const allowedTypes = ["image/jpeg", "image/png", "image/jpg"];
+    if (!allowedTypes.includes(file.type)) {
+      toast.error("Only JPG, JPEG, and PNG files are allowed");
+      return;
+    }
 
-      <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">
-          Address *
-        </label>
-        <input
-          type="text"
-          name="address"
-          value={personalInfo.address}
-          onChange={handlePersonalInfoChange}
-          className={`w-full px-3 py-2 border ${
-            errors.address ? "border-red-500" : "border-gray-300"
-          } rounded-md focus:outline-none focus:ring-2 focus:ring-green-500`}
-        />
-        {errors.address && (
-          <p className="text-red-500 text-xs mt-1">{errors.address}</p>
-        )}
-      </div>
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      switch (name) {
+        case "photo":
+          setPhoto(file);
+          setPhotoPreview(reader.result);
+          break;
+        case "frontPhoto":
+          setFrontPhoto(file);
+          setFrontPhotoPreview(reader.result);
+          break;
+        case "backPhoto":
+          setBackPhoto(file);
+          setBackPhotoPreview(reader.result);
+          break;
+        case "vehiclePhoto":
+          setVehiclePhoto(file);
+          setVehiclePhotoPreview(reader.result);
+          break;
+        case "vehicleDetailPhoto":
+          setVehicleDetailPhoto(file);
+          setVehicleDetailPhotoPreview(reader.result);
+          break;
+        case "ownerDetailPhoto":
+          setOwnerDetailPhoto(file);
+          setOwnerDetailPhotoPreview(reader.result);
+          break;
+        case "renewalDetailPhoto":
+          setRenewalDetailPhoto(file);
+          setRenewalDetailPhotoPreview(reader.result);
+          break;
+        default:
+          break;
+      }
+    };
+    reader.readAsDataURL(file);
 
-      <div className="grid grid-cols-2 gap-4">
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Gender *
-          </label>
-          <select
-            name="gender"
-            value={personalInfo.gender}
-            onChange={handlePersonalInfoChange}
-            className={`w-full px-3 py-2 border ${
-              errors.gender ? "border-red-500" : "border-gray-300"
-            } rounded-md focus:outline-none focus:ring-2 focus:ring-green-500`}
-          >
-            <option value="Male">Male</option>
-            <option value="Female">Female</option>
-            <option value="Other">Other</option>
-          </select>
-          {errors.gender && (
-            <p className="text-red-500 text-xs mt-1">{errors.gender}</p>
-          )}
-        </div>
+    if (errors[name]) {
+      setErrors((prev) => ({
+        ...prev,
+        [name]: null,
+      }));
+    }
+  };
 
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Date of Birth *
-          </label>
-          <input
-            type="date"
-            name="dob"
-            value={personalInfo.dob}
-            onChange={handlePersonalInfoChange}
-            className={`w-full px-3 py-2 border ${
-              errors.dob ? "border-red-500" : "border-gray-300"
-            } rounded-md focus:outline-none focus:ring-2 focus:ring-green-500`}
-          />
-          {errors.dob && (
-            <p className="text-red-500 text-xs mt-1">{errors.dob}</p>
-          )}
-        </div>
-      </div>
+  // Validate current step
+  const validateStep = () => {
+    const newErrors = {};
 
-      <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">
-          Citizenship Number *
-        </label>
-        <input
-          type="text"
-          name="citizenshipNumber"
-          value={personalInfo.citizenshipNumber}
-          onChange={handlePersonalInfoChange}
-          className={`w-full px-3 py-2 border ${
-            errors.citizenshipNumber ? "border-red-500" : "border-gray-300"
-          } rounded-md focus:outline-none focus:ring-2 focus:ring-green-500`}
-        />
-        {errors.citizenshipNumber && (
-          <p className="text-red-500 text-xs mt-1">
-            {errors.citizenshipNumber}
-          </p>
-        )}
-      </div>
+    if (step === 1) {
+      // Personal Information validation
+      if (!formData.fullName.trim())
+        newErrors.fullName = "Full name is required";
+      if (!formData.address.trim()) newErrors.address = "Address is required";
+      if (!formData.email.trim()) {
+        newErrors.email = "Email is required";
+      } else if (!/\S+@\S+\.\S+/.test(formData.email)) {
+        newErrors.email = "Email is invalid";
+      }
+      if (!formData.gender) newErrors.gender = "Gender is required";
+      if (!formData.dob) {
+        newErrors.dob = "Date of birth is required";
+      } else {
+        const dobDate = new Date(formData.dob);
+        const today = new Date();
+        if (dobDate >= today) {
+          newErrors.dob = "Date of birth cannot be in the future";
+        }
+      }
+      if (!formData.citizenshipNumber.trim())
+        newErrors.citizenshipNumber = "Citizenship number is required";
+      if (!photo && !photoPreview) newErrors.photo = "Photo is required";
+    } else if (step === 2) {
+      // License Information validation
+      if (!formData.licenseNumber.trim())
+        newErrors.licenseNumber = "License number is required";
+      if (!frontPhoto && !frontPhotoPreview)
+        newErrors.frontPhoto = "Front photo of license is required";
+      if (!backPhoto && !backPhotoPreview)
+        newErrors.backPhoto = "Back photo of license is required";
+    } else if (step === 3) {
+      // Vehicle Information validation (optional fields, but validate if provided)
+      if (
+        formData.vehicleType &&
+        !["Car", "Bike", "Electric"].includes(formData.vehicleType)
+      ) {
+        newErrors.vehicleType = "Invalid vehicle type";
+      }
 
-      <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">
-          Your Photo *
-        </label>
-        <div
-          className={`border-2 border-dashed rounded-lg p-4 ${
-            errors.photo ? "border-red-500" : "border-gray-300"
-          } hover:border-green-500 transition-colors`}
-        >
-          <div className="flex flex-col items-center justify-center">
-            {photoPreview ? (
-              <div className="relative">
-                <img
-                  src={photoPreview || "/placeholder.svg"}
-                  alt="Preview"
-                  className="w-32 h-32 object-cover rounded-lg mb-2"
-                />
-                <button
-                  type="button"
-                  onClick={() => {
-                    setPhotoPreview(null);
-                    setPersonalInfo({ ...personalInfo, photo: null });
-                  }}
-                  className="absolute top-0 right-0 bg-red-500 text-white rounded-full p-1"
-                >
-                  <X size={16} />
-                </button>
-              </div>
-            ) : (
-              <Upload className="h-12 w-12 text-gray-400 mb-2" />
-            )}
+      if (formData.productionYear) {
+        const year = parseInt(formData.productionYear);
+        if (isNaN(year) || year < 1900 || year > new Date().getFullYear() + 1) {
+          newErrors.productionYear = `Year must be between 1900 and ${
+            new Date().getFullYear() + 1
+          }`;
+        }
+      }
+    }
 
-            <div className="flex text-sm text-gray-600">
-              <label
-                htmlFor="personal-photo-upload"
-                className="relative cursor-pointer bg-white rounded-md font-medium text-green-600 hover:text-green-500"
-              >
-                <span>Upload a photo</span>
-                <input
-                  id="personal-photo-upload"
-                  name="photo"
-                  type="file"
-                  className="sr-only"
-                  accept="image/*"
-                  onChange={handlePersonalPhotoChange}
-                />
-              </label>
-              <p className="pl-1">or drag and drop</p>
-            </div>
-            <p className="text-xs text-gray-500">PNG, JPG, GIF up to 10MB</p>
-          </div>
-        </div>
-        {errors.photo && (
-          <p className="text-red-500 text-xs mt-1">{errors.photo}</p>
-        )}
-      </div>
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
 
-      {/* Display userId for debugging */}
-      <div className="text-xs text-gray-500">
-        User ID: {userId || "Not available"}
-        {errors.userId && (
-          <p className="text-red-500 text-xs mt-1">{errors.userId}</p>
-        )}
-      </div>
+  // Handle next step
+  const handleNext = () => {
+    if (validateStep()) {
+      setStep((prev) => Math.min(prev + 1, totalSteps));
+    } else {
+      toast.error("Please fix the errors before proceeding");
+    }
+  };
 
-      <div className="pt-4 flex justify-end">
-        <button
-          type="button"
-          onClick={handleSubmitPersonalInfo}
-          disabled={loading}
-          className="py-2 px-4 bg-green-500 hover:bg-green-600 text-white font-medium rounded-lg transition-colors flex items-center justify-center"
-        >
-          {loading ? (
-            <>
-              <svg
-                className="animate-spin -ml-1 mr-2 h-4 w-4 text-white"
-                xmlns="http://www.w3.org/2000/svg"
-                fill="none"
-                viewBox="0 0 24 24"
-              >
-                <circle
-                  className="opacity-25"
-                  cx="12"
-                  cy="12"
-                  r="10"
-                  stroke="currentColor"
-                  strokeWidth="4"
-                ></circle>
-                <path
-                  className="opacity-75"
-                  fill="currentColor"
-                  d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                ></path>
-              </svg>
-              Saving...
-            </>
-          ) : (
-            <>
-              Next
-              <ChevronRight className="ml-2 h-4 w-4" />
-            </>
-          )}
-        </button>
-      </div>
-    </div>
-  );
+  // Handle previous step
+  const handlePrevious = () => {
+    setStep((prev) => Math.max(prev - 1, 1));
+  };
 
-  const renderLicenseInfoForm = () => (
-    <div className="space-y-4">
-      <div className="bg-blue-50 border-l-4 border-blue-500 p-3 mb-4">
-        <div className="flex">
-          <AlertCircle className="h-5 w-5 text-blue-500 mr-2" />
-          <p className="text-sm text-blue-700">
-            Please provide your license information. This is required for
-            verification.
-          </p>
-        </div>
-      </div>
+  // Handle form submission
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    e.stopPropagation();
 
-      <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">
-          License Number *
-        </label>
-        <input
-          type="text"
-          name="licenseNumber"
-          value={licenseInfo.licenseNumber}
-          onChange={handleLicenseInfoChange}
-          className={`w-full px-3 py-2 border ${
-            errors.licenseNumber ? "border-red-500" : "border-gray-300"
-          } rounded-md focus:outline-none focus:ring-2 focus:ring-green-500`}
-        />
-        {errors.licenseNumber && (
-          <p className="text-red-500 text-xs mt-1">{errors.licenseNumber}</p>
-        )}
-      </div>
+    if (!validateStep()) {
+      toast.error("Please fix the errors before submitting");
+      return;
+    }
 
-      <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">
-          License Front Photo *
-        </label>
-        <div
-          className={`border-2 border-dashed rounded-lg p-4 ${
-            errors.frontPhoto ? "border-red-500" : "border-gray-300"
-          } hover:border-green-500 transition-colors`}
-        >
-          <div className="flex flex-col items-center justify-center">
-            {frontPhotoPreview ? (
-              <div className="relative">
-                <img
-                  src={frontPhotoPreview || "/placeholder.svg"}
-                  alt="Preview"
-                  className="w-32 h-32 object-cover rounded-lg mb-2"
-                />
-                <button
-                  type="button"
-                  onClick={() => {
-                    setFrontPhotoPreview(null);
-                    setLicenseInfo({ ...licenseInfo, frontPhoto: null });
-                  }}
-                  className="absolute top-0 right-0 bg-red-500 text-white rounded-full p-1"
-                >
-                  <X size={16} />
-                </button>
-              </div>
-            ) : (
-              <Upload className="h-12 w-12 text-gray-400 mb-2" />
-            )}
+    if (!effectiveUserId) {
+      toast.error("User ID is missing or invalid. Please try again.");
+      return;
+    }
 
-            <div className="flex text-sm text-gray-600">
-              <label
-                htmlFor="front-photo-upload"
-                className="relative cursor-pointer bg-white rounded-md font-medium text-green-600 hover:text-green-500"
-              >
-                <span>Upload front photo</span>
-                <input
-                  id="front-photo-upload"
-                  name="frontPhoto"
-                  type="file"
-                  className="sr-only"
-                  accept="image/*"
-                  onChange={handleLicensePhotoChange}
-                />
-              </label>
-              <p className="pl-1">or drag and drop</p>
-            </div>
-            <p className="text-xs text-gray-500">PNG, JPG, GIF up to 10MB</p>
-          </div>
-        </div>
-        {errors.frontPhoto && (
-          <p className="text-red-500 text-xs mt-1">{errors.frontPhoto}</p>
-        )}
-      </div>
+    // Prepare form data for API
+    const apiFormData = new FormData();
 
-      <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">
-          License Back Photo (Optional)
-        </label>
-        <div
-          className={`border-2 border-dashed rounded-lg p-4 border-gray-300 hover:border-green-500 transition-colors`}
-        >
-          <div className="flex flex-col items-center justify-center">
-            {backPhotoPreview ? (
-              <div className="relative">
-                <img
-                  src={backPhotoPreview || "/placeholder.svg"}
-                  alt="Preview"
-                  className="w-32 h-32 object-cover rounded-lg mb-2"
-                />
-                <button
-                  type="button"
-                  onClick={() => {
-                    setBackPhotoPreview(null);
-                    setLicenseInfo({ ...licenseInfo, backPhoto: null });
-                  }}
-                  className="absolute top-0 right-0 bg-red-500 text-white rounded-full p-1"
-                >
-                  <X size={16} />
-                </button>
-              </div>
-            ) : (
-              <Upload className="h-12 w-12 text-gray-400 mb-2" />
-            )}
+    // Append all text fields
+    apiFormData.append("user", effectiveUserId);
+    apiFormData.append("fullName", formData.fullName);
+    apiFormData.append("address", formData.address);
+    apiFormData.append("email", formData.email);
+    apiFormData.append("gender", formData.gender);
+    apiFormData.append("dob", formData.dob);
+    apiFormData.append("citizenshipNumber", formData.citizenshipNumber);
+    apiFormData.append("licenseNumber", formData.licenseNumber);
 
-            <div className="flex text-sm text-gray-600">
-              <label
-                htmlFor="back-photo-upload"
-                className="relative cursor-pointer bg-white rounded-md font-medium text-green-600 hover:text-green-500"
-              >
-                <span>Upload back photo</span>
-                <input
-                  id="back-photo-upload"
-                  name="backPhoto"
-                  type="file"
-                  className="sr-only"
-                  accept="image/*"
-                  onChange={handleLicensePhotoChange}
-                />
-              </label>
-              <p className="pl-1">or drag and drop</p>
-            </div>
-            <p className="text-xs text-gray-500">PNG, JPG, GIF up to 10MB</p>
-          </div>
-        </div>
-      </div>
+    if (formData.vehicleType)
+      apiFormData.append("vehicleType", formData.vehicleType);
+    if (formData.numberPlate)
+      apiFormData.append("numberPlate", formData.numberPlate);
+    if (formData.productionYear)
+      apiFormData.append("productionYear", formData.productionYear);
 
-      {/* Display userId for debugging */}
-      <div className="text-xs text-gray-500">
-        User ID: {userId || "Not available"}
-        {errors.userId && (
-          <p className="text-red-500 text-xs mt-1">{errors.userId}</p>
-        )}
-      </div>
+    // Append file fields
+    if (photo) {
+      apiFormData.append("photo", photo);
+      console.log("Added photo file:", photo.name);
+    }
+    if (frontPhoto) {
+      apiFormData.append("frontPhoto", frontPhoto);
+      console.log("Added frontPhoto file:", frontPhoto.name);
+    }
+    if (backPhoto) {
+      apiFormData.append("backPhoto", backPhoto);
+      console.log("Added backPhoto file:", backPhoto.name);
+    }
+    if (vehiclePhoto) {
+      apiFormData.append("vehiclePhoto", vehiclePhoto);
+      console.log("Added vehiclePhoto file:", vehiclePhoto.name);
+    }
+    if (vehicleDetailPhoto) {
+      apiFormData.append("vehicleDetailPhoto", vehicleDetailPhoto);
+      console.log("Added vehicleDetailPhoto file:", vehicleDetailPhoto.name);
+    }
+    if (ownerDetailPhoto) {
+      apiFormData.append("ownerDetailPhoto", ownerDetailPhoto);
+      console.log("Added ownerDetailPhoto file:", ownerDetailPhoto.name);
+    }
+    if (renewalDetailPhoto) {
+      apiFormData.append("renewalDetailPhoto", renewalDetailPhoto);
+      console.log("Added renewalDetailPhoto file:", renewalDetailPhoto.name);
+    }
 
-      <div className="pt-4 flex justify-between">
-        <button
-          type="button"
-          onClick={() => setStep(1)}
-          className="py-2 px-4 bg-gray-200 hover:bg-gray-300 text-gray-700 font-medium rounded-lg transition-colors"
-        >
-          Back
-        </button>
-        <button
-          type="button"
-          onClick={handleSubmitLicenseInfo}
-          disabled={loading}
-          className="py-2 px-4 bg-green-500 hover:bg-green-600 text-white font-medium rounded-lg transition-colors flex items-center justify-center"
-        >
-          {loading ? (
-            <>
-              <svg
-                className="animate-spin -ml-1 mr-2 h-4 w-4 text-white"
-                xmlns="http://www.w3.org/2000/svg"
-                fill="none"
-                viewBox="0 0 24 24"
-              >
-                <circle
-                  className="opacity-25"
-                  cx="12"
-                  cy="12"
-                  r="10"
-                  stroke="currentColor"
-                  strokeWidth="4"
-                ></circle>
-                <path
-                  className="opacity-75"
-                  fill="currentColor"
-                  d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                ></path>
-              </svg>
-              Saving...
-            </>
-          ) : (
-            <>
-              Next
-              <ChevronRight className="ml-2 h-4 w-4" />
-            </>
-          )}
-        </button>
-      </div>
-    </div>
-  );
+    console.log("Submitting Driver KYC with userId:", effectiveUserId);
 
-  const renderVehicleInfoForm = () => (
-    <div className="space-y-4">
-      <div className="bg-blue-50 border-l-4 border-blue-500 p-3 mb-4">
-        <div className="flex">
-          <AlertCircle className="h-5 w-5 text-blue-500 mr-2" />
-          <p className="text-sm text-blue-700">
-            Please provide your vehicle information. This is required for
-            verification.
-          </p>
-        </div>
-      </div>
+    try {
+      // Dispatch create or update action
+      if (existingData && existingData._id) {
+        await dispatch(
+          updateDriverKYCAction({
+            id: existingData._id,
+            data: apiFormData,
+          })
+        ).unwrap();
+      } else {
+        await dispatch(createDriverKYCAction(apiFormData)).unwrap();
+      }
+    } catch (error) {
+      console.error("Error in handleSubmit:", error);
+      toast.error(`Failed to submit KYC: ${error.message || "Unknown error"}`);
+    }
+  };
 
-      <div className="grid grid-cols-2 gap-4">
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Vehicle Type *
-          </label>
-          <select
-            name="vehicleType"
-            value={vehicleInfo.vehicleType}
-            onChange={handleVehicleInfoChange}
-            className={`w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500`}
-          >
-            <option value="Car">Car</option>
-            <option value="Bike">Bike</option>
-            <option value="Scooter">Scooter</option>
-            <option value="Van">Van</option>
-            <option value="Truck">Truck</option>
-          </select>
-        </div>
-
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Production Year *
-          </label>
-          <input
-            type="number"
-            name="productionYear"
-            value={vehicleInfo.productionYear}
-            onChange={handleVehicleInfoChange}
-            className={`w-full px-3 py-2 border ${
-              errors.productionYear ? "border-red-500" : "border-gray-300"
-            } rounded-md focus:outline-none focus:ring-2 focus:ring-green-500`}
-          />
-          {errors.productionYear && (
-            <p className="text-red-500 text-xs mt-1">{errors.productionYear}</p>
-          )}
-        </div>
-      </div>
-
-      <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">
-          Number Plate *
-        </label>
-        <input
-          type="text"
-          name="numberPlate"
-          value={vehicleInfo.numberPlate}
-          onChange={handleVehicleInfoChange}
-          className={`w-full px-3 py-2 border ${
-            errors.numberPlate ? "border-red-500" : "border-gray-300"
-          } rounded-md focus:outline-none focus:ring-2 focus:ring-green-500`}
-        />
-        {errors.numberPlate && (
-          <p className="text-red-500 text-xs mt-1">{errors.numberPlate}</p>
-        )}
-      </div>
-
-      <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">
-          Vehicle Photo *
-        </label>
-        <div
-          className={`border-2 border-dashed rounded-lg p-4 ${
-            errors.vehiclePhoto ? "border-red-500" : "border-gray-300"
-          } hover:border-green-500 transition-colors`}
-        >
-          <div className="flex flex-col items-center justify-center">
-            {vehiclePhotoPreview ? (
-              <div className="relative">
-                <img
-                  src={vehiclePhotoPreview || "/placeholder.svg"}
-                  alt="Preview"
-                  className="w-32 h-32 object-cover rounded-lg mb-2"
-                />
-                <button
-                  type="button"
-                  onClick={() => {
-                    setVehiclePhotoPreview(null);
-                    setVehicleInfo({ ...vehicleInfo, vehiclePhoto: null });
-                  }}
-                  className="absolute top-0 right-0 bg-red-500 text-white rounded-full p-1"
-                >
-                  <X size={16} />
-                </button>
-              </div>
-            ) : (
-              <Upload className="h-12 w-12 text-gray-400 mb-2" />
-            )}
-
-            <div className="flex text-sm text-gray-600">
-              <label
-                htmlFor="vehicle-photo-upload"
-                className="relative cursor-pointer bg-white rounded-md font-medium text-green-600 hover:text-green-500"
-              >
-                <span>Upload vehicle photo</span>
-                <input
-                  id="vehicle-photo-upload"
-                  name="vehiclePhoto"
-                  type="file"
-                  className="sr-only"
-                  accept="image/*"
-                  onChange={handleVehiclePhotoChange}
-                />
-              </label>
-              <p className="pl-1">or drag and drop</p>
-            </div>
-            <p className="text-xs text-gray-500">PNG, JPG, GIF up to 10MB</p>
-          </div>
-        </div>
-        {errors.vehiclePhoto && (
-          <p className="text-red-500 text-xs mt-1">{errors.vehiclePhoto}</p>
-        )}
-      </div>
-
-      <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">
-          Vehicle Detail Photo *
-        </label>
-        <div
-          className={`border-2 border-dashed rounded-lg p-4 ${
-            errors.vehicleDetailPhoto ? "border-red-500" : "border-gray-300"
-          } hover:border-green-500 transition-colors`}
-        >
-          <div className="flex flex-col items-center justify-center">
-            {vehicleDetailPhotoPreview ? (
-              <div className="relative">
-                <img
-                  src={vehicleDetailPhotoPreview || "/placeholder.svg"}
-                  alt="Preview"
-                  className="w-32 h-32 object-cover rounded-lg mb-2"
-                />
-                <button
-                  type="button"
-                  onClick={() => {
-                    setVehicleDetailPhotoPreview(null);
-                    setVehicleInfo({
-                      ...vehicleInfo,
-                      vehicleDetailPhoto: null,
-                    });
-                  }}
-                  className="absolute top-0 right-0 bg-red-500 text-white rounded-full p-1"
-                >
-                  <X size={16} />
-                </button>
-              </div>
-            ) : (
-              <Upload className="h-12 w-12 text-gray-400 mb-2" />
-            )}
-
-            <div className="flex text-sm text-gray-600">
-              <label
-                htmlFor="vehicle-detail-photo-upload"
-                className="relative cursor-pointer bg-white rounded-md font-medium text-green-600 hover:text-green-500"
-              >
-                <span>Upload vehicle detail photo</span>
-                <input
-                  id="vehicle-detail-photo-upload"
-                  name="vehicleDetailPhoto"
-                  type="file"
-                  className="sr-only"
-                  accept="image/*"
-                  onChange={handleVehiclePhotoChange}
-                />
-              </label>
-              <p className="pl-1">or drag and drop</p>
-            </div>
-            <p className="text-xs text-gray-500">PNG, JPG, GIF up to 10MB</p>
-          </div>
-        </div>
-        {errors.vehicleDetailPhoto && (
-          <p className="text-red-500 text-xs mt-1">
-            {errors.vehicleDetailPhoto}
-          </p>
-        )}
-      </div>
-
-      <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">
-          Owner Detail Photo *
-        </label>
-        <div
-          className={`border-2 border-dashed rounded-lg p-4 ${
-            errors.ownerDetailPhoto ? "border-red-500" : "border-gray-300"
-          } hover:border-green-500 transition-colors`}
-        >
-          <div className="flex flex-col items-center justify-center">
-            {ownerDetailPhotoPreview ? (
-              <div className="relative">
-                <img
-                  src={ownerDetailPhotoPreview || "/placeholder.svg"}
-                  alt="Preview"
-                  className="w-32 h-32 object-cover rounded-lg mb-2"
-                />
-                <button
-                  type="button"
-                  onClick={() => {
-                    setOwnerDetailPhotoPreview(null);
-                    setVehicleInfo({ ...vehicleInfo, ownerDetailPhoto: null });
-                  }}
-                  className="absolute top-0 right-0 bg-red-500 text-white rounded-full p-1"
-                >
-                  <X size={16} />
-                </button>
-              </div>
-            ) : (
-              <Upload className="h-12 w-12 text-gray-400 mb-2" />
-            )}
-
-            <div className="flex text-sm text-gray-600">
-              <label
-                htmlFor="owner-detail-photo-upload"
-                className="relative cursor-pointer bg-white rounded-md font-medium text-green-600 hover:text-green-500"
-              >
-                <span>Upload owner detail photo</span>
-                <input
-                  id="owner-detail-photo-upload"
-                  name="ownerDetailPhoto"
-                  type="file"
-                  className="sr-only"
-                  accept="image/*"
-                  onChange={handleVehiclePhotoChange}
-                />
-              </label>
-              <p className="pl-1">or drag and drop</p>
-            </div>
-            <p className="text-xs text-gray-500">PNG, JPG, GIF up to 10MB</p>
-          </div>
-        </div>
-        {errors.ownerDetailPhoto && (
-          <p className="text-red-500 text-xs mt-1">{errors.ownerDetailPhoto}</p>
-        )}
-      </div>
-
-      <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">
-          Renewal Detail Photo *
-        </label>
-        <div
-          className={`border-2 border-dashed rounded-lg p-4 ${
-            errors.renewalDetailPhoto ? "border-red-500" : "border-gray-300"
-          } hover:border-green-500 transition-colors`}
-        >
-          <div className="flex flex-col items-center justify-center">
-            {renewalDetailPhotoPreview ? (
-              <div className="relative">
-                <img
-                  src={renewalDetailPhotoPreview || "/placeholder.svg"}
-                  alt="Preview"
-                  className="w-32 h-32 object-cover rounded-lg mb-2"
-                />
-                <button
-                  type="button"
-                  onClick={() => {
-                    setRenewalDetailPhotoPreview(null);
-                    setVehicleInfo({
-                      ...vehicleInfo,
-                      renewalDetailPhoto: null,
-                    });
-                  }}
-                  className="absolute top-0 right-0 bg-red-500 text-white rounded-full p-1"
-                >
-                  <X size={16} />
-                </button>
-              </div>
-            ) : (
-              <Upload className="h-12 w-12 text-gray-400 mb-2" />
-            )}
-
-            <div className="flex text-sm text-gray-600">
-              <label
-                htmlFor="renewal-detail-photo-upload"
-                className="relative cursor-pointer bg-white rounded-md font-medium text-green-600 hover:text-green-500"
-              >
-                <span>Upload renewal detail photo</span>
-                <input
-                  id="renewal-detail-photo-upload"
-                  name="renewalDetailPhoto"
-                  type="file"
-                  className="sr-only"
-                  accept="image/*"
-                  onChange={handleVehiclePhotoChange}
-                />
-              </label>
-              <p className="pl-1">or drag and drop</p>
-            </div>
-            <p className="text-xs text-gray-500">PNG, JPG, GIF up to 10MB</p>
-          </div>
-        </div>
-        {errors.renewalDetailPhoto && (
-          <p className="text-red-500 text-xs mt-1">
-            {errors.renewalDetailPhoto}
-          </p>
-        )}
-      </div>
-
-      {/* Display userId for debugging */}
-      <div className="text-xs text-gray-500">
-        User ID: {userId || "Not available"}
-        {errors.userId && (
-          <p className="text-red-500 text-xs mt-1">{errors.userId}</p>
-        )}
-      </div>
-
-      <div className="pt-4 flex justify-between">
-        <button
-          type="button"
-          onClick={() => setStep(2)}
-          className="py-2 px-4 bg-gray-200 hover:bg-gray-300 text-gray-700 font-medium rounded-lg transition-colors"
-        >
-          Back
-        </button>
-        <button
-          type="button"
-          onClick={handleSubmitVehicleInfo}
-          disabled={loading}
-          className="py-2 px-4 bg-green-500 hover:bg-green-600 text-white font-medium rounded-lg transition-colors flex items-center justify-center"
-        >
-          {loading ? (
-            <>
-              <svg
-                className="animate-spin -ml-1 mr-2 h-4 w-4 text-white"
-                xmlns="http://www.w3.org/2000/svg"
-                fill="none"
-                viewBox="0 0 24 24"
-              >
-                <circle
-                  className="opacity-25"
-                  cx="12"
-                  cy="12"
-                  r="10"
-                  stroke="currentColor"
-                  strokeWidth="4"
-                ></circle>
-                <path
-                  className="opacity-75"
-                  fill="currentColor"
-                  d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                ></path>
-              </svg>
-              Submitting...
-            </>
-          ) : (
-            <>Submit</>
-          )}
-        </button>
-      </div>
-    </div>
-  );
+  // If modal is not open, don't render anything
+  if (!isOpen) return null;
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-lg shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+        {/* Header */}
         <div className="flex justify-between items-center p-4 border-b">
           <h2 className="text-xl font-semibold text-gray-800">
-            Driver KYC Verification
+            {existingData ? "Update Driver KYC" : "Driver KYC Submission"}
           </h2>
           <button
             onClick={onClose}
@@ -1236,65 +406,773 @@ const DriverKycModal = ({ isOpen, onClose, userId }) => {
         </div>
 
         {/* Progress Steps */}
-        <div className="px-4 pt-4">
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex flex-col items-center">
-              <div
-                className={`w-8 h-8 rounded-full flex items-center justify-center ${
-                  step >= 1
-                    ? "bg-green-500 text-white"
-                    : "bg-gray-200 text-gray-500"
-                }`}
-              >
-                1
-              </div>
-              <span className="text-xs mt-1">Personal</span>
-            </div>
+        <div className="flex justify-between p-4 border-b border-gray-200">
+          {Array.from({ length: totalSteps }).map((_, index) => (
             <div
-              className={`flex-1 h-1 mx-2 ${
-                step >= 2 ? "bg-green-500" : "bg-gray-200"
-              }`}
-            ></div>
-            <div className="flex flex-col items-center">
+              key={index}
+              className="flex flex-col items-center relative flex-1"
+            >
               <div
-                className={`w-8 h-8 rounded-full flex items-center justify-center ${
-                  step >= 2
+                className={`w-10 h-10 rounded-full flex items-center justify-center z-10 ${
+                  step > index
                     ? "bg-green-500 text-white"
-                    : "bg-gray-200 text-gray-500"
+                    : step === index + 1
+                    ? "bg-blue-500 text-white"
+                    : "bg-gray-200 text-gray-600"
                 }`}
               >
-                2
+                {index + 1}
               </div>
-              <span className="text-xs mt-1">License</span>
-            </div>
-            <div
-              className={`flex-1 h-1 mx-2 ${
-                step >= 3 ? "bg-green-500" : "bg-gray-200"
-              }`}
-            ></div>
-            <div className="flex flex-col items-center">
-              <div
-                className={`w-8 h-8 rounded-full flex items-center justify-center ${
-                  step >= 3
-                    ? "bg-green-500 text-white"
-                    : "bg-gray-200 text-gray-500"
-                }`}
-              >
-                3
+              <div className="text-xs mt-2 text-center">
+                {index === 0
+                  ? "Personal Info"
+                  : index === 1
+                  ? "License Info"
+                  : "Vehicle Info"}
               </div>
-              <span className="text-xs mt-1">Vehicle</span>
+              {index < totalSteps - 1 && (
+                <div
+                  className={`absolute top-5 left-1/2 w-full h-0.5 ${
+                    step > index + 1 ? "bg-green-500" : "bg-gray-200"
+                  }`}
+                ></div>
+              )}
             </div>
-          </div>
+          ))}
         </div>
 
-        <div className="p-4">
-          {step === 1 && renderPersonalInfoForm()}
-          {step === 2 && renderLicenseInfoForm()}
-          {step === 3 && renderVehicleInfoForm()}
-        </div>
+        {/* Error Message */}
+        {error && (
+          <div className="mx-4 mt-4 p-3 bg-red-50 border border-red-200 rounded-md text-red-600 flex justify-between items-center">
+            <div className="flex">
+              <AlertCircle className="h-5 w-5 text-red-500 mr-2" />
+              <span>{error}</span>
+            </div>
+            <button
+              className="text-red-500 hover:text-red-700"
+              onClick={() => dispatch(clearKYCError())}
+            >
+              <X size={16} />
+            </button>
+          </div>
+        )}
+
+        <form onSubmit={handleSubmit}>
+          {/* Step 1: Personal Information */}
+          {step === 1 && (
+            <div className="p-4">
+              <h3 className="text-lg font-medium text-gray-800 mb-4">
+                Personal Information
+              </h3>
+
+              {/* Info Banner */}
+              <div className="bg-blue-50 border-l-4 border-blue-500 p-3 mb-4">
+                <div className="flex">
+                  <AlertCircle className="h-5 w-5 text-blue-500 mr-2" />
+                  <p className="text-sm text-blue-700">
+                    Please provide your personal information for KYC
+                    verification. This is required to use our services.
+                  </p>
+                </div>
+              </div>
+
+              <div className="space-y-4">
+                {/* Full Name */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Full Name *
+                  </label>
+                  <input
+                    type="text"
+                    name="fullName"
+                    value={formData.fullName}
+                    onChange={handleInputChange}
+                    className={`w-full px-3 py-2 border ${
+                      errors.fullName ? "border-red-500" : "border-gray-300"
+                    } rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500`}
+                  />
+                  {errors.fullName && (
+                    <p className="text-red-500 text-xs mt-1">
+                      {errors.fullName}
+                    </p>
+                  )}
+                </div>
+
+                {/* Email */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Email *
+                  </label>
+                  <input
+                    type="email"
+                    name="email"
+                    value={formData.email}
+                    onChange={handleInputChange}
+                    className={`w-full px-3 py-2 border ${
+                      errors.email ? "border-red-500" : "border-gray-300"
+                    } rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500`}
+                  />
+                  {errors.email && (
+                    <p className="text-red-500 text-xs mt-1">{errors.email}</p>
+                  )}
+                </div>
+
+                {/* Address */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Address *
+                  </label>
+                  <input
+                    type="text"
+                    name="address"
+                    value={formData.address}
+                    onChange={handleInputChange}
+                    className={`w-full px-3 py-2 border ${
+                      errors.address ? "border-red-500" : "border-gray-300"
+                    } rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500`}
+                  />
+                  {errors.address && (
+                    <p className="text-red-500 text-xs mt-1">
+                      {errors.address}
+                    </p>
+                  )}
+                </div>
+
+                {/* Gender & DOB */}
+                <div className="grid grid-cols-2 gap-4">
+                  {/* Gender */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Gender *
+                    </label>
+                    <select
+                      name="gender"
+                      value={formData.gender}
+                      onChange={handleInputChange}
+                      className={`w-full px-3 py-2 border ${
+                        errors.gender ? "border-red-500" : "border-gray-300"
+                      } rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500`}
+                    >
+                      <option value="Male">Male</option>
+                      <option value="Female">Female</option>
+                      <option value="Other">Other</option>
+                    </select>
+                    {errors.gender && (
+                      <p className="text-red-500 text-xs mt-1">
+                        {errors.gender}
+                      </p>
+                    )}
+                  </div>
+
+                  {/* Date of Birth */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Date of Birth *
+                    </label>
+                    <input
+                      type="date"
+                      name="dob"
+                      value={formData.dob}
+                      onChange={handleInputChange}
+                      max={new Date().toISOString().split("T")[0]}
+                      className={`w-full px-3 py-2 border ${
+                        errors.dob ? "border-red-500" : "border-gray-300"
+                      } rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500`}
+                    />
+                    {errors.dob && (
+                      <p className="text-red-500 text-xs mt-1">{errors.dob}</p>
+                    )}
+                  </div>
+                </div>
+
+                {/* Citizenship Number */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Citizenship Number *
+                  </label>
+                  <input
+                    type="text"
+                    name="citizenshipNumber"
+                    value={formData.citizenshipNumber}
+                    onChange={handleInputChange}
+                    className={`w-full px-3 py-2 border ${
+                      errors.citizenshipNumber
+                        ? "border-red-500"
+                        : "border-gray-300"
+                    } rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500`}
+                  />
+                  {errors.citizenshipNumber && (
+                    <p className="text-red-500 text-xs mt-1">
+                      {errors.citizenshipNumber}
+                    </p>
+                  )}
+                </div>
+
+                {/* Your Photo */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Your Photo *
+                  </label>
+                  <div
+                    className={`border-2 border-dashed rounded-lg p-4 ${
+                      errors.photo ? "border-red-500" : "border-gray-300"
+                    } hover:border-blue-500 transition-colors`}
+                  >
+                    <div className="flex flex-col items-center justify-center">
+                      {photoPreview ? (
+                        <div className="relative">
+                          <img
+                            src={photoPreview || "/placeholder.svg"}
+                            alt="Profile Preview"
+                            className="w-32 h-32 object-cover rounded-lg mb-2"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setPhotoPreview(null);
+                              setPhoto(null);
+                            }}
+                            className="absolute top-0 right-0 bg-red-500 text-white rounded-full p-1"
+                          >
+                            <X size={16} />
+                          </button>
+                        </div>
+                      ) : (
+                        <Upload className="h-12 w-12 text-gray-400 mb-2" />
+                      )}
+
+                      <div className="flex text-sm text-gray-600">
+                        <label
+                          htmlFor="photo-upload"
+                          className="relative cursor-pointer bg-white rounded-md font-medium text-blue-600 hover:text-blue-500"
+                        >
+                          <span>Upload a photo</span>
+                          <input
+                            id="photo-upload"
+                            name="photo"
+                            type="file"
+                            className="sr-only"
+                            accept="image/*"
+                            onChange={handleFileChange}
+                          />
+                        </label>
+                        <p className="pl-1">or drag and drop</p>
+                      </div>
+                      <p className="text-xs text-gray-500">
+                        PNG, JPG, up to 5MB
+                      </p>
+                    </div>
+                  </div>
+                  {errors.photo && (
+                    <p className="text-red-500 text-xs mt-1">{errors.photo}</p>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Step 2: License Information */}
+          {step === 2 && (
+            <div className="p-4">
+              <h3 className="text-lg font-medium text-gray-800 mb-4">
+                License Information
+              </h3>
+
+              <div className="space-y-4">
+                {/* License Number */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    License Number *
+                  </label>
+                  <input
+                    type="text"
+                    name="licenseNumber"
+                    value={formData.licenseNumber}
+                    onChange={handleInputChange}
+                    className={`w-full px-3 py-2 border ${
+                      errors.licenseNumber
+                        ? "border-red-500"
+                        : "border-gray-300"
+                    } rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500`}
+                  />
+                  {errors.licenseNumber && (
+                    <p className="text-red-500 text-xs mt-1">
+                      {errors.licenseNumber}
+                    </p>
+                  )}
+                </div>
+
+                {/* Front Photo of License */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Front Photo of License *
+                  </label>
+                  <div
+                    className={`border-2 border-dashed rounded-lg p-4 ${
+                      errors.frontPhoto ? "border-red-500" : "border-gray-300"
+                    } hover:border-blue-500 transition-colors`}
+                  >
+                    <div className="flex flex-col items-center justify-center">
+                      {frontPhotoPreview ? (
+                        <div className="relative">
+                          <img
+                            src={frontPhotoPreview || "/placeholder.svg"}
+                            alt="License Front Preview"
+                            className="w-full h-32 object-cover rounded-lg mb-2"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setFrontPhotoPreview(null);
+                              setFrontPhoto(null);
+                            }}
+                            className="absolute top-0 right-0 bg-red-500 text-white rounded-full p-1"
+                          >
+                            <X size={16} />
+                          </button>
+                        </div>
+                      ) : (
+                        <Upload className="h-12 w-12 text-gray-400 mb-2" />
+                      )}
+
+                      <div className="flex text-sm text-gray-600">
+                        <label
+                          htmlFor="frontPhoto-upload"
+                          className="relative cursor-pointer bg-white rounded-md font-medium text-blue-600 hover:text-blue-500"
+                        >
+                          <span>Upload front image</span>
+                          <input
+                            id="frontPhoto-upload"
+                            name="frontPhoto"
+                            type="file"
+                            className="sr-only"
+                            accept="image/*"
+                            onChange={handleFileChange}
+                          />
+                        </label>
+                      </div>
+                    </div>
+                  </div>
+                  {errors.frontPhoto && (
+                    <p className="text-red-500 text-xs mt-1">
+                      {errors.frontPhoto}
+                    </p>
+                  )}
+                </div>
+
+                {/* Back Photo of License */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Back Photo of License *
+                  </label>
+                  <div
+                    className={`border-2 border-dashed rounded-lg p-4 ${
+                      errors.backPhoto ? "border-red-500" : "border-gray-300"
+                    } hover:border-blue-500 transition-colors`}
+                  >
+                    <div className="flex flex-col items-center justify-center">
+                      {backPhotoPreview ? (
+                        <div className="relative">
+                          <img
+                            src={backPhotoPreview || "/placeholder.svg"}
+                            alt="License Back Preview"
+                            className="w-full h-32 object-cover rounded-lg mb-2"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setBackPhotoPreview(null);
+                              setBackPhoto(null);
+                            }}
+                            className="absolute top-0 right-0 bg-red-500 text-white rounded-full p-1"
+                          >
+                            <X size={16} />
+                          </button>
+                        </div>
+                      ) : (
+                        <Upload className="h-12 w-12 text-gray-400 mb-2" />
+                      )}
+
+                      <div className="flex text-sm text-gray-600">
+                        <label
+                          htmlFor="backPhoto-upload"
+                          className="relative cursor-pointer bg-white rounded-md font-medium text-blue-600 hover:text-blue-500"
+                        >
+                          <span>Upload back image</span>
+                          <input
+                            id="backPhoto-upload"
+                            name="backPhoto"
+                            type="file"
+                            className="sr-only"
+                            accept="image/*"
+                            onChange={handleFileChange}
+                          />
+                        </label>
+                      </div>
+                    </div>
+                  </div>
+                  {errors.backPhoto && (
+                    <p className="text-red-500 text-xs mt-1">
+                      {errors.backPhoto}
+                    </p>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Step 3: Vehicle Information */}
+          {step === 3 && (
+            <div className="p-4">
+              <h3 className="text-lg font-medium text-gray-800 mb-4">
+                Vehicle Information (Optional)
+              </h3>
+
+              <div className="space-y-4">
+                {/* Vehicle Type */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Vehicle Type
+                  </label>
+                  <select
+                    name="vehicleType"
+                    value={formData.vehicleType}
+                    onChange={handleInputChange}
+                    className={`w-full px-3 py-2 border ${
+                      errors.vehicleType ? "border-red-500" : "border-gray-300"
+                    } rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500`}
+                  >
+                    <option value="">Select Vehicle Type</option>
+                    <option value="Car">Car</option>
+                    <option value="Bike">Bike</option>
+                    <option value="Electric">Electric</option>
+                  </select>
+                  {errors.vehicleType && (
+                    <p className="text-red-500 text-xs mt-1">
+                      {errors.vehicleType}
+                    </p>
+                  )}
+                </div>
+
+                {/* Number Plate */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Number Plate
+                  </label>
+                  <input
+                    type="text"
+                    name="numberPlate"
+                    value={formData.numberPlate}
+                    onChange={handleInputChange}
+                    className={`w-full px-3 py-2 border ${
+                      errors.numberPlate ? "border-red-500" : "border-gray-300"
+                    } rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500`}
+                  />
+                  {errors.numberPlate && (
+                    <p className="text-red-500 text-xs mt-1">
+                      {errors.numberPlate}
+                    </p>
+                  )}
+                </div>
+
+                {/* Production Year */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Production Year
+                  </label>
+                  <input
+                    type="number"
+                    name="productionYear"
+                    min="1900"
+                    max={new Date().getFullYear() + 1}
+                    value={formData.productionYear}
+                    onChange={handleInputChange}
+                    className={`w-full px-3 py-2 border ${
+                      errors.productionYear
+                        ? "border-red-500"
+                        : "border-gray-300"
+                    } rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500`}
+                  />
+                  {errors.productionYear && (
+                    <p className="text-red-500 text-xs mt-1">
+                      {errors.productionYear}
+                    </p>
+                  )}
+                </div>
+
+                {/* Vehicle Photo */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Vehicle Photo
+                  </label>
+                  <div className="border-2 border-dashed rounded-lg p-4 border-gray-300 hover:border-blue-500 transition-colors">
+                    <div className="flex flex-col items-center justify-center">
+                      {vehiclePhotoPreview ? (
+                        <div className="relative">
+                          <img
+                            src={vehiclePhotoPreview || "/placeholder.svg"}
+                            alt="Vehicle Preview"
+                            className="w-full h-32 object-cover rounded-lg mb-2"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setVehiclePhotoPreview(null);
+                              setVehiclePhoto(null);
+                            }}
+                            className="absolute top-0 right-0 bg-red-500 text-white rounded-full p-1"
+                          >
+                            <X size={16} />
+                          </button>
+                        </div>
+                      ) : (
+                        <Upload className="h-12 w-12 text-gray-400 mb-2" />
+                      )}
+
+                      <div className="flex text-sm text-gray-600">
+                        <label
+                          htmlFor="vehiclePhoto-upload"
+                          className="relative cursor-pointer bg-white rounded-md font-medium text-blue-600 hover:text-blue-500"
+                        >
+                          <span>Upload vehicle photo</span>
+                          <input
+                            id="vehiclePhoto-upload"
+                            name="vehiclePhoto"
+                            type="file"
+                            className="sr-only"
+                            accept="image/*"
+                            onChange={handleFileChange}
+                          />
+                        </label>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Vehicle Detail Photo */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Vehicle Detail Photo
+                  </label>
+                  <div className="border-2 border-dashed rounded-lg p-4 border-gray-300 hover:border-blue-500 transition-colors">
+                    <div className="flex flex-col items-center justify-center">
+                      {vehicleDetailPhotoPreview ? (
+                        <div className="relative">
+                          <img
+                            src={
+                              vehicleDetailPhotoPreview || "/placeholder.svg"
+                            }
+                            alt="Vehicle Detail Preview"
+                            className="w-full h-32 object-cover rounded-lg mb-2"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setVehicleDetailPhotoPreview(null);
+                              setVehicleDetailPhoto(null);
+                            }}
+                            className="absolute top-0 right-0 bg-red-500 text-white rounded-full p-1"
+                          >
+                            <X size={16} />
+                          </button>
+                        </div>
+                      ) : (
+                        <Upload className="h-12 w-12 text-gray-400 mb-2" />
+                      )}
+
+                      <div className="flex text-sm text-gray-600">
+                        <label
+                          htmlFor="vehicleDetailPhoto-upload"
+                          className="relative cursor-pointer bg-white rounded-md font-medium text-blue-600 hover:text-blue-500"
+                        >
+                          <span>Upload vehicle detail photo</span>
+                          <input
+                            id="vehicleDetailPhoto-upload"
+                            name="vehicleDetailPhoto"
+                            type="file"
+                            className="sr-only"
+                            accept="image/*"
+                            onChange={handleFileChange}
+                          />
+                        </label>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Owner Detail Photo */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Owner Detail Photo
+                  </label>
+                  <div className="border-2 border-dashed rounded-lg p-4 border-gray-300 hover:border-blue-500 transition-colors">
+                    <div className="flex flex-col items-center justify-center">
+                      {ownerDetailPhotoPreview ? (
+                        <div className="relative">
+                          <img
+                            src={ownerDetailPhotoPreview || "/placeholder.svg"}
+                            alt="Owner Detail Preview"
+                            className="w-full h-32 object-cover rounded-lg mb-2"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setOwnerDetailPhotoPreview(null);
+                              setOwnerDetailPhoto(null);
+                            }}
+                            className="absolute top-0 right-0 bg-red-500 text-white rounded-full p-1"
+                          >
+                            <X size={16} />
+                          </button>
+                        </div>
+                      ) : (
+                        <Upload className="h-12 w-12 text-gray-400 mb-2" />
+                      )}
+
+                      <div className="flex text-sm text-gray-600">
+                        <label
+                          htmlFor="ownerDetailPhoto-upload"
+                          className="relative cursor-pointer bg-white rounded-md font-medium text-blue-600 hover:text-blue-500"
+                        >
+                          <span>Upload owner detail photo</span>
+                          <input
+                            id="ownerDetailPhoto-upload"
+                            name="ownerDetailPhoto"
+                            type="file"
+                            className="sr-only"
+                            accept="image/*"
+                            onChange={handleFileChange}
+                          />
+                        </label>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Renewal Detail Photo */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Renewal Detail Photo
+                  </label>
+                  <div className="border-2 border-dashed rounded-lg p-4 border-gray-300 hover:border-blue-500 transition-colors">
+                    <div className="flex flex-col items-center justify-center">
+                      {renewalDetailPhotoPreview ? (
+                        <div className="relative">
+                          <img
+                            src={
+                              renewalDetailPhotoPreview || "/placeholder.svg"
+                            }
+                            alt="Renewal Detail Preview"
+                            className="w-full h-32 object-cover rounded-lg mb-2"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setRenewalDetailPhotoPreview(null);
+                              setRenewalDetailPhoto(null);
+                            }}
+                            className="absolute top-0 right-0 bg-red-500 text-white rounded-full p-1"
+                          >
+                            <X size={16} />
+                          </button>
+                        </div>
+                      ) : (
+                        <Upload className="h-12 w-12 text-gray-400 mb-2" />
+                      )}
+
+                      <div className="flex text-sm text-gray-600">
+                        <label
+                          htmlFor="renewalDetailPhoto-upload"
+                          className="relative cursor-pointer bg-white rounded-md font-medium text-blue-600 hover:text-blue-500"
+                        >
+                          <span>Upload renewal detail photo</span>
+                          <input
+                            id="renewalDetailPhoto-upload"
+                            name="renewalDetailPhoto"
+                            type="file"
+                            className="sr-only"
+                            accept="image/*"
+                            onChange={handleFileChange}
+                          />
+                        </label>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Footer with Navigation Buttons */}
+          <div className="flex justify-between p-4 border-t border-gray-200">
+            {step > 1 ? (
+              <button
+                type="button"
+                onClick={handlePrevious}
+                disabled={loading}
+                className="px-4 py-2 bg-gray-200 text-gray-800 rounded-md hover:bg-gray-300 transition-colors disabled:opacity-50"
+              >
+                Previous
+              </button>
+            ) : (
+              <div></div>
+            )}
+
+            {step < totalSteps ? (
+              <button
+                type="button"
+                onClick={handleNext}
+                disabled={loading}
+                className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 transition-colors disabled:opacity-50"
+              >
+                Next
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={handleSubmit}
+                disabled={loading}
+                className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 transition-colors disabled:opacity-50 flex items-center"
+              >
+                {loading ? (
+                  <>
+                    <svg
+                      className="animate-spin -ml-1 mr-2 h-4 w-4 text-white"
+                      xmlns="http://www.w3.org/2000/svg"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                    >
+                      <circle
+                        className="opacity-25"
+                        cx="12"
+                        cy="12"
+                        r="10"
+                        stroke="currentColor"
+                        strokeWidth="4"
+                      ></circle>
+                      <path
+                        className="opacity-75"
+                        fill="currentColor"
+                        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                      ></path>
+                    </svg>
+                    Submitting...
+                  </>
+                ) : (
+                  <>
+                    <Check className="mr-2 h-4 w-4" />
+                    {existingData
+                      ? "Update KYC Information"
+                      : "Submit KYC Information"}
+                  </>
+                )}
+              </button>
+            )}
+          </div>
+        </form>
       </div>
     </div>
   );
 };
 
-export default DriverKycModal;
+export default DriverKYCModal;

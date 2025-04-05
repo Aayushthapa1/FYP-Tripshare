@@ -9,6 +9,9 @@ import {
   MapPin,
   User,
   Clock,
+  CreditCard,
+  DollarSign,
+  MessageSquare,
 } from "lucide-react";
 import Navbar from "../layout/Navbar";
 import Footer from "../layout/Footer";
@@ -53,6 +56,7 @@ const PaymentSuccess = () => {
         // Use the first available identifier to fetch payment details
         const paymentIdentifier =
           paymentId || purchaseOrderId || pidx || transactionId;
+          console.log("Payment identifier:", paymentIdentifier);
 
         if (paymentIdentifier) {
           console.log(
@@ -63,6 +67,7 @@ const PaymentSuccess = () => {
           const resultAction = await dispatch(
             getPaymentDetails(paymentIdentifier)
           );
+          console.log("Result action:", resultAction);
 
           if (getPaymentDetails.fulfilled.match(resultAction)) {
             console.log(
@@ -143,6 +148,22 @@ const PaymentSuccess = () => {
     return timeString;
   };
 
+  // Format currency
+  const formatCurrency = (amount) => {
+    if (!amount && amount !== 0) return "N/A";
+    return new Intl.NumberFormat("en-IN", {
+      style: "currency",
+      currency: "INR",
+      maximumFractionDigits: 2,
+    }).format(amount);
+  };
+
+  // Handle chat with driver
+  const handleChatWithDriver = () => {
+    // Navigate to chat page with driver and trip information
+    navigate(`/chats`); 
+  };
+
   // Show loading state when either component is loading or Redux is loading
   if (loading || paymentLoading) {
     return (
@@ -196,7 +217,7 @@ const PaymentSuccess = () => {
   // Fallback data if we still don't have payment details
   const fallbackData = {
     status: "completed",
-    amount: "Payment completed",
+    amount: 0,
     transactionId: "Available in your account",
     createdAt: new Date().toISOString(),
     booking: {
@@ -208,10 +229,19 @@ const PaymentSuccess = () => {
       },
       seatsBooked: 1,
     },
+    user: {
+      fullName: user?.fullName || "User",
+      email: user?.email || "user@example.com",
+    },
   };
 
   // Use either the actual payment details or fallback data
   const displayData = paymentDetails || fallbackData;
+
+  // Get driver/recipient information
+  const driverInfo = displayData?.booking?.trip?.driver || {
+    fullName: "Trip Provider",
+  };
 
   console.log("Display data:", displayData);
 
@@ -248,7 +278,7 @@ const PaymentSuccess = () => {
                 <div>
                   <p className="text-sm text-gray-500">Amount Paid</p>
                   <p className="font-medium text-gray-900">
-                    ₹{displayData?.amount || "N/A"}
+                    {formatCurrency(displayData?.amount)}
                   </p>
                 </div>
                 <div>
@@ -281,6 +311,41 @@ const PaymentSuccess = () => {
               </div>
             </div>
 
+            {/* Payment Parties */}
+            <div className="border border-gray-200 rounded-lg p-5 mb-6">
+              <h2 className="text-lg font-semibold text-gray-800 mb-4">
+                Payment Information
+              </h2>
+
+              <div className="space-y-4">
+                <div className="flex items-start">
+                  <CreditCard className="w-5 h-5 text-gray-400 mt-0.5 mr-3" />
+                  <div>
+                    <p className="text-sm text-gray-500">Paid By</p>
+                    <p className="font-medium text-gray-900">
+                      {displayData.user?.fullName || user?.fullName || "You"}
+                    </p>
+                    <p className="text-xs text-gray-500">
+                      {displayData.user?.email || user?.email || ""}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-start">
+                  <DollarSign className="w-5 h-5 text-gray-400 mt-0.5 mr-3" />
+                  <div>
+                    <p className="text-sm text-gray-500">Paid To</p>
+                    <p className="font-medium text-gray-900">
+                      {driverInfo.fullName || "Trip Provider"}
+                    </p>
+                    <p className="text-xs text-gray-500">
+                      {driverInfo.email || ""}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
             {/* Trip Details Section */}
             {displayData?.booking?.trip && (
               <div className="border border-gray-200 rounded-lg p-5 mb-6">
@@ -294,8 +359,13 @@ const PaymentSuccess = () => {
                     <div>
                       <p className="text-sm text-gray-500">Route</p>
                       <p className="font-medium text-gray-900">
-                        {displayData.booking.trip.departureLocation || "N/A"} →{" "}
-                        {displayData.booking.trip.destinationLocation || "N/A"}
+                        {displayData.booking.trip.startLocation ||
+                          displayData.booking.trip.departureLocation ||
+                          "N/A"}{" "}
+                        →{" "}
+                        {displayData.booking.trip.endLocation ||
+                          displayData.booking.trip.destinationLocation ||
+                          "N/A"}
                       </p>
                     </div>
                   </div>
@@ -358,6 +428,12 @@ const PaymentSuccess = () => {
                 className="px-6 py-2.5 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center"
               >
                 <User className="w-4 h-4 mr-2" /> View My Bookings
+              </button>
+              <button
+                onClick={handleChatWithDriver}
+                className="px-6 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center"
+              >
+                <MessageSquare className="w-4 h-4 mr-2" /> Chat with Driver
               </button>
               <button
                 onClick={() => navigate("/")}

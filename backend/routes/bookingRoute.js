@@ -4,6 +4,7 @@ import {
   getBookingDetails,
   getMyBookings,
   cancelBooking,
+  // Add the new controller function
 } from "../controllers/bookingController.js";
 import protectRoute from "../middlewares/protectRoute.js";
 
@@ -20,5 +21,8 @@ router.get("/:bookingId", protectRoute, getBookingDetails);
 
 // Cancel booking (protected)
 router.patch("/:bookingId/cancel", protectRoute, cancelBooking);
+
+// Confirm payment and initialize chat (protected)
+// router.patch("/:bookingId/confirm-payment", protectRoute, confirmPayment);
 
 export default router;
