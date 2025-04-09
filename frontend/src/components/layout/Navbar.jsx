@@ -1,6 +1,4 @@
-"use client";
-
-import { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import {
   Bell,
@@ -12,12 +10,18 @@ import {
   Car,
   Plus,
   CheckCircle,
+  User,
+  Clock,
+  MapPin,
+  CreditCard,
+  Settings,
+  Home,
 } from "lucide-react";
 import { toast, Toaster } from "sonner";
 import { useNavigate } from "react-router-dom";
 
-import { getUserKYCStatus } from "../Slices/userKYCSlice"; // to get the user's KYC status
-import { logoutUser } from "../Slices/authSlice"; // action to log out the user
+import { getUserKYCStatus } from "../Slices/userKYCSlice";
+import { logoutUser } from "../Slices/authSlice";
 import socketService from "../socket/socketService.js";
 
 // Components
@@ -28,7 +32,7 @@ import ProfileModal from "../auth/ProfileModal.jsx";
 import UserKycModal from "../driver/UserKYCModal";
 import DriverKycModal from "../driver/DriverKycModal.jsx";
 import Button from "../button.jsx";
-import NotificationDropdown from "../socket/notificationDropdown"; // Import the NotificationDropdown component
+import NotificationCenter from "../socket/notificationDropdown.jsx";
 
 export default function Navbar() {
   const dispatch = useDispatch();
@@ -38,13 +42,13 @@ export default function Navbar() {
   const { user } = useSelector((state) => state.auth) || {};
   const isAuthenticated = !!user?._id;
   const userRole = user?.role || "user";
-  const userName = user?.userName || "User";
+  const userName = user?.fullName || user?.userName || "User";
 
   // ----- Redux: userKYC state -----
   const { kycStatus } = useSelector((state) => state.userKYC) || {};
 
   // ----- Redux: notification state -----
-  const { notifications } = useSelector((state) => state.notification) || {
+  const { notifications = [] } = useSelector((state) => state.notification) || {
     notifications: [],
   };
 
@@ -65,34 +69,122 @@ export default function Navbar() {
   const [showUserKycModal, setShowUserKycModal] = useState(false);
   const [showDriverKycModal, setShowDriverKycModal] = useState(false);
 
-  // ----- 1) Listen for "trip_created" from the server -----
+  // Calculate the total unique notifications with proper validation
+  const totalUniqueNotifications = useMemo(() => {
+    const backendNotificationIds = new Set(
+      notifications.map((n) => n._id).filter(Boolean)
+    );
+    const localNotificationIds = new Set(
+      localNotifications.map((n) => n.id).filter(Boolean)
+    );
+    return backendNotificationIds.size + localNotificationIds.size;
+  }, [notifications, localNotifications]);
+
+  // ----- Socket event listeners -----
   useEffect(() => {
     const socket = socketService.getSocket();
     if (!socket) return;
 
+    // Handle trip creation events
     const handleTripCreated = (newTrip) => {
-      // Add to notifications array
+      if (!newTrip) return;
+
+      const tripFrom = newTrip.departureLocation || "Unknown location";
+      const tripTo = newTrip.destinationLocation || "Unknown destination";
+
+      // Add to notifications array with validation
       setLocalNotifications((prev) => [
         {
-          id: Date.now(),
+          id: `trip-${Date.now()}`,
           type: "trip",
-          message: `New trip from ${newTrip.departureLocation} to ${newTrip.destinationLocation}!`,
+          message: `New trip from ${tripFrom} to ${tripTo}!`,
           timestamp: new Date(),
         },
         ...prev,
       ]);
 
+      toast.success(`New trip from ${tripFrom} to ${tripTo}!`);
+    };
+
+    // Handle ride request events
+    const handleRideRequest = (rideData) => {
+      if (!rideData || userRole !== "driver") return;
+
+      // Validate locations with fallbacks
+      const pickupLocation = rideData.pickupLocationName || "Unknown location";
+      const dropoffLocation =
+        rideData.dropoffLocationName || "Unknown destination";
+      const fare = rideData.fare || "N/A";
+
+      console.log("Driver received ride request:", rideData);
+
+      setLocalNotifications((prev) => [
+        {
+          id: `ride-request-${rideData.rideId || Date.now()}`,
+          type: "ride_request",
+          message: `New ride request from ${pickupLocation} to ${dropoffLocation} (${fare} NPR)`,
+          timestamp: new Date(),
+          rideData: rideData,
+        },
+        ...prev,
+      ]);
+
       toast.success(
-        `New trip from ${newTrip.departureLocation} to ${newTrip.destinationLocation}!`
+        `New ride request from ${pickupLocation} to ${dropoffLocation}!`,
+        {
+          duration: 8000,
+          action: {
+            label: "View",
+            onClick: () => setShowNotificationDropdown(true),
+          },
+        }
       );
     };
 
-    socket.on("trip_created", handleTripCreated);
+    // Handle ride status change events
+    const handleRideStatusUpdated = (statusData) => {
+      if (!statusData) return;
 
+      // For rejected/canceled rides
+      if (
+        statusData.newStatus === "rejected" ||
+        statusData.newStatus === "canceled"
+      ) {
+        const reason = statusData.cancelReason || "No reason provided";
+        const statusMessage =
+          statusData.newStatus === "rejected"
+            ? `Ride rejected: ${reason}`
+            : `Ride canceled: ${reason}`;
+
+        setLocalNotifications((prev) => [
+          {
+            id: `ride-status-${statusData.rideId || Date.now()}`,
+            type: `ride_${statusData.newStatus}`,
+            message: statusMessage,
+            timestamp: new Date(),
+            statusData: statusData,
+          },
+          ...prev,
+        ]);
+
+        toast.error(statusMessage);
+      }
+    };
+
+    // Set up event listeners
+    socket.on("trip_created", handleTripCreated);
+    socket.on("driver_ride_request", handleRideRequest);
+    socket.on("ride_requested", handleRideRequest);
+    socket.on("ride_status_updated", handleRideStatusUpdated);
+
+    // Clean up listeners on unmount
     return () => {
       socket.off("trip_created", handleTripCreated);
+      socket.off("driver_ride_request", handleRideRequest);
+      socket.off("ride_requested", handleRideRequest);
+      socket.off("ride_status_updated", handleRideStatusUpdated);
     };
-  }, []);
+  }, [userRole]);
 
   // ----- 2) Listen for scrolling to add shadow on the navbar -----
   useEffect(() => {
@@ -125,12 +217,61 @@ export default function Navbar() {
   }, [kycStatus]);
 
   // Helper: navigate to a path
-  const handleNavigate = (path) => {
-    navigate(path);
-  };
+  const handleNavigate = useCallback(
+    (path) => {
+      navigate(path);
+    },
+    [navigate]
+  );
+
+  // Role-based content rendering
+  const renderRoleBasedNavItems = useCallback(() => {
+    if (!isAuthenticated) return null;
+
+    if (userRole === "driver") {
+      return (
+        <>
+          <button
+            onClick={() => handleNavigate("/driverridestatus")}
+            className="hidden md:flex items-center justify-center px-4 py-2 rounded-lg bg-green-500 text-white font-medium text-sm hover:bg-green-600 transition-all duration-200 shadow-sm mr-2"
+          >
+            <Car className="h-4 w-4 mr-2" />
+            <span>Active Rides</span>
+          </button>
+          <button
+            onClick={() => handleNavigate("/tripForm")}
+            className="hidden md:flex items-center justify-center px-4 py-2 rounded-lg border border-green-500 text-green-500 font-medium text-sm hover:bg-green-50 transition-all duration-200"
+          >
+            <Plus className="h-4 w-4 mr-2" />
+            <span>Publish Trip</span>
+          </button>
+        </>
+      );
+    } else {
+      // Regular user role
+      return (
+        <>
+          <button
+            onClick={() => handleNavigate("/requestride")}
+            className="hidden md:flex items-center justify-center px-4 py-2 rounded-lg bg-green-500 text-white font-medium text-sm hover:bg-green-600 transition-all duration-200 shadow-sm mr-2"
+          >
+            <Car className="h-4 w-4 mr-2" />
+            <span>Request Ride</span>
+          </button>
+          <button
+            onClick={() => handleNavigate("/trips")}
+            className="hidden md:flex items-center justify-center px-4 py-2 rounded-lg border border-green-500 text-green-500 font-medium text-sm hover:bg-green-50 transition-all duration-200"
+          >
+            <MapPin className="h-4 w-4 mr-2" />
+            <span>Find Trips</span>
+          </button>
+        </>
+      );
+    }
+  }, [isAuthenticated, userRole, handleNavigate]);
 
   // Confirm Logout Toast
-  const confirmLogout = () => {
+  const confirmLogout = useCallback(() => {
     setShowLogoutConfirm(true);
     toast.custom(
       (t) => (
@@ -163,10 +304,10 @@ export default function Navbar() {
         position: "top-center",
       }
     );
-  };
+  }, []);
 
   // Actual Logout Handler
-  const handleLogout = () => {
+  const handleLogout = useCallback(() => {
     localStorage.removeItem("token");
     localStorage.removeItem("userInfo");
 
@@ -180,19 +321,19 @@ export default function Navbar() {
     toast.success("Successfully logged out");
     setIsUserMenuOpen(false);
     navigate("/");
-  };
+  }, [dispatch, navigate]);
 
   // Handle opening KYC modals based on role
-  const handleOpenKycModal = () => {
+  const handleOpenKycModal = useCallback(() => {
     if (userRole === "driver") {
       setShowDriverKycModal(true);
     } else {
       setShowUserKycModal(true);
     }
-  };
+  }, [userRole]);
 
   // Generate a notification message based on KYC status
-  const notificationMessage = (() => {
+  const notificationMessage = useMemo(() => {
     if (!isAuthenticated || kycStatus === "verified") {
       return null;
     }
@@ -214,36 +355,31 @@ export default function Navbar() {
     }
 
     return null;
-  })();
+  }, [isAuthenticated, kycStatus, userRole]);
 
   // Navigate to appropriate dashboard based on role
-  const navigateToDashboard = () => {
+  const navigateToDashboard = useCallback(() => {
     if (userRole === "driver") {
       navigate("/driverdashboard");
     } else {
       navigate("/userDashboard");
     }
     setIsUserMenuOpen(false);
-  };
+  }, [userRole, navigate]);
 
-  // Format time for notifications
-  const formatTime = (date) => {
-    const now = new Date();
-    const diff = now - date;
+  // Handle clearing notifications
+  const handleClearLocalNotifications = useCallback(() => {
+    setLocalNotifications([]);
+  }, []);
 
-    if (diff < 60000) {
-      return "Just now";
-    }
-    if (diff < 3600000) {
-      return `${Math.floor(diff / 60000)} min ago`;
-    }
-    if (diff < 86400000) {
-      return `${Math.floor(diff / 3600000)} hours ago`;
-    }
-    return date.toLocaleDateString();
-  };
+  // Clear specific notification by ID
+  const clearLocalNotification = useCallback((notificationId) => {
+    if (!notificationId) return;
+    setLocalNotifications((prev) =>
+      prev.filter((n) => n.id !== notificationId)
+    );
+  }, []);
 
-  // Render
   return (
     <nav
       className={`fixed w-full z-50 bg-white border-b border-gray-200 transition-shadow duration-300 ${
@@ -275,24 +411,8 @@ export default function Navbar() {
             {/* Search Bar */}
             <SearchBar />
 
-            {/* Rides Button */}
-            {isAuthenticated &&
-              (userRole === "driver" ? (
-                <button
-                  onClick={() => handleNavigate("/tripForm")}
-                  className="hidden md:flex items-center justify-center px-4 py-2 rounded-lg bg-green-500 text-white font-medium text-sm hover:bg-green-600 transition-all duration-200 shadow-sm"
-                >
-                  <Plus className="h-4 w-4 mr-2" />
-                  <span>Publish a Ride</span>
-                </button>
-              ) : (
-                <button
-                  onClick={() => handleNavigate("/trips")}
-                  className="hidden md:flex items-center justify-center px-4 py-2 rounded-lg bg-green-500 text-white font-medium text-sm hover:bg-green-600 transition-all duration-200 shadow-sm"
-                >
-                  View Rides
-                </button>
-              ))}
+            {/* Role-based action buttons */}
+            {isAuthenticated && renderRoleBasedNavItems()}
 
             {/* Regular Notification Bell: show for all authenticated users */}
             {isAuthenticated && (
@@ -306,17 +426,23 @@ export default function Navbar() {
                   aria-haspopup="true"
                 >
                   <Bell className="h-6 w-6 text-gray-700" />
-                  {(notifications.length > 0 ||
-                    localNotifications.length > 0) && (
-                    <span className="absolute top-0 right-0 h-3 w-3 rounded-full bg-red-500"></span>
+                  {totalUniqueNotifications > 0 && (
+                    <span className="absolute top-0 right-0 flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-xs text-white">
+                      {totalUniqueNotifications > 99
+                        ? "99+"
+                        : totalUniqueNotifications}
+                    </span>
                   )}
                 </button>
 
+                {/* Use the NotificationCenter component here */}
                 {showNotificationDropdown && (
-                  <NotificationDropdown
+                  <NotificationCenter
+                    isOpen={showNotificationDropdown}
                     onClose={() => setShowNotificationDropdown(false)}
                     localNotifications={localNotifications}
-                    clearLocalNotifications={() => setLocalNotifications([])}
+                    clearLocalNotifications={handleClearLocalNotifications}
+                    clearSingleNotification={clearLocalNotification}
                   />
                 )}
               </div>
@@ -362,7 +488,8 @@ export default function Navbar() {
                       }}
                       className="flex w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 hover:text-green-600 text-left transition-colors"
                     >
-                      <span className="ml-2">Profile</span>
+                      <User className="h-4 w-4 mr-2" />
+                      <span>Profile</span>
                     </button>
 
                     {/* 2) Dashboard Button - conditional based on role */}
@@ -370,11 +497,72 @@ export default function Navbar() {
                       onClick={navigateToDashboard}
                       className="flex w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 hover:text-green-600 text-left transition-colors"
                     >
-                      <span className="ml-2">
+                      <Home className="h-4 w-4 mr-2" />
+                      <span>
                         {userRole === "driver"
                           ? "Driver Dashboard"
                           : "User Dashboard"}
                       </span>
+                    </button>
+
+                    {/* 3) Role-specific menu items */}
+                    {userRole === "driver" ? (
+                      <>
+                        <button
+                          onClick={() => {
+                            setIsUserMenuOpen(false);
+                            handleNavigate("/tripForm");
+                          }}
+                          className="flex w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 hover:text-green-600 text-left transition-colors"
+                        >
+                          <Plus className="h-4 w-4 mr-2" />
+                          <span>Publish Trip</span>
+                        </button>
+                        <button
+                          onClick={() => {
+                            setIsUserMenuOpen(false);
+                            handleNavigate("/driverridestatus");
+                          }}
+                          className="flex w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 hover:text-green-600 text-left transition-colors"
+                        >
+                          <Car className="h-4 w-4 mr-2" />
+                          <span>Active Rides</span>
+                        </button>
+                      </>
+                    ) : (
+                      <>
+                        <button
+                          onClick={() => {
+                            setIsUserMenuOpen(false);
+                            handleNavigate("/requestride");
+                          }}
+                          className="flex w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 hover:text-green-600 text-left transition-colors"
+                        >
+                          <Car className="h-4 w-4 mr-2" />
+                          <span>Request Ride</span>
+                        </button>
+                        <button
+                          onClick={() => {
+                            setIsUserMenuOpen(false);
+                            handleNavigate("/ridestatus");
+                          }}
+                          className="flex w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 hover:text-green-600 text-left transition-colors"
+                        >
+                          <Clock className="h-4 w-4 mr-2" />
+                          <span>My Rides</span>
+                        </button>
+                      </>
+                    )}
+
+                    <button
+                      onClick={() => {
+                        setIsUserMenuOpen(false);
+                        handleNavigate("/bookings");
+                      }}
+                      className="flex w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 hover:text-green-600 text-left transition-colors"
+                    >
+                      <CreditCard className="h-4 w-4 mr-2" />
+                      <span>My Bookings</span>
                     </button>
 
                     {/* Divider */}
@@ -389,7 +577,8 @@ export default function Navbar() {
                         }}
                         className="flex w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 hover:text-green-600 text-left transition-colors"
                       >
-                        <span className="ml-2">KYC Verification</span>
+                        <AlertCircle className="h-4 w-4 mr-2" />
+                        <span>KYC Verification</span>
                       </button>
                     ) : (
                       <div className="flex items-center w-full px-4 py-2 text-sm text-green-600">
@@ -397,6 +586,17 @@ export default function Navbar() {
                         <span>Verified</span>
                       </div>
                     )}
+
+                    <button
+                      onClick={() => {
+                        setIsUserMenuOpen(false);
+                        handleNavigate("/settings");
+                      }}
+                      className="flex w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 hover:text-green-600 text-left transition-colors"
+                    >
+                      <Settings className="h-4 w-4 mr-2" />
+                      <span>Settings</span>
+                    </button>
 
                     <div className="border-t border-gray-100 my-1"></div>
 
@@ -445,6 +645,7 @@ export default function Navbar() {
                       ? "animate-pulse bg-amber-100"
                       : "hover:bg-gray-100"
                   } transition-colors`}
+                  title={notificationMessage}
                 >
                   <AlertCircle
                     className={`h-6 w-6 ${

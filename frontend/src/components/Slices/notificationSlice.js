@@ -1,199 +1,286 @@
 import { createSlice, createAsyncThunk } from "@reduxjs/toolkit";
-import notificationService from "../../services/notificationService";
+import axios from "axios";
 
-/** FETCH all notifications */
+// API URL constant
+const API_URL = "http://localhost:3301/api/notifications";
+
+// Get user notifications
 export const fetchNotifications = createAsyncThunk(
-    "notifications/fetchAll",
-    async (_, { rejectWithValue }) => {
-        try {
-            const response = await notificationService.getNotifications();
-            return response; // expected shape: { success: true, data: [...] }
-        } catch (error) {
-            return rejectWithValue(error.message || "Could not fetch notifications");
-        }
+  "notification/fetchNotifications",
+  async (_, { getState, rejectWithValue }) => {
+    try {
+      const { auth } = getState();
+      const userId = auth.user?._id;
+
+      if (!userId) {
+        return rejectWithValue("User not authenticated");
+      }
+
+      const response = await axios.get(`${API_URL}/user?userId=${userId}`);
+      return response.data;
+    } catch (error) {
+      return rejectWithValue(
+        error.response?.data?.message || "Failed to fetch notifications"
+      );
     }
+  }
 );
 
-/** CREATE a notification */
-export const createNotification = createAsyncThunk(
-    "notifications/create",
-    async (notificationData, { rejectWithValue }) => {
-        try {
-            const response = await notificationService.createNotification(notificationData);
-            return response; // { success: true, data: newlyCreatedNotif }
-        } catch (error) {
-            return rejectWithValue(error.message || "Could not create notification");
-        }
-    }
-);
-
-/** MARK single notification as read */
+// Mark notification as read
 export const markNotificationAsRead = createAsyncThunk(
-    "notifications/markAsRead",
-    async (notificationId, { rejectWithValue }) => {
-        try {
-            const response = await notificationService.markNotificationAsRead(notificationId);
-            return response; // { success: true, data: updatedNotif }
-        } catch (error) {
-            return rejectWithValue(error.message || "Could not mark notification as read");
-        }
+  "notification/markAsRead",
+  async (notificationId, { getState, rejectWithValue }) => {
+    try {
+      const { auth } = getState();
+      const userId = auth.user?._id;
+
+      if (!userId || !notificationId) {
+        return rejectWithValue("Missing required data");
+      }
+
+      const response = await axios.patch(`${API_URL}/read/${notificationId}`, {
+        userId,
+      });
+      return response.data;
+    } catch (error) {
+      return rejectWithValue(
+        error.response?.data?.message || "Failed to mark notification as read"
+      );
     }
+  }
 );
 
-/** MARK all notifications as read */
+// Mark all notifications as read
 export const markAllAsRead = createAsyncThunk(
-    "notifications/markAllAsRead",
-    async (_, { rejectWithValue }) => {
-        try {
-            const response = await notificationService.markAllNotificationsAsRead();
-            return response; // e.g. { success: true, message: "All marked as read" }
-        } catch (error) {
-            return rejectWithValue(error.message || "Could not mark all as read");
-        }
+  "notification/markAllAsRead",
+  async (_, { getState, rejectWithValue }) => {
+    try {
+      const { auth } = getState();
+      const userId = auth.user?._id;
+
+      if (!userId) {
+        return rejectWithValue("User not authenticated");
+      }
+
+      const response = await axios.patch(`${API_URL}/read-all`, { userId });
+      return { ...response.data, userId };
+    } catch (error) {
+      return rejectWithValue(
+        error.response?.data?.message ||
+          "Failed to mark all notifications as read"
+      );
     }
+  }
 );
 
-/** DELETE a notification */
+// Delete notification
 export const deleteNotification = createAsyncThunk(
-    "notifications/delete",
-    async (notificationId, { rejectWithValue }) => {
-        try {
-            const response = await notificationService.deleteNotification(notificationId);
-            // We can return the notificationId so we can remove it in state
-            return { ...response, notificationId };
-        } catch (error) {
-            return rejectWithValue(error.message || "Could not delete notification");
-        }
+  "notification/deleteNotification",
+  async (notificationId, { getState, rejectWithValue }) => {
+    try {
+      const { auth } = getState();
+      const userId = auth.user?._id;
+
+      if (!userId || !notificationId) {
+        return rejectWithValue("Missing required data");
+      }
+
+      const response = await axios.delete(`${API_URL}/${notificationId}`, {
+        data: { userId },
+      });
+      return { ...response.data, notificationId };
+    } catch (error) {
+      return rejectWithValue(
+        error.response?.data?.message || "Failed to delete notification"
+      );
     }
+  }
 );
 
+// Get unread count
+export const getUnreadCount = createAsyncThunk(
+  "notification/getUnreadCount",
+  async (_, { getState, rejectWithValue }) => {
+    try {
+      const { auth } = getState();
+      const userId = auth.user?._id;
+
+      if (!userId) {
+        return rejectWithValue("User not authenticated");
+      }
+
+      const response = await axios.get(`${API_URL}/unread-count/${userId}`);
+      return response.data;
+    } catch (error) {
+      return rejectWithValue(
+        error.response?.data?.message || "Failed to get unread count"
+      );
+    }
+  }
+);
+
+// Define the initial state
 const initialState = {
-    notifications: [],
-    isLoading: false,
-    error: null,
+  notifications: [],
+  unreadCount: 0,
+  loading: false,
+  error: null,
 };
 
+// Create the notification slice
 const notificationSlice = createSlice({
-    name: "notifications",
-    initialState,
-    reducers: {
-        // e.g. push new notifications from Socket.IO events
-        addNotification(state, action) {
-            // Put new at top
-            state.notifications.unshift(action.payload);
-        },
-        clearNotifications(state) {
-            state.notifications = [];
-        },
+  name: "notification",
+  initialState,
+  reducers: {
+    // Add new notification (e.g. from socket)
+    addNotification: (state, action) => {
+      // Validate the notification
+      if (!action.payload || !action.payload._id) return;
+
+      // Check if notification already exists
+      const exists = state.notifications.some(
+        (n) => n._id === action.payload._id
+      );
+
+      if (!exists) {
+        state.notifications.unshift(action.payload);
+        // Increment unread count
+        state.unreadCount += 1;
+      }
     },
-    extraReducers: (builder) => {
-        builder
-            // ============ FETCH NOTIFICATIONS ============
-            .addCase(fetchNotifications.pending, (state) => {
-                state.isLoading = true;
-                state.error = null;
-            })
-            .addCase(fetchNotifications.fulfilled, (state, action) => {
-                state.isLoading = false;
-                if (action.payload.success) {
-                    // action.payload.data is the array from server
-                    state.notifications = action.payload.data;
-                } else {
-                    state.error = action.payload.error || "Failed to fetch notifications";
-                }
-            })
-            .addCase(fetchNotifications.rejected, (state, action) => {
-                state.isLoading = false;
-                state.error = action.payload;
-            })
 
-            // ============ CREATE NOTIFICATION ============
-            .addCase(createNotification.pending, (state) => {
-                state.isLoading = true;
-                state.error = null;
-            })
-            .addCase(createNotification.fulfilled, (state, action) => {
-                state.isLoading = false;
-                if (action.payload.success) {
-                    // Prepend newly created
-                    state.notifications.unshift(action.payload.data);
-                } else {
-                    state.error = action.payload.error || "Failed to create notification";
-                }
-            })
-            .addCase(createNotification.rejected, (state, action) => {
-                state.isLoading = false;
-                state.error = action.payload;
-            })
-
-            // ============ MARK SINGLE NOTIFICATION READ ============
-            .addCase(markNotificationAsRead.pending, (state) => {
-                state.isLoading = true;
-            })
-            .addCase(markNotificationAsRead.fulfilled, (state, action) => {
-                state.isLoading = false;
-                if (action.payload.success) {
-                    const updated = action.payload.data; // updated notification from server
-                    const idx = state.notifications.findIndex((n) => n._id === updated._id);
-                    if (idx !== -1) {
-                        state.notifications[idx] = updated;
-                    }
-                } else {
-                    state.error = action.payload.error || "Failed to mark notification as read";
-                }
-            })
-            .addCase(markNotificationAsRead.rejected, (state, action) => {
-                state.isLoading = false;
-                state.error = action.payload;
-            })
-
-            // ============ MARK ALL READ ============
-            .addCase(markAllAsRead.pending, (state) => {
-                state.isLoading = true;
-            })
-            .addCase(markAllAsRead.fulfilled, (state, action) => {
-                state.isLoading = false;
-                if (action.payload.success) {
-                    // We can do a re-fetch, or update local state
-                    // e.g. forcibly mark local readBy arrays
-                    const userId = action.meta.arg?.userId;
-                    if (!userId) {
-                        // Maybe do a quick re-fetch here
-                    }
-                    state.notifications = state.notifications.map((notif) => ({
-                        ...notif,
-                        readBy: Array.from(new Set([...(notif.readBy || []), userId])),
-                    }));
-                } else {
-                    state.error = action.payload.error || "Failed to mark all read";
-                }
-            })
-            .addCase(markAllAsRead.rejected, (state, action) => {
-                state.isLoading = false;
-                state.error = action.payload;
-            })
-
-            // ============ DELETE NOTIFICATION ============
-            .addCase(deleteNotification.pending, (state) => {
-                state.isLoading = true;
-            })
-            .addCase(deleteNotification.fulfilled, (state, action) => {
-                state.isLoading = false;
-                if (action.payload.success) {
-                    const { notificationId } = action.payload;
-                    state.notifications = state.notifications.filter(
-                        (n) => n._id !== notificationId
-                    );
-                } else {
-                    state.error = action.payload.error || "Failed to delete notification";
-                }
-            })
-            .addCase(deleteNotification.rejected, (state, action) => {
-                state.isLoading = false;
-                state.error = action.payload;
-            });
+    // Reset notification state
+    resetNotifications: (state) => {
+      state.notifications = [];
+      state.unreadCount = 0;
+      state.loading = false;
+      state.error = null;
     },
+
+    // Clear error
+    clearError: (state) => {
+      state.error = null;
+    },
+  },
+  extraReducers: (builder) => {
+    builder
+      // Fetch notifications
+      .addCase(fetchNotifications.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(fetchNotifications.fulfilled, (state, action) => {
+        state.loading = false;
+        // Ensure we have valid data
+        if (action.payload && action.payload.data) {
+          state.notifications = action.payload.data;
+          // Calculate unread count
+          state.unreadCount = action.payload.data.filter(
+            (n) => !n.isRead
+          ).length;
+        }
+      })
+      .addCase(fetchNotifications.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload || "Error fetching notifications";
+      })
+
+      // Mark as read
+      .addCase(markNotificationAsRead.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(markNotificationAsRead.fulfilled, (state, action) => {
+        state.loading = false;
+        if (action.payload && action.payload.data) {
+          // Update notification in state
+          const index = state.notifications.findIndex(
+            (n) => n._id === action.payload.data._id
+          );
+          if (index !== -1) {
+            state.notifications[index] = action.payload.data;
+            // Recalculate unread count
+            state.unreadCount = state.notifications.filter(
+              (n) => !n.isRead
+            ).length;
+          }
+        }
+      })
+      .addCase(markNotificationAsRead.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload || "Error marking notification as read";
+      })
+
+      // Mark all as read
+      .addCase(markAllAsRead.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(markAllAsRead.fulfilled, (state, action) => {
+        state.loading = false;
+        if (action.payload) {
+          // Mark all as read in state
+          state.notifications = state.notifications.map((n) => ({
+            ...n,
+            isRead: true,
+            readBy: [...(n.readBy || []), action.payload.userId],
+          }));
+          state.unreadCount = 0;
+        }
+      })
+      .addCase(markAllAsRead.rejected, (state, action) => {
+        state.loading = false;
+        state.error =
+          action.payload || "Error marking all notifications as read";
+      })
+
+      // Delete notification
+      .addCase(deleteNotification.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(deleteNotification.fulfilled, (state, action) => {
+        state.loading = false;
+        if (action.payload && action.payload.notificationId) {
+          // Find notification
+          const notification = state.notifications.find(
+            (n) => n._id === action.payload.notificationId
+          );
+          // Remove from state
+          state.notifications = state.notifications.filter(
+            (n) => n._id !== action.payload.notificationId
+          );
+          // Update unread count if needed
+          if (notification && !notification.isRead) {
+            state.unreadCount = Math.max(0, state.unreadCount - 1);
+          }
+        }
+      })
+      .addCase(deleteNotification.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload || "Error deleting notification";
+      })
+
+      // Get unread count
+      .addCase(getUnreadCount.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(getUnreadCount.fulfilled, (state, action) => {
+        state.loading = false;
+        if (action.payload && typeof action.payload.count === "number") {
+          state.unreadCount = action.payload.count;
+        }
+      })
+      .addCase(getUnreadCount.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload || "Error getting unread count";
+      });
+  },
 });
 
-export const { addNotification, clearNotifications } = notificationSlice.actions;
+// Export actions and reducer
+export const { addNotification, resetNotifications, clearError } =
+  notificationSlice.actions;
+
 export default notificationSlice.reducer;

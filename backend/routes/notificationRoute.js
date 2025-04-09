@@ -1,7 +1,7 @@
 import express from "express";
 import {
     createNotification,
-    getNotifications,
+    getUserNotifications,
     markNotificationAsRead,
     markAllNotificationsAsRead,
     deleteNotification,
@@ -14,7 +14,7 @@ const router = express.Router();
 router.post("/", protectRoute, createNotification);
 
 // READ
-router.get("/", protectRoute, getNotifications);
+router.get("/", protectRoute, getUserNotifications);
 
 // MARK single as read
 router.patch("/:notificationId/read", protectRoute, markNotificationAsRead);

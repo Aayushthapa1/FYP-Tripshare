@@ -1,9 +1,8 @@
-import User from "../models/UserModel.js"
+import User from "../models/userModel.js"
 import UserKYCModel from "../models/UserKYCModel.js"
 import { uploadToCloudinary } from "../config/cloudinaryConfig.js"
 
 // 1) Import the "io" from server.js (adjust path if needed)
-import { io } from "../server.js"
 
 /**
  * SUBMIT USER KYC (Personal Info + Photos)

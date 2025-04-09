@@ -4,8 +4,7 @@ import Booking from "../models/bookingModel.js";
 import Trip from "../models/TripModel.js";
 import { createResponse } from "../utils/responseHelper.js";
 
-// 1) Import the "io" from server.js
-import { io } from "../server.js";
+
 
 
 export const initializeChatAfterBooking = async (booking, req) => {

@@ -15,27 +15,28 @@ import userRoute from "./routes/userRoute.js";
 import bookingRoutes from "./routes/bookingRoute.js";
 import paymentRoutes from "./routes/paymentRoute.js";
 import chatRoutes from "./routes/chatRoute.js";
-import UserKYCRoute from "./routes/UserKYCRoute.js"
-import fileUpload from "express-fileupload"
-import notificationRoute from "./routes/notificationRoute.js"
+import UserKYCRoute from "./routes/UserKYCRoute.js";
+import fileUpload from "express-fileupload";
+import notificationRoute from "./routes/notificationRoute.js";
 
 const app = express();
-
 
 // MIDDLEWARES
 app.use(
   cors({
     origin: "http://localhost:5173", // Removed the extra space
     credentials: true,
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Accept', 'Authorization'],
-    exposedHeaders: ['set-cookie']
+    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Accept", "Authorization"],
+    exposedHeaders: ["set-cookie"],
   })
 );
-app.use(fileUpload({
-  useTempFiles: true,
-  tempFileDir: "/tmp/"
-}))
+app.use(
+  fileUpload({
+    useTempFiles: true,
+    tempFileDir: "/tmp/",
+  })
+);
 
 // Body parsing middleware
 app.use(express.json());
@@ -51,7 +52,7 @@ app.use("/api/rides", handleRideRoute);
 app.use("/api/user", userRoute);
 app.use("/api/bookings", bookingRoutes);
 app.use("/api/payments", paymentRoutes);
-app.use("/api/chats", chatRoutes);
+app.use("/api/chat", chatRoutes);
 app.use("/api/userkyc", UserKYCRoute);
 app.use("/api/notifications", notificationRoute);
 // Root route

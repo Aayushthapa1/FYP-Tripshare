@@ -1,22 +1,21 @@
-//--------------------------------------------------------
-// handleRideController.js
-//--------------------------------------------------------
 import Ride from "../models/handleRideModel.js";
 import User from "../models/userModel.js";
 import mongoose from "mongoose";
 
-// 1) Import "io" from server.js
-import { io } from "../server.js"; // or the CommonJS equivalent
+import { getIO } from "../utils/socketUtil.js";
+const io = getIO();
 
 const isValidObjectId = (id) => {
   return mongoose.Types.ObjectId.isValid(id);
 };
 
 const calculateFare = (distance, vehicleType) => {
+  // Validate distance
   if (typeof distance !== "number" || distance < 0) {
     throw new Error("Invalid distance value");
   }
 
+  // Set appropriate rates based on vehicle type
   let baseFare = 0;
   let ratePerKm = 0;
 
@@ -92,12 +91,32 @@ export const postRide = async (req, res) => {
       status: "available",
     });
 
-    // (A) Broadcast an event that a ride has been posted
+    // Get driver details to include in socket event
+    const driver = await User.findById(
+      driverId,
+      "fullName username phone vehicleType numberPlate"
+    );
+
+    // Broadcast ride posted event with enhanced data
     if (io) {
       io.emit("ride_posted", {
         rideId: ride._id,
         driverId,
+        driverInfo: {
+          name: driver.fullName || driver.username || "Driver",
+          vehicleType: driver.vehicleType || "Car",
+          licensePlate: driver.numberPlate || "",
+        },
+        pickupLocation: {
+          lat: pickupLocation.latitude,
+          lng: pickupLocation.longitude,
+        },
+        dropoffLocation: {
+          lat: dropoffLocation.latitude,
+          lng: dropoffLocation.longitude,
+        },
         message: "A new ride has been posted",
+        timestamp: new Date(),
       });
     }
 
@@ -132,20 +151,12 @@ export const requestRide = async (req, res) => {
       paymentMethod = "cash",
     } = req.body;
 
-    // Validate required fields
-    if (
-      !passengerId ||
-      !pickupLocation ||
-      !dropoffLocation ||
-      !pickupLocationName ||
-      !dropoffLocationName ||
-      !vehicleType ||
-      distance === undefined ||
-      estimatedTime === undefined
-    ) {
+    // Essential validation with fallbacks
+    if (!passengerId || !pickupLocation || !dropoffLocation) {
       return res.status(400).json({
         success: false,
-        message: "Missing required fields",
+        message:
+          "Missing essential fields: passengerId, pickupLocation, and dropoffLocation are required",
       });
     }
 
@@ -170,28 +181,23 @@ export const requestRide = async (req, res) => {
       });
     }
 
-    // Validate numeric values
-    if (typeof distance !== "number" || distance < 0) {
-      return res.status(400).json({
-        success: false,
-        message: "Distance must be a positive number",
-      });
-    }
+    // Validate with sensible defaults
+    const validVehicleType = ["Bike", "Car", "Electric"].includes(vehicleType)
+      ? vehicleType
+      : "Car"; // Default to Car if not provided or invalid
 
-    if (typeof estimatedTime !== "number" || estimatedTime < 0) {
-      return res.status(400).json({
-        success: false,
-        message: "Estimated time must be a positive number",
-      });
-    }
+    const validDistance =
+      typeof distance === "number" && distance >= 0 ? distance : 5; // Default to 5km
 
-    // Validate vehicle type
-    if (!["Bike", "Car", "Electric"].includes(vehicleType)) {
-      return res.status(400).json({
-        success: false,
-        message: "Invalid vehicle type. Must be Bike, Car, or Electric",
-      });
-    }
+    const validEstimatedTime =
+      typeof estimatedTime === "number" && estimatedTime >= 0
+        ? estimatedTime
+        : 15; // Default to 15 mins
+
+    // Use provided location names or defaults
+    const validPickupLocationName = pickupLocationName || "Unknown location";
+    const validDropoffLocationName =
+      dropoffLocationName || "Unknown destination";
 
     // Validate payment method
     if (paymentMethod && !["cash", "card", "wallet"].includes(paymentMethod)) {
@@ -226,7 +232,7 @@ export const requestRide = async (req, res) => {
     // Calculate fare
     let fare;
     try {
-      fare = calculateFare(distance, vehicleType);
+      fare = calculateFare(validDistance, validVehicleType);
     } catch (error) {
       return res.status(400).json({
         success: false,
@@ -234,27 +240,56 @@ export const requestRide = async (req, res) => {
       });
     }
 
+    // Create the ride in the database
     const ride = await Ride.create({
       passengerId,
       pickupLocation,
       dropoffLocation,
-      pickupLocationName,
-      dropoffLocationName,
-      vehicleType,
-      distance,
-      estimatedTime,
+      pickupLocationName: validPickupLocationName,
+      dropoffLocationName: validDropoffLocationName,
+      vehicleType: validVehicleType,
+      distance: validDistance,
+      estimatedTime: validEstimatedTime,
       fare,
       paymentMethod,
       status: "requested",
     });
 
-    // (B) Broadcast an event that a ride was requested
+    // Get passenger details
+    const passenger = await User.findById(
+      passengerId,
+      "fullName username phone"
+    );
+
+    // Emit socket event with complete ride data
     if (io) {
-      io.emit("ride_requested", {
+      const eventData = {
         rideId: ride._id,
         passengerId,
-        message: "A new ride was requested",
-      });
+        passengerName:
+          passenger?.fullName || passenger?.username || "Passenger",
+        passengerPhone: passenger?.phone || "",
+        pickupLocation: {
+          lat: parseFloat(pickupLocation.latitude),
+          lng: parseFloat(pickupLocation.longitude),
+        },
+        dropoffLocation: {
+          lat: parseFloat(dropoffLocation.latitude),
+          lng: parseFloat(dropoffLocation.longitude),
+        },
+        pickupLocationName: validPickupLocationName,
+        dropoffLocationName: validDropoffLocationName,
+        vehicleType: validVehicleType,
+        distance: validDistance,
+        estimatedTime: validEstimatedTime,
+        fare,
+        paymentMethod,
+        timestamp: new Date(),
+      };
+
+      // Emit to both general and driver-specific channels
+      io.emit("ride_requested", eventData);
+      io.emit("driver_ride_request", eventData); // Specific event for drivers
     }
 
     return res.status(201).json({
@@ -276,7 +311,7 @@ export const requestRide = async (req, res) => {
  */
 export const updateRideStatus = async (req, res) => {
   try {
-    const { rideId, status, fare, cancelReason } = req.body;
+    const { rideId, status, driverId, fare, cancelReason } = req.body;
 
     // Validate required fields
     if (!rideId || !status) {
@@ -344,15 +379,26 @@ export const updateRideStatus = async (req, res) => {
       rejected: [],
     };
 
-    if (!validTransitions[ride.status].includes(status) && ride.status !== status) {
+    if (
+      !validTransitions[ride.status].includes(status) &&
+      ride.status !== status
+    ) {
       return res.status(400).json({
         success: false,
         message: `Cannot change status from ${ride.status} to ${status}`,
       });
     }
 
+    // Save the previous status for event tracking
+    const previousStatus = ride.status;
+
     // Update ride
     ride.status = status;
+
+    // Update driver ID if provided and status is being changed to accepted
+    if (driverId && status === "accepted" && isValidObjectId(driverId)) {
+      ride.driverId = driverId;
+    }
 
     // Update fare if provided
     if (fare !== undefined) {
@@ -378,18 +424,87 @@ export const updateRideStatus = async (req, res) => {
 
     await ride.save();
 
-    // (C) Broadcast an event that the ride's status has changed
+    // Populate ride with passenger and driver details for the event
+    const updatedRide = await Ride.findById(rideId)
+      .populate("passengerId", "fullName username phone")
+      .populate("driverId", "fullName username phone vehicleType numberPlate");
+
+    // Get passenger ID for notification
+    const passengerId = updatedRide.passengerId
+      ? typeof updatedRide.passengerId === "object"
+        ? updatedRide.passengerId._id
+        : updatedRide.passengerId
+      : null;
+
+    // Get driver ID for notification
+    const driverIdForNotification = updatedRide.driverId
+      ? typeof updatedRide.driverId === "object"
+        ? updatedRide.driverId._id
+        : updatedRide.driverId
+      : null;
+
+    // Build complete notification data
+    const notificationData = {
+      rideId,
+      previousStatus,
+      newStatus: status,
+      passengerId: passengerId,
+      driverId: driverIdForNotification,
+      cancelReason: cancelReason || null,
+      fare: updatedRide.fare,
+      pickupLocationName: updatedRide.pickupLocationName || "Unknown location",
+      dropoffLocationName:
+        updatedRide.dropoffLocationName || "Unknown destination",
+      message: `Ride status updated to ${status}`,
+      timestamp: new Date(),
+    };
+
+    // Emit appropriate socket events based on the status
     if (io) {
-      io.emit("ride_status_updated", {
-        rideId,
-        newStatus: status,
-        message: `Ride status updated to ${status}`,
-      });
+      // Always emit the general status update
+      io.emit("ride_status_updated", notificationData);
+
+      // Also emit specific event types for different status changes
+      if (status === "rejected") {
+        io.emit("ride_rejected", {
+          ...notificationData,
+          message: `Ride rejected: ${cancelReason || "No reason provided"}`,
+        });
+      } else if (status === "canceled") {
+        io.emit("ride_canceled", {
+          ...notificationData,
+          message: `Ride canceled: ${cancelReason || "No reason provided"}`,
+        });
+      } else if (status === "completed") {
+        io.emit("ride_completed", {
+          ...notificationData,
+          message: "Ride completed successfully",
+        });
+      } else if (status === "accepted") {
+        // Add driver info to accepted notification
+        const driverData =
+          updatedRide.driverId && typeof updatedRide.driverId === "object"
+            ? {
+                driverName:
+                  updatedRide.driverId.fullName ||
+                  updatedRide.driverId.username ||
+                  "Driver",
+                vehicleType: updatedRide.driverId.vehicleType || "Vehicle",
+                licensePlate: updatedRide.driverId.numberPlate || "",
+              }
+            : { driverName: "Driver" };
+
+        io.emit("ride_accepted", {
+          ...notificationData,
+          ...driverData,
+          message: `Ride accepted by ${driverData.driverName}`,
+        });
+      }
     }
 
     return res.status(200).json({
       success: true,
-      data: ride,
+      data: updatedRide,
     });
   } catch (error) {
     console.error("Update ride status error:", error);
@@ -474,9 +589,7 @@ export const getRideHistory = async (req, res) => {
       .skip((pageNum - 1) * limitNum)
       .limit(limitNum)
       .populate(
-        userType === "passenger"
-          ? "driverId"
-          : "passengerId",
+        userType === "passenger" ? "driverId" : "passengerId",
         "fullName username phone vehicleType numberPlate"
       );
 
@@ -545,10 +658,7 @@ export const getActiveRide = async (req, res) => {
       activeRide = await Ride.findOne({
         driverId: userId,
         status: { $in: ["accepted", "picked up"] },
-      }).populate(
-        "passengerId",
-        "fullName username phone profileImage"
-      );
+      }).populate("passengerId", "fullName username phone profileImage");
     }
 
     if (!activeRide) {
@@ -634,14 +744,16 @@ export const updatePaymentStatus = async (req, res) => {
 
     await ride.save();
 
-    // If you want to broadcast that payment status changed:
-    // if (io) {
-    //   io.emit("ride_payment_updated", {
-    //     rideId,
-    //     paymentStatus,
-    //     message: `Payment status updated to ${paymentStatus}`,
-    //   });
-    // }
+    // Notify about payment update
+    if (io) {
+      io.emit("ride_payment_updated", {
+        rideId,
+        paymentStatus,
+        paymentMethod: ride.paymentMethod,
+        message: `Payment status updated to ${paymentStatus}`,
+        timestamp: new Date(),
+      });
+    }
 
     return res.status(200).json({
       success: true,
@@ -710,15 +822,21 @@ export const searchDrivers = async (req, res) => {
       role: "driver",
       vehicleType,
       isAvailable: true,
-    }).select("fullName username phone vehicleType numberPlate profileImage location");
+    }).select(
+      "fullName username phone vehicleType numberPlate profileImage location"
+    );
 
-    // If you want to broadcast that a driver search was done, you can do:
-    // if (io) {
-    //   io.emit("drivers_searched", {
-    //     count: drivers.length,
-    //     message: "A driver search was performed"
-    //   });
-    // }
+    // Notify that a search was performed
+    if (io) {
+      io.emit("drivers_searched", {
+        count: drivers.length,
+        vehicleType,
+        location: { lat, lng },
+        radius: radiusNum,
+        message: "A driver search was performed",
+        timestamp: new Date(),
+      });
+    }
 
     return res.status(200).json({
       success: true,
@@ -743,7 +861,7 @@ export const rateRide = async (req, res) => {
     const { rideId, rating, feedback } = req.body;
 
     // Validate required fields
-    if (!rideId || !rating) {
+    if (!rideId || rating === undefined) {
       return res.status(400).json({
         success: false,
         message: "Ride ID and rating are required",
@@ -766,7 +884,10 @@ export const rateRide = async (req, res) => {
       });
     }
 
-    const ride = await Ride.findById(rideId);
+    const ride = await Ride.findById(rideId)
+      .populate("passengerId", "fullName username")
+      .populate("driverId", "fullName username");
+
     if (!ride) {
       return res.status(404).json({
         success: false,
@@ -790,12 +911,28 @@ export const rateRide = async (req, res) => {
 
     await ride.save();
 
-    // (D) Broadcast event that a ride was rated
+    // Get user names for the notification
+    const passengerName =
+      ride.passengerId?.fullName || ride.passengerId?.username || "Passenger";
+    const driverName =
+      ride.driverId?.fullName || ride.driverId?.username || "Driver";
+
+    // Emit event with proper names
     if (io) {
       io.emit("ride_rated", {
         rideId,
         rating,
-        message: "Ride has been rated",
+        feedback: feedback || "",
+        passengerId:
+          typeof ride.passengerId === "object"
+            ? ride.passengerId._id
+            : ride.passengerId,
+        driverId:
+          typeof ride.driverId === "object" ? ride.driverId._id : ride.driverId,
+        passengerName,
+        driverName,
+        message: `${passengerName} rated the ride ${rating} stars`,
+        timestamp: new Date(),
       });
     }
 
@@ -820,10 +957,7 @@ export const getPendingRides = async (req, res) => {
   try {
     const rides = await Ride.find({
       status: "requested",
-      $or: [
-        { driverId: null },
-        { driverId: { $exists: false } },
-      ],
+      $or: [{ driverId: null }, { driverId: { $exists: false } }],
     }).sort({ createdAt: -1 });
 
     return res.status(200).json({

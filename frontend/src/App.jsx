@@ -20,8 +20,8 @@ import DriverDashboard from "./components/driver/DriverDashboard.jsx";
 import ChatPage from "./components/chat/chatPage.jsx";
 import ChatList from "./components/chat/chatList.jsx";
 
-// Notification / Socket
-import socketService from "./components/socket/socketService.js";
+// Socket Provider
+import { SocketProvider } from "./components/socket/SocketProvider.jsx";
 
 // Public/Home
 import HeroSection from "./components/home/HeroSection";
@@ -60,7 +60,7 @@ import Bookinglist from "./components/trip/bookingList.jsx";
 
 // Driver
 import UserKycModal from "./components/driver/UserKYCModal.jsx";
-import DriverKycModal from "./components/driver/DriverKYCModal.jsx";
+import DriverKycModal from "./components/driver/DriverKycModal.jsx";
 
 // Auth
 import RegisterPage from "./components/pages/RegisterPage";
@@ -76,140 +76,139 @@ function App() {
   const { isAuthenticated, user } = useSelector((state) => state.auth);
 
   useEffect(() => {
-    // Connect socket once when app mounts
-    socketService.connect();
-
     // Check token-based auth in Redux
     dispatch(checkAuth());
   }, [dispatch]);
 
   return (
-    <Router>
-      <Routes>
-        {/* Public/Home route */}
-        <Route
-          path="/"
-          element={
-            user?.role === "Admin" ? (
-              <Navigate to="/Admin" />
-            ) : (
-              <>
-                <Navbar />
-                <HeroSection />
-                <FeaturesSection />
-                <HowItWorks />
-                <PopularRoutes />
-                <ScrollToTopButton />
-                <Footer />
-              </>
-            )
-          }
-        />
-
-        {/* KYC modals if you want them as standalone routes */}
-        <Route path="/driverkyc" element={<DriverKycModal />} />
-        <Route path="/userkyc" element={<UserKycModal />} />
-
-        {/* Driver */}
-        <Route path="/driverdashboard" element={<DriverDashboard />} />
-
-        <Route path="/userDashboard" element={<UserDashboard />} />
-        <Route path="/sidebar" element={<Sidebar />} />
-        <Route path="/payment-success" element={<PaymentSuccess />} />
-        <Route path="/payment-failed" element={<PaymentFailed />} />
-        <Route path="/contact" element={<HelpCenter />} />
-        <Route path="/profile/:userId" element={<ProfileModal />} />
-
-        {/* Trips */}
-        <Route path="/trips" element={<TripList />} />
-        <Route path="/tripform" element={<TripForm />} />
-        <Route path="/bookings" element={<Bookinglist />} />
-
-        {/* Ride */}
-        <Route path="/ridebooking" element={<RideBooking />} />
-        <Route path="/ridestatus" element={<RideStatus />} />
-        <Route path="/driverridestatus" element={<DriverRideStatus />} />
-
-        {/* Chat Routes */}
-        <Route path="/chats" element={<ChatList />} />
-        <Route path="/chats/:tripId" element={<ChatPage />} />
-
-        {/* Auth Routes */}
-        <Route
-          path="/register"
-          element={
-            isAuthenticated ? (
+    <SocketProvider>
+      <Router>
+        <Routes>
+          {/* Public/Home route */}
+          <Route
+            path="/"
+            element={
               user?.role === "Admin" ? (
                 <Navigate to="/Admin" />
               ) : (
-                <Navigate to="/" />
+                <>
+                  <Navbar />
+                  <HeroSection />
+                  <FeaturesSection />
+                  <HowItWorks />
+                  <PopularRoutes />
+                  <ScrollToTopButton />
+                  <Footer />
+                </>
               )
-            ) : (
-              <RegisterPage />
-            )
-          }
-        />
-        <Route
-          path="/login"
-          element={
-            isAuthenticated ? (
-              user?.role === "Admin" ? (
-                <Navigate to="/Admin" />
+            }
+          />
+
+          {/* KYC modals if you want them as standalone routes */}
+          <Route path="/driverkyc" element={<DriverKycModal />} />
+          <Route path="/userkyc" element={<UserKycModal />} />
+
+          {/* Driver */}
+          <Route path="/driverdashboard" element={<DriverDashboard />} />
+
+          <Route path="/userDashboard" element={<UserDashboard />} />
+          <Route path="/sidebar" element={<Sidebar />} />
+          <Route path="/payment-success" element={<PaymentSuccess />} />
+          <Route path="/payment-failed" element={<PaymentFailed />} />
+          <Route path="/contact" element={<HelpCenter />} />
+          <Route path="/profile/:userId" element={<ProfileModal />} />
+
+          {/* Trips */}
+          <Route path="/trips" element={<TripList />} />
+          <Route path="/tripform" element={<TripForm />} />
+          <Route path="/bookings" element={<Bookinglist />} />
+
+          {/* Ride */}
+          <Route path="/requestride" element={<RideBooking />} />
+          <Route path="/ridestatus" element={<RideStatus />} />
+          <Route path="/driverridestatus" element={<DriverRideStatus />} />
+
+          {/* Chat Routes */}
+          <Route path="/chats" element={<ChatList />} />
+          <Route path="/chats/:tripId" element={<ChatPage />} />
+
+          {/* Auth Routes */}
+          <Route
+            path="/register"
+            element={
+              isAuthenticated ? (
+                user?.role === "Admin" ? (
+                  <Navigate to="/Admin" />
+                ) : (
+                  <Navigate to="/" />
+                )
               ) : (
-                <Navigate to="/" />
+                <RegisterPage />
               )
-            ) : (
-              <LoginPage />
-            )
-          }
-        />
-        {/* Password Reset Routes */}
-        <Route path="/forgot-password" element={<ForgotPassword />} />
-        <Route path="/reset-password" element={<ResetPassword />} />
+            }
+          />
+          <Route
+            path="/login"
+            element={
+              isAuthenticated ? (
+                user?.role === "Admin" ? (
+                  <Navigate to="/Admin" />
+                ) : (
+                  <Navigate to="/" />
+                )
+              ) : (
+                <LoginPage />
+              )
+            }
+          />
+          {/* Password Reset Routes */}
+          <Route path="/forgot-password" element={<ForgotPassword />} />
+          <Route path="/reset-password" element={<ResetPassword />} />
 
-        {/* Admin Routes (Protected) */}
-        <Route
-          path="/Admin"
-          element={
-            <CheckAuth role="Admin">
-              <AdminLayout />
-            </CheckAuth>
-          }
-        >
-          <Route index element={<AdminDashboard />} />
-          <Route path="users" element={<ManageUsers />} />
-          <Route path="rides" element={<ManageRides />} />
-          <Route path="payments" element={<PaymentDashboard />} />
-          <Route path="disputes" element={<ManageDisputes />} />
-          <Route path="settings" element={<AdminSettings />} />
-          <Route path="profile" element={<AdminProfile />} />
-          {/* <Route path="drivers" element={<DriverList />} /> */}
-          <Route path="kyc" element={<AdminKYCRequests />} />
-        </Route>
+          {/* Admin Routes (Protected) */}
+          <Route
+            path="/Admin"
+            element={
+              <CheckAuth role="Admin">
+                <AdminLayout />
+              </CheckAuth>
+            }
+          >
+            <Route index element={<AdminDashboard />} />
+            <Route path="users" element={<ManageUsers />} />
+            <Route path="rides" element={<ManageRides />} />
+            <Route path="payments" element={<PaymentDashboard />} />
+            <Route path="disputes" element={<ManageDisputes />} />
+            <Route path="settings" element={<AdminSettings />} />
+            <Route path="profile" element={<AdminProfile />} />
+            {/* <Route path="drivers" element={<DriverList />} /> */}
+            <Route path="kyc" element={<AdminKYCRequests />} />
+          </Route>
 
-        {/* User Routes (Protected) */}
-        <Route
-          path="/ride"
-          element={
-            <CheckAuth role="user">
-              <UserLayout />
-            </CheckAuth>
-          }
-        />
-        <Route
-          path="/driver"
-          element={
-            <CheckAuth role="user">
-              <UserLayout />
-            </CheckAuth>
-          }
-        />
+          {/* User Routes (Protected) */}
+          <Route
+            path="/ride"
+            element={
+              <CheckAuth role="user">
+                <UserLayout />
+              </CheckAuth>
+            }
+          />
+          <Route
+            path="/driver"
+            element={
+              <CheckAuth role="user">
+                <UserLayout />
+              </CheckAuth>
+            }
+          />
 
-        {/* Misc */}
-        <Route path="/unauth-page" element={<UnauthPage />} />
-        <Route path="*" element={<NotFound />} />
-      </Routes>
-    </Router>
+          {/* Misc */}
+          <Route path="/unauth-page" element={<UnauthPage />} />
+          <Route path="*" element={<NotFound />} />
+        </Routes>
+      </Router>
+    </SocketProvider>
   );
 }
 

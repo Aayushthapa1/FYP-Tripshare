@@ -2,7 +2,6 @@
 import Trip from "../models/TripModel.js";
 import User from "../models/userModel.js"; 
 import { createResponse } from "../utils/responseHelper.js";
-import { io } from "../server.js";
 
 /**
  * CREATE a new trip (driver only)

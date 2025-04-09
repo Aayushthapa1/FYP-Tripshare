@@ -7,13 +7,8 @@ import { createResponse } from "../utils/responseHelper.js";
 import axios from "axios";
 import _config from "../utils/config.js";
 import Trip from "../models/TripModel.js";
-import { initializeChat } from "./chatController.js";
 import User from "../models/userModel.js";
 
-// 1) Import the "io" instance from server.js (CommonJS or ES Modules, adapt as needed)
-import { io } from "../server.js";
-// If you're on CommonJS, you'd do:
-// const { io } = require("../server.js");
 
 /**
  * INITIATE PAYMENT (handles eSewa, COD directly,

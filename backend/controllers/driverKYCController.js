@@ -2,7 +2,7 @@ import mongoose from "mongoose";
 import DriverModel from "../models/driverKYCModel.js";
 import { uploadToCloudinary } from "../config/cloudinaryConfig.js";
 import { deleteCloudinaryAssets } from "../utils/cloudinaryCleanup.js";
-import { io } from "../server.js"; // If you're exporting io from server.js or index.js
+
 
 export const createDriver = async (req, res) => {
   const session = await mongoose.startSession();
