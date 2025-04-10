@@ -1,9 +1,12 @@
+// utils/setupSocketServer.js
 import { Server } from "socket.io";
+import ChatMessage from "../models/chatModel.js"; // Adjust import path as needed
 
 // We export these maps so controllers can access them if desired
 export const activeDrivers = new Map();
 export const activePassengers = new Map();
 export const activeRides = new Map();
+export const activeChatUsers = new Map(); 
 
 /**
  * Sets up the main Socket.IO server and returns the 'io' instance.
@@ -12,8 +15,9 @@ export default function setupSocketServer(server) {
   // 1) Initialize Socket.IO on the passed "server"
   const io = new Server(server, {
     cors: {
-      origin: "*",   // In production, replace "*" with your client domain
+      origin: "http://localhost:5173/",   
       methods: ["GET", "POST"],
+      credentials: true,
     },
   });
 
@@ -32,8 +36,98 @@ export default function setupSocketServer(server) {
       activePassengers.set(userId, { socketId: socket.id });
     }
 
+    // Store user in active chat users regardless of type
+    activeChatUsers.set(userId, { socketId: socket.id, userType });
+
     // ---------------------------
-    //   All your ride events
+    //   Chat Message Events
+    // ---------------------------
+
+    // Handle real-time chat messages
+    socket.on("sendChatMessage", async (data) => {
+      try {
+        const { receiverId, content, messageType = "text", senderName } = data;
+        const senderId = userId;
+
+        // Create a message in the database
+        const newMessage = new ChatMessage({
+          sender: senderId,
+          senderType: userType === "driver" ? "Driver" : "User",
+          receiver: receiverId,
+          receiverType: userType === "driver" ? "User" : "Driver", // Reverse of sender
+          messageType,
+          content,
+          read: false
+        });
+
+        const savedMessage = await newMessage.save();
+
+        // Find receiver's socket to send real-time message
+        let receiverSocketId;
+        if (activeDrivers.has(receiverId)) {
+          receiverSocketId = activeDrivers.get(receiverId).socketId;
+        } else if (activePassengers.has(receiverId)) {
+          receiverSocketId = activePassengers.get(receiverId).socketId;
+        }
+
+        // Emit new message to the receiver if they are online
+        if (receiverSocketId) {
+          io.to(receiverSocketId).emit("newChatMessage", {
+            messageId: savedMessage._id,
+            senderId,
+            senderName,
+            content,
+            createdAt: savedMessage.createdAt,
+            messageType
+          });
+        }
+
+        // Send message back to sender as confirmation
+        socket.emit("chatMessageSent", {
+          messageId: savedMessage._id,
+          receiverId,
+          content,
+          createdAt: savedMessage.createdAt,
+          status: "sent"
+        });
+      } catch (error) {
+        console.error("Error in sendChatMessage:", error);
+        socket.emit("chatError", { message: "Failed to send message" });
+      }
+    });
+
+    // Mark messages as read
+    socket.on("markMessagesAsRead", async (data) => {
+      try {
+        const { senderId } = data;
+        
+        // Update database to mark messages as read
+        await ChatMessage.updateMany(
+          { 
+            sender: senderId, 
+            receiver: userId, 
+            read: false 
+          },
+          { 
+            read: true 
+          }
+        );
+
+        // Notify the original sender that their messages were read
+        const senderSocketId = activeChatUsers.get(senderId)?.socketId;
+        if (senderSocketId) {
+          io.to(senderSocketId).emit("messagesRead", { 
+            by: userId,
+            timestamp: new Date()
+          });
+        }
+      } catch (error) {
+        console.error("Error marking messages as read:", error);
+      }
+    });
+
+    // ---------------------------
+    //   All your existing ride events
     // ---------------------------
 
     // Update passenger location
@@ -146,27 +240,6 @@ export default function setupSocketServer(server) {
       }
     });
 
-    // Driver arrives at pickup
-    socket.on("arrivedAtPickup", (data) => {
-      const { rideId } = data;
-
-      if (activeRides.has(rideId)) {
-        const ride = activeRides.get(rideId);
-        ride.status = "arrived";
-        activeRides.set(rideId, ride);
-
-        // Notify passenger
-        const passengerSocketId = activePassengers.get(ride.passengerId)?.socketId;
-        if (passengerSocketId) {
-          io.to(passengerSocketId).emit("rideStatusUpdate", {
-            rideId,
-            status: "arrived",
-            message: "Driver has arrived at pickup location",
-          });
-        }
-      }
-    });
-
     // Ride started
     socket.on("startRide", (data) => {
       const { rideId } = data;
@@ -189,90 +262,11 @@ export default function setupSocketServer(server) {
       }
     });
 
-    // Ride completed
-    socket.on("completeRide", (data) => {
-      const { rideId, finalFare } = data;
-
-      if (activeRides.has(rideId)) {
-        const ride = activeRides.get(rideId);
-        ride.status = "completed";
-        ride.endTime = new Date().toISOString();
-        ride.finalFare = finalFare || ride.fare;
-        activeRides.set(rideId, ride);
-
-        // Notify passenger
-        const passengerSocketId = activePassengers.get(ride.passengerId)?.socketId;
-        if (passengerSocketId) {
-          io.to(passengerSocketId).emit("rideStatusUpdate", {
-            rideId,
-            status: "completed",
-            finalFare,
-            message: "Your ride has been completed",
-          });
-        }
-      }
-    });
-
-    // Cancel ride
-    socket.on("cancelRide", (data) => {
-      const { rideId, passengerId } = data;
-
-      if (activeRides.has(rideId)) {
-        const ride = activeRides.get(rideId);
-        ride.status = "cancelled";
-        ride.cancelledBy = passengerId ? "passenger" : "driver";
-        ride.cancelTime = new Date().toISOString();
-        activeRides.set(rideId, ride);
-
-        // Notify passenger
-        const passengerSocketId = activePassengers.get(ride.passengerId)?.socketId;
-        if (passengerSocketId) {
-          io.to(passengerSocketId).emit("rideStatusUpdate", {
-            rideId,
-            status: "cancelled",
-            message: "Your ride has been cancelled",
-          });
-        }
-
-        // Notify driver
-        if (ride.driverId) {
-          const driverSocketId = activeDrivers.get(ride.driverId)?.socketId;
-          if (driverSocketId) {
-            io.to(driverSocketId).emit("rideStatusUpdate", {
-              rideId,
-              status: "cancelled",
-              message: "Ride has been cancelled",
-            });
-          }
-        }
-      }
-    });
-
-    // Send message
-    socket.on("sendMessage", (data) => {
-      const { senderId, receiverId, text, timestamp } = data;
-
-      // Find receiver's socket
-      let receiverSocketId;
-      if (activeDrivers.has(receiverId)) {
-        receiverSocketId = activeDrivers.get(receiverId).socketId;
-      } else if (activePassengers.has(receiverId)) {
-        receiverSocketId = activePassengers.get(receiverId).socketId;
-      }
-
-      if (receiverSocketId) {
-        io.to(receiverSocketId).emit("newMessage", {
-          senderId,
-          text,
-          timestamp,
-        });
-      }
-    });
-
     // On disconnect, remove from active connections
     socket.on("disconnect", () => {
       console.log("Client disconnected:", socket.id);
 
+      // Remove from appropriate maps
       if (userType === "driver") {
         for (const [id, dData] of activeDrivers.entries()) {
           if (dData.socketId === socket.id) {
@@ -288,10 +282,18 @@ export default function setupSocketServer(server) {
           }
         }
       }
+      
+      // Also remove from chat users
+      for (const [id, userData] of activeChatUsers.entries()) {
+        if (userData.socketId === socket.id) {
+          activeChatUsers.delete(id);
+          break;
+        }
+      }
     });
   });
 
-  // Helper: find nearby drivers
+  // Helper functions remain the same...
   function findNearbyDrivers(location, vehicleType = null) {
     const nearbyDrivers = [];
     const MAX_DISTANCE = 5; // km
@@ -321,7 +323,6 @@ export default function setupSocketServer(server) {
     return nearbyDrivers.sort((a, b) => a.distance - b.distance);
   }
 
-  // Helper: calculate distance between two points
   function calculateDistance(lat1, lon1, lat2, lon2) {
     const R = 6371; // Earth radius (km)
     const dLat = deg2rad(lat2 - lat1);
@@ -340,7 +341,6 @@ export default function setupSocketServer(server) {
     return deg * (Math.PI / 180);
   }
 
-  // Helper: generate a unique ride ID
   function generateRideId() {
     return (
       "ride_" + Date.now() + "_" + Math.random().toString(36).substring(2, 9)

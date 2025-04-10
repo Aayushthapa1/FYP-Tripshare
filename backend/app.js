@@ -14,10 +14,11 @@ import handleRideRoute from "./routes/handleRideRoute.js";
 import userRoute from "./routes/userRoute.js";
 import bookingRoutes from "./routes/bookingRoute.js";
 import paymentRoutes from "./routes/paymentRoute.js";
-import chatRoutes from "./routes/chatRoute.js";
+import chatRoute from "./routes/chatRoute.js";
 import UserKYCRoute from "./routes/UserKYCRoute.js"
 import fileUpload from "express-fileupload"
 import notificationRoute from "./routes/notificationRoute.js"
+import ratingRoutes from "./routes/ratingRoute.js";
 
 const app = express();
 
@@ -51,9 +52,10 @@ app.use("/api/rides", handleRideRoute);
 app.use("/api/user", userRoute);
 app.use("/api/bookings", bookingRoutes);
 app.use("/api/payments", paymentRoutes);
-app.use("/api/chats", chatRoutes);
+app.use("/api/chat", chatRoute);
 app.use("/api/userkyc", UserKYCRoute);
 app.use("/api/notifications", notificationRoute);
+app.use("/api/ratings", ratingRoutes);
 // Root route
 app.get("/", (req, res) => {
   res.send("Ride Share platform running...");

@@ -10,7 +10,7 @@ import {
   deleteNotification,
   addNotification, // so we can dispatch new notifications
 } from "../Slices/notificationSlice";
-import socketService from "./socketService";
+// import socketService from "./socketService";
 
 const NotificationDropdown = ({
   onClose,
@@ -42,26 +42,8 @@ const NotificationDropdown = ({
     dispatch(fetchNotifications());
   }, [dispatch]);
 
-  // 1) Connect to Socket.IO once on mount, and listen for new notifications
   useEffect(() => {
-    if (!user) return; // If not logged in, skip
-
-    // Connect with userId in query
-    const socket = socketService.connect({ userId: user._id });
-
-    // Listen for "notification_created" (or any relevant event name from your server)
-    const handleNewNotification = (notif) => {
-      // "notif" could have shape { _id, message, type, createdAt, readBy, etc. }
-      console.log("Received new notification via Socket.IO:", notif);
-      dispatch(addNotification(notif));
-    };
-
-    socket.on("notification_created", handleNewNotification);
-
-    return () => {
-      socket.off("notification_created", handleNewNotification);
-      socketService.disconnect();
-    };
+   
   }, [user, dispatch]);
 
   // 2) On mount, fetch notifications from the server

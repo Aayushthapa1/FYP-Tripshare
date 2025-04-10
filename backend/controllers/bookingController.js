@@ -2,36 +2,13 @@
 import mongoose from "mongoose";
 import Booking from "../models/bookingModel.js";
 import Trip from "../models/TripModel.js";
+import User from "../models/userModel.js";
 import { createResponse } from "../utils/responseHelper.js";
 
 // 1) Import the "io" from server.js
 import { io } from "../server.js";
 
 
-export const initializeChatAfterBooking = async (booking, req) => {
-  try {
-    // Populate necessary fields
-    const populatedBooking = await Booking.findById(booking._id)
-      .populate("trip")
-      .populate("user", "fullName")
-      .exec();
-
-    if (!populatedBooking || !populatedBooking.trip) {
-      console.error("Could not find booking or trip details for chat initialization");
-      return;
-    }
-
-    const tripId = populatedBooking.trip._id;
-    const userId = populatedBooking.user._id;
-
-    // Create a welcome message (assuming "initializeChat" is imported from chatController)
-    const message = `Booking confirmed! ${populatedBooking.user.fullName} has booked ${populatedBooking.seatsBooked} seat(s).`;
-
-    return await initializeChat(tripId, userId, message, req);
-  } catch (error) {
-    console.error("Error initializing chat after booking:", error);
-  }
-};
 
 /**
  * CREATE a new booking
@@ -279,6 +256,51 @@ export const cancelBooking = async (req, res, next) => {
     );
   } catch (error) {
     console.error("Error in cancelBooking:", error);
+    next(error);
+  }
+};
+
+export const getChatUsers = async (req, res, next) => {
+  try {
+    const userId = req.user._id;
+    const userRole = req.user.role; 
+    
+    // If the user is a normal user (booker)
+    if (userRole === 'user') {
+      const bookings = await Booking.find({ user: userId, status: 'booked' }).populate('trip');
+      const chatUsers = bookings.map((booking) => booking.trip.driver);
+      
+      return res.status(200).json(
+        createResponse(200, true, [], {
+          message: 'Chat users retrieved successfully',
+          chatUsers
+        })
+      );
+    }
+    
+    // If the user is a driver
+    if (userRole === 'driver') {
+      const trips = await Trip.find({ 'driver._id': userId });
+      const bookedUsers = [];
+      
+      // Get all users who have booked with this driver
+      for (const trip of trips) {
+        const bookings = await Booking.find({ trip: trip._id, status: 'booked' }).populate('user');
+        bookedUsers.push(...bookings.map((booking) => booking.user));
+      }
+
+      return res.status(200).json(
+        createResponse(200, true, [], {
+          message: 'Users who booked with the driver retrieved successfully',
+          bookedUsers
+        })
+      );
+    }
+    
+    return res.status(400).json(createResponse(400, false, [], { message: 'Invalid role' }));
+    
+  } catch (error) {
+    console.error('Error in getChat:', error);
     next(error);
   }
 };

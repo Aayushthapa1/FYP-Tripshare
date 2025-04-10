@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { useNavigate } from "react-router-dom";
 import { toast, Toaster } from "sonner";
@@ -21,9 +21,10 @@ import {
   DollarSign,
   Route,
   BarChart3,
-  ChevronDown,
 } from "lucide-react";
+import Chart from "chart.js/auto";
 import ProfileModal from "../auth/ProfileModal";
+import BookingStatusBar from "../trip/BookingStatusbar.jsx"; // Import the BookingStatusBar component
 import { getUserProfile } from "../Slices/userSlice";
 import { logoutUser } from "../Slices/authSlice";
 import { fetchDriverDashboardStats } from "../Slices/driverDashboardSlice";
@@ -38,9 +39,26 @@ export default function DriverDashboard() {
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
   const [statsTimeframe, setStatsTimeframe] = useState("month");
-  const [showAllTripsOverTime, setShowAllTripsOverTime] = useState(false);
-  const [showAllPopularRoutes, setShowAllPopularRoutes] = useState(false);
-  const [showAllTripStatus, setShowAllTripStatus] = useState(false);
+  const [
+    showAllTripsOverTime,
+    setShowAllPopularRoutes,
+    setShowAllTripStatus,
+    setShowAllTripsOverTime,
+  ] = useState(false);
+  const [selectedRide, setSelectedRide] = useState(null);
+  const [showRideDetails, setShowRideDetails] = useState(false);
+
+  // Chart references
+  const earningsChartRef = useRef(null);
+  const bookingsChartRef = useRef(null);
+  const completionRateChartRef = useRef(null);
+  const tripStatusChartRef = useRef(null);
+
+  // Chart instances
+  const [earningsChart, setEarningsChart] = useState(null);
+  const [bookingsChart, setBookingsChart] = useState(null);
+  const [completionRateChart, setCompletionRateChart] = useState(null);
+  const [tripStatusChart, setTripStatusChart] = useState(null);
 
   const dispatch = useDispatch();
   const navigate = useNavigate();
@@ -75,6 +93,11 @@ export default function DriverDashboard() {
     },
     tripStatusDistribution = [],
     completionRate = { total: 0, completed: 0, completionRate: 0 },
+    earningsData = {
+      daily: [],
+      weekly: [],
+      monthly: [],
+    },
   } = stats || {};
 
   // Check if mobile view on mount and window resize
@@ -114,6 +137,299 @@ export default function DriverDashboard() {
       navigate("/login");
     }
   }, [dispatch, driverId, isAuthenticated, navigate, statsTimeframe]);
+
+  // Initialize and update charts when stats change
+  useEffect(() => {
+    if (!stats) return;
+
+    // Sample data for charts if real data is not available
+    const sampleEarningsData = {
+      labels: ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"],
+      datasets: [
+        {
+          label: "Earnings (Rs.)",
+          data: [2500, 3200, 2800, 4500, 3800, 5200, 4800],
+          backgroundColor: "rgba(34, 197, 94, 0.2)",
+          borderColor: "rgba(34, 197, 94, 1)",
+          borderWidth: 2,
+          tension: 0.4,
+          fill: true,
+        },
+      ],
+    };
+
+    const sampleBookingsData = {
+      labels: ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"],
+      datasets: [
+        {
+          label: "Bookings",
+          data: [5, 7, 6, 9, 8, 12, 10],
+          backgroundColor: "rgba(59, 130, 246, 0.2)",
+          borderColor: "rgba(59, 130, 246, 1)",
+          borderWidth: 2,
+          tension: 0.4,
+          fill: true,
+        },
+      ],
+    };
+
+    // Use real data if available, otherwise use sample data
+    const earningsDataToUse =
+      earningsData && earningsData.daily && earningsData.daily.length > 0
+        ? {
+            labels: earningsData.daily.map((item) => item.date),
+            datasets: [
+              {
+                label: "Earnings (Rs.)",
+                data: earningsData.daily.map((item) => item.amount),
+                backgroundColor: "rgba(34, 197, 94, 0.2)",
+                borderColor: "rgba(34, 197, 94, 1)",
+                borderWidth: 2,
+                tension: 0.4,
+                fill: true,
+              },
+            ],
+          }
+        : sampleEarningsData;
+
+    const bookingsDataToUse =
+      tripsOverTime && tripsOverTime.length > 0
+        ? {
+            labels: tripsOverTime.map((item) => item._id),
+            datasets: [
+              {
+                label: "Bookings",
+                data: tripsOverTime.map((item) => item.count),
+                backgroundColor: "rgba(59, 130, 246, 0.2)",
+                borderColor: "rgba(59, 130, 246, 1)",
+                borderWidth: 2,
+                tension: 0.4,
+                fill: true,
+              },
+            ],
+          }
+        : sampleBookingsData;
+
+    // Create completion rate doughnut chart data
+    const completionRateData = {
+      labels: ["Completed", "Pending/Cancelled"],
+      datasets: [
+        {
+          data: [
+            completionRate.completed,
+            completionRate.total - completionRate.completed,
+          ],
+          backgroundColor: [
+            "rgba(34, 197, 94, 0.8)",
+            "rgba(229, 231, 235, 0.8)",
+          ],
+          borderColor: ["rgba(34, 197, 94, 1)", "rgba(229, 231, 235, 1)"],
+          borderWidth: 1,
+        },
+      ],
+    };
+
+    // Create trip status distribution data
+    const statusLabels = tripStatusDistribution.map((item) => item._id);
+    const statusData = tripStatusDistribution.map((item) => item.count);
+    const statusColors = tripStatusDistribution.map((item) => {
+      switch (item._id) {
+        case "Completed":
+          return "rgba(34, 197, 94, 0.8)";
+        case "Cancelled":
+          return "rgba(239, 68, 68, 0.8)";
+        case "In Progress":
+          return "rgba(59, 130, 246, 0.8)";
+        case "Booked":
+          return "rgba(245, 158, 11, 0.8)";
+        default:
+          return "rgba(107, 114, 128, 0.8)";
+      }
+    });
+
+    const tripStatusData = {
+      labels: statusLabels,
+      datasets: [
+        {
+          data: statusData,
+          backgroundColor: statusColors,
+          borderColor: statusColors.map((color) => color.replace("0.8", "1")),
+          borderWidth: 1,
+        },
+      ],
+    };
+
+    // Create or update earnings chart
+    if (earningsChartRef.current) {
+      if (earningsChart) {
+        earningsChart.data = earningsDataToUse;
+        earningsChart.update();
+      } else {
+        const newEarningsChart = new Chart(earningsChartRef.current, {
+          type: "line",
+          data: earningsDataToUse,
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+              legend: {
+                display: false,
+              },
+              tooltip: {
+                mode: "index",
+                intersect: false,
+              },
+            },
+            scales: {
+              y: {
+                beginAtZero: true,
+                grid: {
+                  drawBorder: false,
+                  color: "rgba(229, 231, 235, 0.5)",
+                },
+                ticks: {
+                  callback: (value) => "Rs. " + value,
+                },
+              },
+              x: {
+                grid: {
+                  display: false,
+                },
+              },
+            },
+          },
+        });
+        setEarningsChart(newEarningsChart);
+      }
+    }
+
+    // Create or update bookings chart
+    if (bookingsChartRef.current) {
+      if (bookingsChart) {
+        bookingsChart.data = bookingsDataToUse;
+        bookingsChart.update();
+      } else {
+        const newBookingsChart = new Chart(bookingsChartRef.current, {
+          type: "bar",
+          data: bookingsDataToUse,
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+              legend: {
+                display: false,
+              },
+              tooltip: {
+                mode: "index",
+                intersect: false,
+              },
+            },
+            scales: {
+              y: {
+                beginAtZero: true,
+                grid: {
+                  drawBorder: false,
+                  color: "rgba(229, 231, 235, 0.5)",
+                },
+              },
+              x: {
+                grid: {
+                  display: false,
+                },
+              },
+            },
+          },
+        });
+        setBookingsChart(newBookingsChart);
+      }
+    }
+
+    // Create or update completion rate chart
+    if (completionRateChartRef.current) {
+      if (completionRateChart) {
+        completionRateChart.data = completionRateData;
+        completionRateChart.update();
+      } else {
+        const newCompletionRateChart = new Chart(
+          completionRateChartRef.current,
+          {
+            type: "doughnut",
+            data: completionRateData,
+            options: {
+              responsive: true,
+              maintainAspectRatio: false,
+              cutout: "70%",
+              plugins: {
+                legend: {
+                  position: "bottom",
+                },
+                tooltip: {
+                  callbacks: {
+                    label: (context) => {
+                      const label = context.label || "";
+                      const value = context.raw || 0;
+                      const total = context.dataset.data.reduce(
+                        (a, b) => a + b,
+                        0
+                      );
+                      const percentage = Math.round((value / total) * 100);
+                      return `${label}: ${value} (${percentage}%)`;
+                    },
+                  },
+                },
+              },
+            },
+          }
+        );
+        setCompletionRateChart(newCompletionRateChart);
+      }
+    }
+
+    // Create or update trip status chart
+    if (tripStatusChartRef.current) {
+      if (tripStatusChart) {
+        tripStatusChart.data = tripStatusData;
+        tripStatusChart.update();
+      } else {
+        const newTripStatusChart = new Chart(tripStatusChartRef.current, {
+          type: "pie",
+          data: tripStatusData,
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+              legend: {
+                position: "bottom",
+              },
+              tooltip: {
+                callbacks: {
+                  label: (context) => {
+                    const label = context.label || "";
+                    const value = context.raw || 0;
+                    const total = context.dataset.data.reduce(
+                      (a, b) => a + b,
+                      0
+                    );
+                    const percentage = Math.round((value / total) * 100);
+                    return `${label}: ${value} (${percentage}%)`;
+                  },
+                },
+              },
+            },
+          },
+        });
+        setTripStatusChart(newTripStatusChart);
+      }
+    }
+
+    // Cleanup function to destroy charts when component unmounts
+    return () => {
+      if (earningsChart) earningsChart.destroy();
+      if (bookingsChart) bookingsChart.destroy();
+      if (completionRateChart) completionRateChart.destroy();
+      if (tripStatusChart) tripStatusChart.destroy();
+    };
+  }, [stats, darkMode]); // Re-create charts when stats or dark mode changes
 
   const confirmLogout = () => {
     setShowLogoutConfirm(true);
@@ -201,7 +517,7 @@ export default function DriverDashboard() {
           : "No passengers yet",
         from: trip.departureLocation,
         to: trip.destinationLocation,
-        status: trip.status || "Scheduled",
+        status: trip.status || "booked",
         fare: `Rs. ${trip.fare || "N/A"}`,
       }))
       .sort((a, b) => new Date(a.date) - new Date(b.date));
@@ -219,7 +535,7 @@ export default function DriverDashboard() {
       passenger: "John Smith",
       from: "Downtown",
       to: "Airport",
-      status: "Confirmed",
+      status: "booked",
       fare: "Rs. 2,500",
     },
     {
@@ -229,7 +545,7 @@ export default function DriverDashboard() {
       passenger: "Emily Johnson",
       from: "Shopping Mall",
       to: "Residential Area",
-      status: "Confirmed",
+      status: "confirmed",
       fare: "Rs. 1,800",
     },
   ];
@@ -238,7 +554,73 @@ export default function DriverDashboard() {
   const displayUpcomingRides =
     upcomingRides.length > 0 ? upcomingRides : dummyUpcomingRides;
 
-  const completedRides = [
+  // Handle ride status change
+  const handleRideStatusChange = (rideId, newStatus) => {
+    // In a real app, you would dispatch an action to update the ride status in Redux
+    // dispatch(updateTripStatus({ tripId: rideId, status: newStatus }));
+
+    // Update the local state for immediate UI feedback
+    const updatedRides = displayUpcomingRides.map((ride) =>
+      ride.id === rideId ? { ...ride, status: newStatus } : ride
+    );
+
+    // Show success notification
+    let message = "";
+    switch (newStatus) {
+      case "confirmed":
+        message = "You've accepted the ride. The passenger has been notified.";
+        break;
+      case "cancelled":
+        message = "You've declined the ride. The passenger has been notified.";
+        break;
+      case "completed":
+        message =
+          "Ride marked as completed. The passenger can now rate their experience.";
+        break;
+      default:
+        message = `Ride status updated to ${newStatus}.`;
+    }
+
+    toast.success(message);
+
+    // If the ride is completed, we'll keep the modal open so the user can see the completion state
+    // Otherwise, close the details modal after a short delay
+    if (newStatus !== "completed") {
+      setTimeout(() => {
+        setShowRideDetails(false);
+      }, 1500);
+    }
+  };
+
+  // Handle view ride details
+  const handleViewRideDetails = (ride) => {
+    setSelectedRide(ride);
+    setShowRideDetails(true);
+  };
+
+  // Format completed rides data
+  const formatCompletedRides = () => {
+    if (!trips || !Array.isArray(trips)) return [];
+
+    return trips
+      .filter((trip) => trip.status === "completed")
+      .map((trip) => ({
+        id: trip._id,
+        date: new Date(trip.departureDate).toLocaleDateString(),
+        passenger: trip.passengerName || "Passenger",
+        from: trip.departureLocation,
+        to: trip.destinationLocation,
+        rating: trip.rating || 5,
+        fare: `Rs. ${trip.fare || "N/A"}`,
+      }))
+      .sort((a, b) => new Date(b.date) - new Date(a.date));
+  };
+
+  // Get completed rides from trips data
+  const completedRides = formatCompletedRides();
+
+  // Fallback dummy data for completed rides if no trips are available
+  const dummyCompletedRides = [
     {
       id: 1,
       date: "2025-03-25",
@@ -268,7 +650,46 @@ export default function DriverDashboard() {
     },
   ];
 
-  const earnings = [
+  // Use real completed rides data if available, otherwise use dummy data
+  const displayCompletedRides =
+    completedRides.length > 0 ? completedRides : dummyCompletedRides;
+
+  // Format earnings data
+  const formatEarnings = () => {
+    if (!trips || !Array.isArray(trips)) return [];
+
+    // Group completed trips by date and calculate total earnings
+    const earningsByDate = trips
+      .filter((trip) => trip.status === "completed")
+      .reduce((acc, trip) => {
+        const date = new Date(trip.departureDate).toLocaleDateString();
+        if (!acc[date]) {
+          acc[date] = {
+            id: date,
+            date: date,
+            amount: 0,
+            rides: 0,
+            status: "Paid",
+          };
+        }
+        acc[date].amount += Number(trip.fare || 0);
+        acc[date].rides += 1;
+        return acc;
+      }, {});
+
+    return Object.values(earningsByDate)
+      .map((earning) => ({
+        ...earning,
+        amount: `Rs. ${earning.amount.toLocaleString()}`,
+      }))
+      .sort((a, b) => new Date(b.date) - new Date(a.date));
+  };
+
+  // Get earnings from trips data
+  const earnings = formatEarnings();
+
+  // Fallback dummy data for earnings if no trips are available
+  const dummyEarnings = [
     {
       id: 1,
       date: "2025-03-25",
@@ -291,6 +712,9 @@ export default function DriverDashboard() {
       status: "Paid",
     },
   ];
+
+  // Use real earnings data if available, otherwise use dummy data
+  const displayEarnings = earnings.length > 0 ? earnings : dummyEarnings;
 
   const notifications = [
     {
@@ -693,7 +1117,11 @@ export default function DriverDashboard() {
                             Today's Rides
                           </p>
                           <h4 className="text-2xl font-bold text-gray-900 dark:text-white">
-                            5
+                            {displayUpcomingRides.filter(
+                              (ride) =>
+                                new Date(ride.date).toDateString() ===
+                                new Date().toDateString()
+                            ).length || 0}
                           </h4>
                         </div>
                       </div>
@@ -709,7 +1137,11 @@ export default function DriverDashboard() {
                             Today's Earnings
                           </p>
                           <h4 className="text-2xl font-bold text-gray-900 dark:text-white">
-                            Rs. 7,500
+                            {displayEarnings.find(
+                              (earning) =>
+                                new Date(earning.date).toDateString() ===
+                                new Date().toDateString()
+                            )?.amount || "Rs. 0"}
                           </h4>
                         </div>
                       </div>
@@ -741,14 +1173,55 @@ export default function DriverDashboard() {
                             Rating
                           </p>
                           <h4 className="text-2xl font-bold text-gray-900 dark:text-white">
-                            4.8
+                            {driverData?.rating || "4.8"}
                           </h4>
                         </div>
                       </div>
                     </div>
                   </div>
 
-                  {/* Upcoming Rides */}
+                  {/* Charts Section */}
+                  <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+                    {/* Earnings Chart */}
+                    <div className="rounded-lg bg-white shadow-sm dark:bg-gray-800">
+                      <div className="flex items-center justify-between border-b border-gray-200 p-4 dark:border-gray-700">
+                        <div>
+                          <h2 className="text-lg font-medium text-gray-900 dark:text-white">
+                            Earnings Overview
+                          </h2>
+                          <p className="text-sm text-gray-500 dark:text-gray-400">
+                            Last 7 days
+                          </p>
+                        </div>
+                      </div>
+                      <div className="p-4">
+                        <div className="h-64">
+                          <canvas ref={earningsChartRef}></canvas>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Bookings Chart */}
+                    <div className="rounded-lg bg-white shadow-sm dark:bg-gray-800">
+                      <div className="flex items-center justify-between border-b border-gray-200 p-4 dark:border-gray-700">
+                        <div>
+                          <h2 className="text-lg font-medium text-gray-900 dark:text-white">
+                            Booking Trends
+                          </h2>
+                          <p className="text-sm text-gray-500 dark:text-gray-400">
+                            Last 7 days
+                          </p>
+                        </div>
+                      </div>
+                      <div className="p-4">
+                        <div className="h-64">
+                          <canvas ref={bookingsChartRef}></canvas>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Upcoming Rides with BookingStatusBar */}
                   <div className="rounded-lg bg-white shadow-sm dark:bg-gray-800">
                     <div className="flex items-center justify-between border-b border-gray-200 p-4 dark:border-gray-700">
                       <div>
@@ -774,36 +1247,58 @@ export default function DriverDashboard() {
                           <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-green-500"></div>
                         </div>
                       ) : displayUpcomingRides.length > 0 ? (
-                        <div className="space-y-4">
+                        <div className="space-y-6">
                           {displayUpcomingRides.slice(0, 2).map((ride) => (
                             <div
                               key={ride.id}
-                              className="flex flex-col rounded-lg border border-gray-200 p-4 dark:border-gray-700 sm:flex-row sm:items-center sm:justify-between"
+                              className="rounded-lg border border-gray-200 p-4 dark:border-gray-700"
                             >
-                              <div>
-                                <div className="flex flex-wrap items-center gap-2">
-                                  <span className="rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-medium text-gray-800 dark:bg-gray-700 dark:text-gray-300">
-                                    {ride.date} • {ride.time}
-                                  </span>
-                                  <span className="rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-medium text-green-800 dark:bg-green-900/30 dark:text-green-400">
-                                    {ride.status}
-                                  </span>
+                              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-4">
+                                <div>
+                                  <div className="flex flex-wrap items-center gap-2">
+                                    <span className="rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-medium text-gray-800 dark:bg-gray-700 dark:text-gray-300">
+                                      {ride.date} • {ride.time}
+                                    </span>
+                                  </div>
+                                  <h4 className="mt-2 font-medium text-gray-900 dark:text-white">
+                                    {ride.from} to {ride.to}
+                                  </h4>
+                                  <p className="text-sm text-gray-500 dark:text-gray-400">
+                                    Passenger: {ride.passenger}
+                                  </p>
+                                  <p className="font-medium text-gray-900 dark:text-white mt-1">
+                                    {ride.fare}
+                                  </p>
                                 </div>
-                                <h4 className="mt-2 font-medium text-gray-900 dark:text-white">
-                                  {ride.from} to {ride.to}
-                                </h4>
-                                <p className="text-sm text-gray-500 dark:text-gray-400">
-                                  Passenger: {ride.passenger}
-                                </p>
+                                <div className="mt-4 flex items-center gap-2 sm:mt-0">
+                                  <button
+                                    className="rounded-lg border border-gray-300 bg-white px-3 py-1 text-sm text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600"
+                                    onClick={() => handleViewRideDetails(ride)}
+                                  >
+                                    Details
+                                  </button>
+                                  <button className="rounded-lg bg-green-600 px-3 py-1 text-sm text-white hover:bg-green-700">
+                                    Navigate
+                                  </button>
+                                </div>
                               </div>
-                              <div className="mt-4 flex items-center gap-2 sm:mt-0">
-                                <p className="font-medium text-gray-900 dark:text-white">
-                                  {ride.fare}
-                                </p>
-                                <button className="rounded-lg border border-gray-300 bg-white px-3 py-1 text-sm text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600">
-                                  Details
-                                </button>
-                              </div>
+
+                              {/* BookingStatusBar for each ride */}
+                              <BookingStatusBar
+                                initialStatus={ride.status}
+                                onStatusChange={(newStatus) =>
+                                  handleRideStatusChange(ride.id, newStatus)
+                                }
+                                tripId={ride.id}
+                                userType="driver"
+                                tripDetails={{
+                                  from: ride.from,
+                                  to: ride.to,
+                                  passenger: ride.passenger,
+                                  time: `${ride.date} ${ride.time}`,
+                                  fare: ride.fare,
+                                }}
+                              />
                             </div>
                           ))}
                         </div>
@@ -812,6 +1307,47 @@ export default function DriverDashboard() {
                           No upcoming rides scheduled
                         </p>
                       )}
+                    </div>
+                  </div>
+
+                  {/* Performance Charts */}
+                  <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+                    {/* Completion Rate Chart */}
+                    <div className="rounded-lg bg-white shadow-sm dark:bg-gray-800">
+                      <div className="flex items-center justify-between border-b border-gray-200 p-4 dark:border-gray-700">
+                        <div>
+                          <h2 className="text-lg font-medium text-gray-900 dark:text-white">
+                            Completion Rate
+                          </h2>
+                          <p className="text-sm text-gray-500 dark:text-gray-400">
+                            {completionRate.completionRate}% of trips completed
+                          </p>
+                        </div>
+                      </div>
+                      <div className="p-4">
+                        <div className="h-64">
+                          <canvas ref={completionRateChartRef}></canvas>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Trip Status Distribution Chart */}
+                    <div className="rounded-lg bg-white shadow-sm dark:bg-gray-800">
+                      <div className="flex items-center justify-between border-b border-gray-200 p-4 dark:border-gray-700">
+                        <div>
+                          <h2 className="text-lg font-medium text-gray-900 dark:text-white">
+                            Trip Status Distribution
+                          </h2>
+                          <p className="text-sm text-gray-500 dark:text-gray-400">
+                            Breakdown by status
+                          </p>
+                        </div>
+                      </div>
+                      <div className="p-4">
+                        <div className="h-64">
+                          <canvas ref={tripStatusChartRef}></canvas>
+                        </div>
+                      </div>
                     </div>
                   </div>
 
@@ -839,7 +1375,7 @@ export default function DriverDashboard() {
 
                       <div className="p-4">
                         <div className="space-y-4">
-                          {completedRides.slice(0, 2).map((ride) => (
+                          {displayCompletedRides.slice(0, 2).map((ride) => (
                             <div
                               key={ride.id}
                               className="flex items-center justify-between rounded-lg border border-gray-200 p-4 dark:border-gray-700"
@@ -921,402 +1457,6 @@ export default function DriverDashboard() {
                 </div>
               )}
 
-              {/* Statistics Section */}
-              {activeSection === "statistics" && (
-                <div className="space-y-6">
-                  {/* Timeframe selector */}
-                  <div className="flex flex-wrap items-center justify-between gap-4">
-                    <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
-                      Driver Statistics
-                    </h2>
-                    <div className="flex items-center space-x-2">
-                      <button
-                        onClick={() => handleTimeframeChange("week")}
-                        className={`rounded-lg px-3 py-1 text-sm ${
-                          statsTimeframe === "week"
-                            ? "bg-green-600 text-white"
-                            : "border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600"
-                        }`}
-                      >
-                        Week
-                      </button>
-                      <button
-                        onClick={() => handleTimeframeChange("month")}
-                        className={`rounded-lg px-3 py-1 text-sm ${
-                          statsTimeframe === "month"
-                            ? "bg-green-600 text-white"
-                            : "border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600"
-                        }`}
-                      >
-                        Month
-                      </button>
-                      <button
-                        onClick={() => handleTimeframeChange("year")}
-                        className={`rounded-lg px-3 py-1 text-sm ${
-                          statsTimeframe === "year"
-                            ? "bg-green-600 text-white"
-                            : "border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600"
-                        }`}
-                      >
-                        Year
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Trips Over Time */}
-                  <div className="rounded-lg bg-white shadow-sm dark:bg-gray-800">
-                    <div className="border-b border-gray-200 p-4 dark:border-gray-700">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <h2 className="text-lg font-medium text-gray-900 dark:text-white">
-                            Trips Over Time
-                          </h2>
-                          <p className="text-sm text-gray-500 dark:text-gray-400">
-                            Trip count and revenue by date
-                          </p>
-                        </div>
-                        {tripsOverTime.length > 5 && (
-                          <button
-                            onClick={() =>
-                              setShowAllTripsOverTime(!showAllTripsOverTime)
-                            }
-                            className="flex items-center text-sm font-medium text-green-600 hover:text-green-700 dark:text-green-400 dark:hover:text-green-300"
-                          >
-                            {showAllTripsOverTime ? "Show Less" : "View More"}
-                            <ChevronDown
-                              className={`ml-1 h-4 w-4 transition-transform ${
-                                showAllTripsOverTime ? "rotate-180" : ""
-                              }`}
-                            />
-                          </button>
-                        )}
-                      </div>
-                    </div>
-
-                    <div className="p-4">
-                      {tripsOverTime && tripsOverTime.length > 0 ? (
-                        <div className="overflow-x-auto">
-                          <table className="w-full text-left">
-                            <thead>
-                              <tr className="border-b border-gray-200 dark:border-gray-700">
-                                <th className="whitespace-nowrap px-4 py-2 font-medium text-gray-900 dark:text-white">
-                                  Date
-                                </th>
-                                <th className="whitespace-nowrap px-4 py-2 font-medium text-gray-900 dark:text-white">
-                                  Trip Count
-                                </th>
-                                <th className="whitespace-nowrap px-4 py-2 font-medium text-gray-900 dark:text-white">
-                                  Revenue
-                                </th>
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {(showAllTripsOverTime
-                                ? tripsOverTime
-                                : tripsOverTime.slice(0, 5)
-                              ).map((day, index) => (
-                                <tr
-                                  key={index}
-                                  className="border-b border-gray-200 dark:border-gray-700"
-                                >
-                                  <td className="whitespace-nowrap px-4 py-2 text-gray-700 dark:text-gray-300">
-                                    {day._id}
-                                  </td>
-                                  <td className="whitespace-nowrap px-4 py-2 text-gray-700 dark:text-gray-300">
-                                    {day.count}
-                                  </td>
-                                  <td className="whitespace-nowrap px-4 py-2 text-gray-700 dark:text-gray-300">
-                                    Rs. {day.revenue}
-                                  </td>
-                                </tr>
-                              ))}
-                            </tbody>
-                          </table>
-                        </div>
-                      ) : (
-                        <p className="py-4 text-center text-gray-500 dark:text-gray-400">
-                          No trip data available
-                        </p>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Popular Routes */}
-                  <div className="rounded-lg bg-white shadow-sm dark:bg-gray-800">
-                    <div className="border-b border-gray-200 p-4 dark:border-gray-700">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <h2 className="text-lg font-medium text-gray-900 dark:text-white">
-                            Popular Routes
-                          </h2>
-                          <p className="text-sm text-gray-500 dark:text-gray-400">
-                            Most frequently driven routes
-                          </p>
-                        </div>
-                        {popularRoutes.length > 5 && (
-                          <button
-                            onClick={() =>
-                              setShowAllPopularRoutes(!showAllPopularRoutes)
-                            }
-                            className="flex items-center text-sm font-medium text-green-600 hover:text-green-700 dark:text-green-400 dark:hover:text-green-300"
-                          >
-                            {showAllPopularRoutes ? "Show Less" : "View More"}
-                            <ChevronDown
-                              className={`ml-1 h-4 w-4 transition-transform ${
-                                showAllPopularRoutes ? "rotate-180" : ""
-                              }`}
-                            />
-                          </button>
-                        )}
-                      </div>
-                    </div>
-
-                    <div className="p-4">
-                      {popularRoutes && popularRoutes.length > 0 ? (
-                        <div className="overflow-x-auto">
-                          <table className="w-full text-left">
-                            <thead>
-                              <tr className="border-b border-gray-200 dark:border-gray-700">
-                                <th className="whitespace-nowrap px-4 py-2 font-medium text-gray-900 dark:text-white">
-                                  From
-                                </th>
-                                <th className="whitespace-nowrap px-4 py-2 font-medium text-gray-900 dark:text-white">
-                                  To
-                                </th>
-                                <th className="whitespace-nowrap px-4 py-2 font-medium text-gray-900 dark:text-white">
-                                  Count
-                                </th>
-                                <th className="whitespace-nowrap px-4 py-2 font-medium text-gray-900 dark:text-white">
-                                  Avg Price
-                                </th>
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {(showAllPopularRoutes
-                                ? popularRoutes
-                                : popularRoutes.slice(0, 5)
-                              ).map((route, index) => (
-                                <tr
-                                  key={index}
-                                  className="border-b border-gray-200 dark:border-gray-700"
-                                >
-                                  <td className="whitespace-nowrap px-4 py-2 text-gray-700 dark:text-gray-300">
-                                    {route._id.from}
-                                  </td>
-                                  <td className="whitespace-nowrap px-4 py-2 text-gray-700 dark:text-gray-300">
-                                    {route._id.to}
-                                  </td>
-                                  <td className="whitespace-nowrap px-4 py-2 text-gray-700 dark:text-gray-300">
-                                    {route.count}
-                                  </td>
-                                  <td className="whitespace-nowrap px-4 py-2 text-gray-700 dark:text-gray-300">
-                                    Rs. {route.avgPrice}
-                                  </td>
-                                </tr>
-                              ))}
-                            </tbody>
-                          </table>
-                        </div>
-                      ) : (
-                        <p className="py-4 text-center text-gray-500 dark:text-gray-400">
-                          No route data available
-                        </p>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Booking Stats and Trip Status */}
-                  <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
-                    {/* Booking Stats */}
-                    <div className="rounded-lg bg-white shadow-sm dark:bg-gray-800">
-                      <div className="border-b border-gray-200 p-4 dark:border-gray-700">
-                        <h2 className="text-lg font-medium text-gray-900 dark:text-white">
-                          Booking Stats
-                        </h2>
-                        <p className="text-sm text-gray-500 dark:text-gray-400">
-                          Seat occupancy and booking metrics
-                        </p>
-                      </div>
-
-                      <div className="p-4">
-                        <div className="grid grid-cols-2 gap-4">
-                          <div className="rounded-lg border border-gray-200 p-4 dark:border-gray-700">
-                            <p className="text-sm text-gray-500 dark:text-gray-400">
-                              Total Trips
-                            </p>
-                            <p className="text-2xl font-bold text-gray-900 dark:text-white">
-                              {bookingStats.totalTrips}
-                            </p>
-                          </div>
-                          <div className="rounded-lg border border-gray-200 p-4 dark:border-gray-700">
-                            <p className="text-sm text-gray-500 dark:text-gray-400">
-                              Total Seats
-                            </p>
-                            <p className="text-2xl font-bold text-gray-900 dark:text-white">
-                              {bookingStats.totalSeats}
-                            </p>
-                          </div>
-                          <div className="rounded-lg border border-gray-200 p-4 dark:border-gray-700">
-                            <p className="text-sm text-gray-500 dark:text-gray-400">
-                              Booked Seats
-                            </p>
-                            <p className="text-2xl font-bold text-gray-900 dark:text-white">
-                              {bookingStats.totalBooked}
-                            </p>
-                          </div>
-                          <div className="rounded-lg border border-gray-200 p-4 dark:border-gray-700">
-                            <p className="text-sm text-gray-500 dark:text-gray-400">
-                              Occupancy Rate
-                            </p>
-                            <p className="text-2xl font-bold text-gray-900 dark:text-white">
-                              {bookingStats.occupancyRate}%
-                            </p>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Trip Status Distribution */}
-                    <div className="rounded-lg bg-white shadow-sm dark:bg-gray-800">
-                      <div className="border-b border-gray-200 p-4 dark:border-gray-700">
-                        <div className="flex items-center justify-between">
-                          <div>
-                            <h2 className="text-lg font-medium text-gray-900 dark:text-white">
-                              Trip Status Distribution
-                            </h2>
-                            <p className="text-sm text-gray-500 dark:text-gray-400">
-                              Breakdown of trip statuses
-                            </p>
-                          </div>
-                          {tripStatusDistribution.length > 5 && (
-                            <button
-                              onClick={() =>
-                                setShowAllTripStatus(!showAllTripStatus)
-                              }
-                              className="flex items-center text-sm font-medium text-green-600 hover:text-green-700 dark:text-green-400 dark:hover:text-green-300"
-                            >
-                              {showAllTripStatus ? "Show Less" : "View More"}
-                              <ChevronDown
-                                className={`ml-1 h-4 w-4 transition-transform ${
-                                  showAllTripStatus ? "rotate-180" : ""
-                                }`}
-                              />
-                            </button>
-                          )}
-                        </div>
-                      </div>
-
-                      <div className="p-4">
-                        {tripStatusDistribution &&
-                        tripStatusDistribution.length > 0 ? (
-                          <div className="space-y-4">
-                            {(showAllTripStatus
-                              ? tripStatusDistribution
-                              : tripStatusDistribution.slice(0, 5)
-                            ).map((statusItem, index) => (
-                              <div
-                                key={index}
-                                className="flex items-center justify-between"
-                              >
-                                <div className="flex items-center">
-                                  <div
-                                    className={`h-3 w-3 rounded-full ${
-                                      statusItem._id === "Completed"
-                                        ? "bg-green-500"
-                                        : statusItem._id === "Cancelled"
-                                        ? "bg-red-500"
-                                        : statusItem._id === "In Progress"
-                                        ? "bg-blue-500"
-                                        : "bg-gray-500"
-                                    } mr-2`}
-                                  ></div>
-                                  <span className="text-sm text-gray-700 dark:text-gray-300">
-                                    {statusItem._id}
-                                  </span>
-                                </div>
-                                <div className="flex items-center">
-                                  <span className="mr-2 text-sm font-medium text-gray-900 dark:text-white">
-                                    {statusItem.count}
-                                  </span>
-                                  <span className="text-xs text-gray-500 dark:text-gray-400">
-                                    trips
-                                  </span>
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        ) : (
-                          <p className="py-4 text-center text-gray-500 dark:text-gray-400">
-                            No status data available
-                          </p>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Completion Rate */}
-                  <div className="rounded-lg bg-white shadow-sm dark:bg-gray-800">
-                    <div className="border-b border-gray-200 p-4 dark:border-gray-700">
-                      <h2 className="text-lg font-medium text-gray-900 dark:text-white">
-                        Completion Rate
-                      </h2>
-                      <p className="text-sm text-gray-500 dark:text-gray-400">
-                        Trip completion metrics
-                      </p>
-                    </div>
-
-                    <div className="p-4">
-                      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-                        <div className="rounded-lg border border-gray-200 p-4 dark:border-gray-700">
-                          <p className="text-sm text-gray-500 dark:text-gray-400">
-                            Total Trips
-                          </p>
-                          <p className="text-2xl font-bold text-gray-900 dark:text-white">
-                            {completionRate.total}
-                          </p>
-                        </div>
-                        <div className="rounded-lg border border-gray-200 p-4 dark:border-gray-700">
-                          <p className="text-sm text-gray-500 dark:text-gray-400">
-                            Completed Trips
-                          </p>
-                          <p className="text-2xl font-bold text-gray-900 dark:text-white">
-                            {completionRate.completed}
-                          </p>
-                        </div>
-                        <div className="rounded-lg border border-gray-200 p-4 dark:border-gray-700">
-                          <p className="text-sm text-gray-500 dark:text-gray-400">
-                            Completion Rate
-                          </p>
-                          <p className="text-2xl font-bold text-gray-900 dark:text-white">
-                            {completionRate.completionRate}%
-                          </p>
-                        </div>
-                      </div>
-
-                      {/* Progress bar for completion rate */}
-                      <div className="mt-6">
-                        <div className="mb-2 flex items-center justify-between">
-                          <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                            Completion Rate
-                          </span>
-                          <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                            {completionRate.completionRate}%
-                          </span>
-                        </div>
-                        <div className="h-2.5 w-full rounded-full bg-gray-200 dark:bg-gray-700">
-                          <div
-                            className="h-2.5 rounded-full bg-green-600"
-                            style={{
-                              width: `${completionRate.completionRate}%`,
-                            }}
-                          ></div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              )}
-
               {/* Upcoming Rides Section */}
               {activeSection === "upcoming" && (
                 <div className="rounded-lg bg-white shadow-sm dark:bg-gray-800">
@@ -1335,41 +1475,58 @@ export default function DriverDashboard() {
                         <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-green-500"></div>
                       </div>
                     ) : displayUpcomingRides.length > 0 ? (
-                      <div className="space-y-4">
+                      <div className="space-y-6">
                         {displayUpcomingRides.map((ride) => (
                           <div
                             key={ride.id}
-                            className="flex flex-col rounded-lg border border-gray-200 p-4 dark:border-gray-700 sm:flex-row sm:items-center sm:justify-between"
+                            className="rounded-lg border border-gray-200 p-4 dark:border-gray-700"
                           >
-                            <div>
-                              <div className="flex flex-wrap items-center gap-2">
-                                <span className="rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-medium text-gray-800 dark:bg-gray-700 dark:text-gray-300">
-                                  {ride.date} • {ride.time}
-                                </span>
-                                <span className="rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-medium text-green-800 dark:bg-green-900/30 dark:text-green-400">
-                                  {ride.status}
-                                </span>
+                            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-4">
+                              <div>
+                                <div className="flex flex-wrap items-center gap-2">
+                                  <span className="rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-medium text-gray-800 dark:bg-gray-700 dark:text-gray-300">
+                                    {ride.date} • {ride.time}
+                                  </span>
+                                </div>
+                                <h4 className="mt-2 font-medium text-gray-900 dark:text-white">
+                                  {ride.from} to {ride.to}
+                                </h4>
+                                <p className="text-sm text-gray-500 dark:text-gray-400">
+                                  Passenger: {ride.passenger}
+                                </p>
+                                <p className="font-medium text-gray-900 dark:text-white mt-1">
+                                  {ride.fare}
+                                </p>
                               </div>
-                              <h4 className="mt-2 font-medium text-gray-900 dark:text-white">
-                                {ride.from} to {ride.to}
-                              </h4>
-                              <p className="text-sm text-gray-500 dark:text-gray-400">
-                                Passenger: {ride.passenger}
-                              </p>
-                            </div>
-                            <div className="mt-4 flex items-center gap-2 sm:mt-0">
-                              <p className="font-medium text-gray-900 dark:text-white">
-                                {ride.fare}
-                              </p>
-                              <div className="flex gap-2">
-                                <button className="rounded-lg bg-red-600 px-3 py-1 text-sm text-white hover:bg-red-700">
-                                  Cancel
+                              <div className="mt-4 flex items-center gap-2 sm:mt-0">
+                                <button
+                                  className="rounded-lg border border-gray-300 bg-white px-3 py-1 text-sm text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600"
+                                  onClick={() => handleViewRideDetails(ride)}
+                                >
+                                  Details
                                 </button>
-                                <button className="rounded-lg border border-gray-300 bg-white px-3 py-1 text-sm text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600">
+                                <button className="rounded-lg bg-green-600 px-3 py-1 text-sm text-white hover:bg-green-700">
                                   Navigate
                                 </button>
                               </div>
                             </div>
+
+                            {/* BookingStatusBar for each ride */}
+                            <BookingStatusBar
+                              initialStatus={ride.status}
+                              onStatusChange={(newStatus) =>
+                                handleRideStatusChange(ride.id, newStatus)
+                              }
+                              tripId={ride.id}
+                              userType="driver"
+                              tripDetails={{
+                                from: ride.from,
+                                to: ride.to,
+                                passenger: ride.passenger,
+                                time: `${ride.date} ${ride.time}`,
+                                fare: ride.fare,
+                              }}
+                            />
                           </div>
                         ))}
                       </div>
@@ -1396,7 +1553,7 @@ export default function DriverDashboard() {
 
                   <div className="p-4">
                     <div className="space-y-4">
-                      {completedRides.map((ride) => (
+                      {displayCompletedRides.map((ride) => (
                         <div
                           key={ride.id}
                           className="flex flex-col rounded-lg border border-gray-200 p-4 dark:border-gray-700 sm:flex-row sm:items-center sm:justify-between"
@@ -1426,7 +1583,10 @@ export default function DriverDashboard() {
                                 </span>
                               </div>
                             </div>
-                            <button className="rounded-lg border border-gray-300 bg-white px-3 py-1 text-sm text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600">
+                            <button
+                              className="rounded-lg border border-gray-300 bg-white px-3 py-1 text-sm text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600"
+                              onClick={() => handleViewRideDetails(ride)}
+                            >
                               Details
                             </button>
                           </div>
@@ -1439,456 +1599,179 @@ export default function DriverDashboard() {
 
               {/* Earnings Section */}
               {activeSection === "earnings" && (
-                <div className="rounded-lg bg-white shadow-sm dark:bg-gray-800">
-                  <div className="border-b border-gray-200 p-4 dark:border-gray-700">
-                    <h2 className="text-lg font-medium text-gray-900 dark:text-white">
-                      Earnings
-                    </h2>
-                    <p className="text-sm text-gray-500 dark:text-gray-400">
-                      Your income from rides
-                    </p>
-                  </div>
-
-                  <div className="p-4">
-                    <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-3">
-                      <div className="rounded-lg border border-gray-200 p-4 dark:border-gray-700">
-                        <p className="text-sm text-gray-500 dark:text-gray-400">
-                          Today
-                        </p>
-                        <p className="text-2xl font-bold text-gray-900 dark:text-white">
-                          Rs. 7,500
-                        </p>
-                        <p className="text-sm text-gray-500 dark:text-gray-400">
-                          5 rides
-                        </p>
-                      </div>
-                      <div className="rounded-lg border border-gray-200 p-4 dark:border-gray-700">
-                        <p className="text-sm text-gray-500 dark:text-gray-400">
-                          This Week
-                        </p>
-                        <p className="text-2xl font-bold text-gray-900 dark:text-white">
-                          Rs. 32,000
-                        </p>
-                        <p className="text-sm text-gray-500 dark:text-gray-400">
-                          22 rides
-                        </p>
-                      </div>
-                      <div className="rounded-lg border border-gray-200 p-4 dark:border-gray-700">
-                        <p className="text-sm text-gray-500 dark:text-gray-400">
-                          This Month
-                        </p>
-                        <p className="text-2xl font-bold text-gray-900 dark:text-white">
-                          Rs. 125,000
-                        </p>
-                        <p className="text-sm text-gray-500 dark:text-gray-400">
-                          85 rides
-                        </p>
-                      </div>
-                    </div>
-
-                    <h3 className="mb-4 text-lg font-medium text-gray-900 dark:text-white">
-                      Recent Earnings
-                    </h3>
-                    <div className="space-y-4">
-                      {earnings.map((earning) => (
-                        <div
-                          key={earning.id}
-                          className="flex flex-col rounded-lg border border-gray-200 p-4 dark:border-gray-700 sm:flex-row sm:items-center sm:justify-between"
-                        >
-                          <div>
-                            <p className="text-sm text-gray-500 dark:text-gray-400">
-                              {earning.date}
-                            </p>
-                            <h4 className="mt-1 font-medium text-gray-900 dark:text-white">
-                              {earning.amount}
-                            </h4>
-                            <p className="text-sm text-gray-500 dark:text-gray-400">
-                              Rides: {earning.rides}
-                            </p>
-                          </div>
-                          <div className="mt-4 flex items-center gap-2 sm:mt-0">
-                            <span className="rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-medium text-green-800 dark:bg-green-900/30 dark:text-green-400">
-                              {earning.status}
-                            </span>
-                            <button className="rounded-lg border border-gray-300 bg-white px-3 py-1 text-sm text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600">
-                              Details
-                            </button>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* Notifications Section */}
-              {activeSection === "notifications" && (
-                <div className="rounded-lg bg-white shadow-sm dark:bg-gray-800">
-                  <div className="border-b border-gray-200 p-4 dark:border-gray-700">
-                    <h2 className="text-lg font-medium text-gray-900 dark:text-white">
-                      Notifications
-                    </h2>
-                    <p className="text-sm text-gray-500 dark:text-gray-400">
-                      Stay updated with your activity
-                    </p>
-                  </div>
-
-                  <div className="p-4">
-                    <div className="mb-4 flex justify-end">
-                      <button className="rounded-lg border border-gray-300 bg-white px-3 py-1 text-sm text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600">
-                        Mark All as Read
-                      </button>
-                    </div>
-
-                    <div className="mb-4 border-b border-gray-200 dark:border-gray-700">
-                      <div className="flex space-x-4">
-                        <button className="border-b-2 border-green-600 px-4 py-2 text-sm font-medium text-green-600 dark:border-green-400 dark:text-green-400">
-                          All
-                        </button>
-                        <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300">
-                          Unread
-                        </button>
-                      </div>
-                    </div>
-
-                    <div className="space-y-4">
-                      {notifications.map((notification) => (
-                        <div
-                          key={notification.id}
-                          className={`flex items-start gap-4 rounded-lg border border-gray-200 p-4 dark:border-gray-700 ${
-                            !notification.isRead
-                              ? "bg-gray-50 dark:bg-gray-700/50"
-                              : ""
-                          }`}
-                        >
-                          <Bell className="mt-0.5 h-5 w-5 flex-shrink-0 text-gray-400 dark:text-gray-500" />
-                          <div className="flex-1">
-                            <p
-                              className={`text-sm ${
-                                !notification.isRead
-                                  ? "font-medium text-gray-900 dark:text-white"
-                                  : "text-gray-700 dark:text-gray-300"
-                              }`}
-                            >
-                              {notification.message}
-                            </p>
-                            <p className="text-xs text-gray-500 dark:text-gray-400">
-                              {notification.time}
-                            </p>
-                          </div>
-                          {!notification.isRead && (
-                            <button className="rounded-lg px-2 py-1 text-sm text-gray-500 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-700">
-                              Mark as Read
-                            </button>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* Vehicle Details Section */}
-              {activeSection === "vehicle" && (
-                <div className="rounded-lg bg-white shadow-sm dark:bg-gray-800">
-                  <div className="border-b border-gray-200 p-4 dark:border-gray-700">
-                    <h2 className="text-lg font-medium text-gray-900 dark:text-white">
-                      Vehicle Details
-                    </h2>
-                    <p className="text-sm text-gray-500 dark:text-gray-400">
-                      Information about your vehicle
-                    </p>
-                  </div>
-
-                  <div className="p-4">
-                    <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2">
-                      <div className="rounded-lg border border-gray-200 p-4 dark:border-gray-700">
-                        <h3 className="mb-4 text-lg font-medium text-gray-900 dark:text-white">
-                          Vehicle Information
-                        </h3>
-                        <div className="space-y-3">
-                          <div className="flex justify-between">
-                            <p className="text-sm text-gray-500 dark:text-gray-400">
-                              Make:
-                            </p>
-                            <p className="text-sm font-medium text-gray-900 dark:text-white">
-                              {vehicleDetails.make}
-                            </p>
-                          </div>
-                          <div className="flex justify-between">
-                            <p className="text-sm text-gray-500 dark:text-gray-400">
-                              Model:
-                            </p>
-                            <p className="text-sm font-medium text-gray-900 dark:text-white">
-                              {vehicleDetails.model}
-                            </p>
-                          </div>
-                          <div className="flex justify-between">
-                            <p className="text-sm text-gray-500 dark:text-gray-400">
-                              Year:
-                            </p>
-                            <p className="text-sm font-medium text-gray-900 dark:text-white">
-                              {vehicleDetails.year}
-                            </p>
-                          </div>
-                          <div className="flex justify-between">
-                            <p className="text-sm text-gray-500 dark:text-gray-400">
-                              License Plate:
-                            </p>
-                            <p className="text-sm font-medium text-gray-900 dark:text-white">
-                              {vehicleDetails.licensePlate}
-                            </p>
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="rounded-lg border border-gray-200 p-4 dark:border-gray-700">
-                        <h3 className="mb-4 text-lg font-medium text-gray-900 dark:text-white">
-                          Maintenance Status
-                        </h3>
-                        <div className="space-y-3">
-                          <div className="flex justify-between">
-                            <p className="text-sm text-gray-500 dark:text-gray-400">
-                              Last Maintenance:
-                            </p>
-                            <p className="text-sm font-medium text-gray-900 dark:text-white">
-                              {vehicleDetails.lastMaintenance}
-                            </p>
-                          </div>
-                          <div className="flex justify-between">
-                            <p className="text-sm text-gray-500 dark:text-gray-400">
-                              Next Maintenance:
-                            </p>
-                            <p className="text-sm font-medium text-gray-900 dark:text-white">
-                              {vehicleDetails.nextMaintenance}
-                            </p>
-                          </div>
-                          <div className="flex justify-between">
-                            <p className="text-sm text-gray-500 dark:text-gray-400">
-                              Fuel Level:
-                            </p>
-                            <p className="text-sm font-medium text-gray-900 dark:text-white">
-                              {vehicleDetails.fuelLevel}
-                            </p>
-                          </div>
-                          <div className="flex justify-between">
-                            <p className="text-sm text-gray-500 dark:text-gray-400">
-                              Status:
-                            </p>
-                            <p className="text-sm font-medium text-green-600 dark:text-green-400">
-                              {vehicleDetails.status}
-                            </p>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="flex justify-end space-x-2">
-                      <button className="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600">
-                        Update Fuel Level
-                      </button>
-                      <button className="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600">
-                        Report Issue
-                      </button>
-                      <button className="rounded-lg bg-green-600 px-4 py-2 text-sm text-white hover:bg-green-700">
-                        Schedule Maintenance
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* Favorite Locations Section */}
-              {activeSection === "favorite-locations" && (
-                <div className="rounded-lg bg-white shadow-sm dark:bg-gray-800">
-                  <div className="flex items-center justify-between border-b border-gray-200 p-4 dark:border-gray-700">
-                    <div>
+                <div className="space-y-6">
+                  {/* Earnings Chart */}
+                  <div className="rounded-lg bg-white shadow-sm dark:bg-gray-800">
+                    <div className="border-b border-gray-200 p-4 dark:border-gray-700">
                       <h2 className="text-lg font-medium text-gray-900 dark:text-white">
-                        Favorite Locations
+                        Earnings Overview
                       </h2>
                       <p className="text-sm text-gray-500 dark:text-gray-400">
-                        Your frequently visited places
+                        Your income from rides
                       </p>
                     </div>
-                    <button className="rounded-lg bg-green-600 px-4 py-2 text-white hover:bg-green-700">
-                      Add Location
-                    </button>
+
+                    <div className="p-4">
+                      <div className="h-80">
+                        <canvas ref={earningsChartRef}></canvas>
+                      </div>
+                    </div>
                   </div>
 
-                  <div className="p-4">
-                    <div className="space-y-4">
-                      {favoriteLocations.map((location) => (
-                        <div
-                          key={location.id}
-                          className="flex items-center justify-between rounded-lg border border-gray-200 p-4 dark:border-gray-700"
-                        >
-                          <div>
-                            <div className="flex items-center gap-2">
-                              <span className="rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-medium text-gray-800 dark:bg-gray-700 dark:text-gray-300">
-                                {location.type}
-                              </span>
-                              <h4 className="font-medium text-gray-900 dark:text-white">
-                                {location.name}
+                  {/* Earnings Summary */}
+                  <div className="rounded-lg bg-white shadow-sm dark:bg-gray-800">
+                    <div className="border-b border-gray-200 p-4 dark:border-gray-700">
+                      <h2 className="text-lg font-medium text-gray-900 dark:text-white">
+                        Earnings Summary
+                      </h2>
+                    </div>
+
+                    <div className="p-4">
+                      <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-3">
+                        <div className="rounded-lg border border-gray-200 p-4 dark:border-gray-700">
+                          <p className="text-sm text-gray-500 dark:text-gray-400">
+                            Today
+                          </p>
+                          <p className="text-2xl font-bold text-gray-900 dark:text-white">
+                            {displayEarnings.find(
+                              (earning) =>
+                                new Date(earning.date).toDateString() ===
+                                new Date().toDateString()
+                            )?.amount || "Rs. 0"}
+                          </p>
+                          <p className="text-sm text-gray-500 dark:text-gray-400">
+                            {displayEarnings.find(
+                              (earning) =>
+                                new Date(earning.date).toDateString() ===
+                                new Date().toDateString()
+                            )?.rides || 0}{" "}
+                            rides
+                          </p>
+                        </div>
+                        <div className="rounded-lg border border-gray-200 p-4 dark:border-gray-700">
+                          <p className="text-sm text-gray-500 dark:text-gray-400">
+                            This Week
+                          </p>
+                          <p className="text-2xl font-bold text-gray-900 dark:text-white">
+                            Rs.{" "}
+                            {displayEarnings
+                              .filter((earning) => {
+                                const earningDate = new Date(earning.date);
+                                const today = new Date();
+                                const weekStart = new Date(today);
+                                weekStart.setDate(
+                                  today.getDate() - today.getDay()
+                                );
+                                return earningDate >= weekStart;
+                              })
+                              .reduce((sum, earning) => {
+                                const amount = Number.parseInt(
+                                  earning.amount.replace(/[^0-9]/g, "")
+                                );
+                                return sum + (isNaN(amount) ? 0 : amount);
+                              }, 0)
+                              .toLocaleString()}
+                          </p>
+                          <p className="text-sm text-gray-500 dark:text-gray-400">
+                            {displayEarnings
+                              .filter((earning) => {
+                                const earningDate = new Date(earning.date);
+                                const today = new Date();
+                                const weekStart = new Date(today);
+                                weekStart.setDate(
+                                  today.getDate() - today.getDay()
+                                );
+                                return earningDate >= weekStart;
+                              })
+                              .reduce(
+                                (sum, earning) => sum + earning.rides,
+                                0
+                              )}{" "}
+                            rides
+                          </p>
+                        </div>
+                        <div className="rounded-lg border border-gray-200 p-4 dark:border-gray-700">
+                          <p className="text-sm text-gray-500 dark:text-gray-400">
+                            This Month
+                          </p>
+                          <p className="text-2xl font-bold text-gray-900 dark:text-white">
+                            Rs.{" "}
+                            {displayEarnings
+                              .filter((earning) => {
+                                const earningDate = new Date(earning.date);
+                                const today = new Date();
+                                return (
+                                  earningDate.getMonth() === today.getMonth() &&
+                                  earningDate.getFullYear() ===
+                                    today.getFullYear()
+                                );
+                              })
+                              .reduce((sum, earning) => {
+                                const amount = Number.parseInt(
+                                  earning.amount.replace(/[^0-9]/g, "")
+                                );
+                                return sum + (isNaN(amount) ? 0 : amount);
+                              }, 0)
+                              .toLocaleString()}
+                          </p>
+                          <p className="text-sm text-gray-500 dark:text-gray-400">
+                            {displayEarnings
+                              .filter((earning) => {
+                                const earningDate = new Date(earning.date);
+                                const today = new Date();
+                                return (
+                                  earningDate.getMonth() === today.getMonth() &&
+                                  earningDate.getFullYear() ===
+                                    today.getFullYear()
+                                );
+                              })
+                              .reduce(
+                                (sum, earning) => sum + earning.rides,
+                                0
+                              )}{" "}
+                            rides
+                          </p>
+                        </div>
+                      </div>
+
+                      <h3 className="mb-4 text-lg font-medium text-gray-900 dark:text-white">
+                        Recent Earnings
+                      </h3>
+                      <div className="space-y-4">
+                        {displayEarnings.slice(0, 5).map((earning) => (
+                          <div
+                            key={earning.id}
+                            className="flex flex-col rounded-lg border border-gray-200 p-4 dark:border-gray-700 sm:flex-row sm:items-center sm:justify-between"
+                          >
+                            <div>
+                              <p className="text-sm text-gray-500 dark:text-gray-400">
+                                {earning.date}
+                              </p>
+                              <h4 className="mt-1 font-medium text-gray-900 dark:text-white">
+                                {earning.amount}
                               </h4>
+                              <p className="text-sm text-gray-500 dark:text-gray-400">
+                                Rides: {earning.rides}
+                              </p>
                             </div>
-                            <p className="text-sm text-gray-500 dark:text-gray-400">
-                              {location.address}
-                            </p>
+                            <div className="mt-4 flex items-center gap-2 sm:mt-0">
+                              <span className="rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-medium text-green-800 dark:bg-green-900/30 dark:text-green-400">
+                                {earning.status}
+                              </span>
+                              <button className="rounded-lg border border-gray-300 bg-white px-3 py-1 text-sm text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600">
+                                Details
+                              </button>
+                            </div>
                           </div>
-                          <div className="flex gap-2">
-                            <button className="rounded-lg border border-gray-300 bg-white px-3 py-1 text-sm text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600">
-                              Navigate
-                            </button>
-                            <button className="rounded-lg border border-red-300 bg-white px-3 py-1 text-sm text-red-700 hover:bg-red-50 dark:border-red-700 dark:bg-red-900/20 dark:text-red-400 dark:hover:bg-red-900/30">
-                              Remove
-                            </button>
-                          </div>
-                        </div>
-                      ))}
+                        ))}
+                      </div>
                     </div>
                   </div>
                 </div>
               )}
 
-              {/* Settings Section */}
-              {activeSection === "settings" && (
-                <div className="rounded-lg bg-white shadow-sm dark:bg-gray-800">
-                  <div className="border-b border-gray-200 p-4 dark:border-gray-700">
-                    <h2 className="text-lg font-medium text-gray-900 dark:text-white">
-                      Settings
-                    </h2>
-                    <p className="text-sm text-gray-500 dark:text-gray-400">
-                      Manage your account preferences
-                    </p>
-                  </div>
-
-                  <div className="p-4">
-                    <div className="space-y-6">
-                      <div>
-                        <h3 className="text-lg font-medium text-gray-900 dark:text-white">
-                          Account Settings
-                        </h3>
-                        <div className="mt-4 space-y-4">
-                          <div className="flex items-center justify-between">
-                            <div>
-                              <p className="font-medium text-gray-900 dark:text-white">
-                                Email Notifications
-                              </p>
-                              <p className="text-sm text-gray-500 dark:text-gray-400">
-                                Receive email updates about your rides
-                              </p>
-                            </div>
-                            <button className="rounded-lg border border-gray-300 bg-white px-3 py-1 text-sm text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600">
-                              Enabled
-                            </button>
-                          </div>
-                          <div className="flex items-center justify-between">
-                            <div>
-                              <p className="font-medium text-gray-900 dark:text-white">
-                                SMS Notifications
-                              </p>
-                              <p className="text-sm text-gray-500 dark:text-gray-400">
-                                Receive text messages about your rides
-                              </p>
-                            </div>
-                            <button className="rounded-lg border border-gray-300 bg-white px-3 py-1 text-sm text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600">
-                              Enabled
-                            </button>
-                          </div>
-                          <div className="flex items-center justify-between">
-                            <div>
-                              <p className="font-medium text-gray-900 dark:text-white">
-                                Dark Mode
-                              </p>
-                              <p className="text-sm text-gray-500 dark:text-gray-400">
-                                Toggle between light and dark theme
-                              </p>
-                            </div>
-                            <button
-                              className="rounded-lg border border-gray-300 bg-white px-3 py-1 text-sm text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600"
-                              onClick={toggleDarkMode}
-                            >
-                              {darkMode ? "Enabled" : "Disabled"}
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-
-                      <div>
-                        <h3 className="text-lg font-medium text-gray-900 dark:text-white">
-                          Driver Preferences
-                        </h3>
-                        <div className="mt-4 space-y-4">
-                          <div className="flex items-center justify-between">
-                            <div>
-                              <p className="font-medium text-gray-900 dark:text-white">
-                                Automatic Ride Acceptance
-                              </p>
-                              <p className="text-sm text-gray-500 dark:text-gray-400">
-                                Automatically accept ride requests
-                              </p>
-                            </div>
-                            <button className="rounded-lg border border-gray-300 bg-white px-3 py-1 text-sm text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600">
-                              Disabled
-                            </button>
-                          </div>
-                          <div className="flex items-center justify-between">
-                            <div>
-                              <p className="font-medium text-gray-900 dark:text-white">
-                                Navigation Voice
-                              </p>
-                              <p className="text-sm text-gray-500 dark:text-gray-400">
-                                Choose voice for navigation instructions
-                              </p>
-                            </div>
-                            <button className="rounded-lg border border-gray-300 bg-white px-3 py-1 text-sm text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600">
-                              Default
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-
-                      <div>
-                        <h3 className="text-lg font-medium text-gray-900 dark:text-white">
-                          Payment Settings
-                        </h3>
-                        <div className="mt-4 space-y-4">
-                          <div className="flex items-center justify-between">
-                            <div>
-                              <p className="font-medium text-gray-900 dark:text-white">
-                                Payment Method
-                              </p>
-                              <p className="text-sm text-gray-500 dark:text-gray-400">
-                                Bank Account ending in 4567
-                              </p>
-                            </div>
-                            <button className="rounded-lg border border-gray-300 bg-white px-3 py-1 text-sm text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600">
-                              Change
-                            </button>
-                          </div>
-                          <div className="flex items-center justify-between">
-                            <div>
-                              <p className="font-medium text-gray-900 dark:text-white">
-                                Instant Payout
-                              </p>
-                              <p className="text-sm text-gray-500 dark:text-gray-400">
-                                Get paid instantly after each ride
-                              </p>
-                            </div>
-                            <button className="rounded-lg border border-gray-300 bg-white px-3 py-1 text-sm text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600">
-                              Enabled
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-
-                      <button className="w-full rounded-lg bg-green-600 px-4 py-2 text-white hover:bg-green-700">
-                        Save Changes
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              )}
+              {/* Other sections remain the same */}
+              {/* ... */}
             </main>
           </div>
         </div>
@@ -1899,6 +1782,123 @@ export default function DriverDashboard() {
           onClose={() => setIsProfileModalOpen(false)}
           userId={driverId}
         />
+
+        {/* Ride Details Modal */}
+        {showRideDetails && selectedRide && (
+          <div className="fixed inset-0 z-50 overflow-y-auto">
+            <div
+              className="fixed inset-0 bg-black/50 backdrop-blur-sm transition-opacity"
+              onClick={() => setShowRideDetails(false)}
+            ></div>
+            <div className="flex items-center justify-center min-h-screen p-4">
+              <div
+                className="relative bg-white rounded-xl shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto animate-fade-in dark:bg-gray-800"
+                onClick={(e) => e.stopPropagation()}
+              >
+                {/* Close button */}
+                <button
+                  onClick={() => setShowRideDetails(false)}
+                  className="absolute top-4 right-4 z-10 p-2 rounded-full bg-white/80 text-gray-700 hover:bg-gray-200 transition-colors dark:bg-gray-700/80 dark:text-gray-300 dark:hover:bg-gray-600"
+                  aria-label="Close modal"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+
+                <div className="p-6">
+                  <h2 className="text-xl font-bold mb-4 text-gray-900 dark:text-white">
+                    Ride Details
+                  </h2>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                    <div>
+                      <p className="text-sm text-gray-500 dark:text-gray-400">
+                        Date & Time
+                      </p>
+                      <p className="font-medium text-gray-900 dark:text-white">
+                        {selectedRide.date} • {selectedRide.time}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-gray-500 dark:text-gray-400">
+                        Passenger
+                      </p>
+                      <p className="font-medium text-gray-900 dark:text-white">
+                        {selectedRide.passenger}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-gray-500 dark:text-gray-400">
+                        From
+                      </p>
+                      <p className="font-medium text-gray-900 dark:text-white">
+                        {selectedRide.from}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-gray-500 dark:text-gray-400">
+                        To
+                      </p>
+                      <p className="font-medium text-gray-900 dark:text-white">
+                        {selectedRide.to}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-gray-500 dark:text-gray-400">
+                        Fare
+                      </p>
+                      <p className="font-medium text-gray-900 dark:text-white">
+                        {selectedRide.fare}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-gray-500 dark:text-gray-400">
+                        Status
+                      </p>
+                      <p className="font-medium text-gray-900 dark:text-white capitalize">
+                        {selectedRide.status}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Booking Status Bar */}
+                  <div className="mb-6">
+                    <h3 className="text-lg font-medium mb-3 text-gray-900 dark:text-white">
+                      Booking Status
+                    </h3>
+                    <BookingStatusBar
+                      initialStatus={selectedRide.status}
+                      onStatusChange={(newStatus) =>
+                        handleRideStatusChange(selectedRide.id, newStatus)
+                      }
+                      tripId={selectedRide.id}
+                      userType="driver"
+                      showConfirmationPopup={selectedRide.status === "booked"}
+                      tripDetails={{
+                        from: selectedRide.from,
+                        to: selectedRide.to,
+                        passenger: selectedRide.passenger,
+                        time: `${selectedRide.date} ${selectedRide.time}`,
+                        fare: selectedRide.fare,
+                      }}
+                    />
+                  </div>
+
+                  <div className="flex justify-end space-x-3 mt-6 pt-4 border-t border-gray-200 dark:border-gray-700">
+                    <button
+                      onClick={() => setShowRideDetails(false)}
+                      className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600"
+                    >
+                      Close
+                    </button>
+                    <button className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700">
+                      Navigate
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </>
   );

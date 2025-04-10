@@ -12,6 +12,7 @@
   "dependencies": {
     "@react-google-maps/api": "^2.20.6",
     "@reduxjs/toolkit": "^2.5.1",
+    "chart.js": "^4.4.8",
     "date-fns": "^4.1.0",
     "formik": "^2.4.6",
     "framer-motion": "^12.5.0",

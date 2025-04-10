@@ -16,10 +16,6 @@ import RideStatus from "./components/ride/UserRideStatus.jsx";
 import DriverRideStatus from "./components/ride/DriverRideStatus.jsx";
 import DriverDashboard from "./components/driver/DriverDashboard.jsx";
 
-//chat
-import ChatPage from "./components/chat/chatPage.jsx";
-import ChatList from "./components/chat/chatList.jsx";
-
 // Notification / Socket
 import socketService from "./components/socket/socketService.js";
 
@@ -58,9 +54,16 @@ import TripForm from "./components/trip/tripForm";
 import TripList from "./components/trip/tripList";
 import Bookinglist from "./components/trip/bookingList.jsx";
 
+//chat 
+import PassengerChatPage from "./components/chat/PassengerChatPage.jsx";
+import DriverChatPage from "./components/chat/DriverChatPage.jsx";
+
 // Driver
 import UserKycModal from "./components/driver/UserKYCModal.jsx";
 import DriverKycModal from "./components/driver/DriverKYCModal.jsx";
+
+//rating
+import RatingModal from "./components/rating/RatingModal";
 
 // Auth
 import RegisterPage from "./components/pages/RegisterPage";
@@ -69,19 +72,32 @@ import ForgotPassword from "./components/auth/forgotPassword";
 import ResetPassword from "./components/auth/resetPassword";
 import UnauthPage from "./components/pages/UnAuthPage";
 import { checkAuth } from "./components/Slices/authSlice";
-import CheckAuth from "./utils/ProtectedRoute"; // or wherever your ProtectedRoute is located
+import CheckAuth from "./utils/ProtectedRoute";
 
 function App() {
   const dispatch = useDispatch();
   const { isAuthenticated, user } = useSelector((state) => state.auth);
 
+  // Check authentication status when the app loads
   useEffect(() => {
-    // Connect socket once when app mounts
-    socketService.connect();
-
-    // Check token-based auth in Redux
     dispatch(checkAuth());
   }, [dispatch]);
+
+  useEffect(() => {
+    // Connect socket once when app mounts
+    if (isAuthenticated) {
+      socketService.connect({
+        userId: user._id,
+      });
+    }
+
+    // Disconnect socket when the user logs out or component unmounts
+    return () => {
+      if (isAuthenticated) {
+        socketService.disconnect();
+      }
+    };
+  }, [isAuthenticated, user]);
 
   return (
     <Router>
@@ -115,7 +131,10 @@ function App() {
 
         <Route path="/userDashboard" element={<UserDashboard />} />
         <Route path="/sidebar" element={<Sidebar />} />
-        <Route path="/payment-success" element={<PaymentSuccess />} />
+        <Route
+          path="/payment-success/:paymentId"
+          element={<PaymentSuccess />}
+        />
         <Route path="/payment-failed" element={<PaymentFailed />} />
         <Route path="/contact" element={<HelpCenter />} />
         <Route path="/profile/:userId" element={<ProfileModal />} />
@@ -130,9 +149,14 @@ function App() {
         <Route path="/ridestatus" element={<RideStatus />} />
         <Route path="/driverridestatus" element={<DriverRideStatus />} />
 
-        {/* Chat Routes */}
-        <Route path="/chats" element={<ChatList />} />
-        <Route path="/chats/:tripId" element={<ChatPage />} />
+        {/* Chat */}
+
+        <Route path="/PassengerChat" element={<PassengerChatPage />} />
+        <Route path="/DriverChat" element={<DriverChatPage />} />
+
+
+        {/* Rating */}
+        <Route path="/rating" element={<RatingModal />} />
 
         {/* Auth Routes */}
         <Route

@@ -4,6 +4,7 @@ import {
   getBookingDetails,
   getMyBookings,
   cancelBooking,
+  getChatUsers,
   // Add the new controller function
 } from "../controllers/bookingController.js";
 import protectRoute from "../middlewares/protectRoute.js";
@@ -16,11 +17,13 @@ router.post("/", protectRoute, createBooking);
 // Get my bookings (protected)
 router.get("/my", protectRoute, getMyBookings);
 
+router.get("/getChatUsers", protectRoute, getChatUsers);
 // Get single booking details (protected)
-router.get("/:bookingId", protectRoute, getBookingDetails);
+router.get("/getBookingDetails/:bookingId", protectRoute, getBookingDetails);
 
 // Cancel booking (protected)
-router.patch("/:bookingId/cancel", protectRoute, cancelBooking);
+router.patch("/cancel/:bookingId/", protectRoute, cancelBooking);
+
 
 // Confirm payment and initialize chat (protected)
 // router.patch("/:bookingId/confirm-payment", protectRoute, confirmPayment);
