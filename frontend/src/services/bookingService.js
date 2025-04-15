@@ -60,7 +60,7 @@ const fetchBookingDetails = async (bookingId) => {
     console.log("Fetching booking details for ID:", bookingId);
 
     const response = await axiosInstance.get(
-      `${Base_Backend_Url}/api/bookings/getBookingDetails/${bookingId}`,
+      `${Base_Backend_Url}/api/bookings/${bookingId}`,
       { withCredentials: true }
     );
     return response.data;
@@ -80,7 +80,7 @@ const cancelBooking = async (bookingId) => {
     console.log("Cancelling booking for ID:", bookingId);
 
     const response = await axiosInstance.patch(
-      `${Base_Backend_Url}/api/bookings/cancel/${bookingId}`,
+      `${Base_Backend_Url}/api/bookings/${bookingId}/cancel`,
       {},
       {
         withCredentials: true,

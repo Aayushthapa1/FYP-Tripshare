@@ -1,17 +1,14 @@
-// driverKYCService.js
 import axiosInstance from "../utils/axiosInstance";
 import formatError from "../utils/errorUtils";
 
 /**
  * Submit new KYC (driver side)
- * POST /api/drivers
+ * POST /api/drivers/create
  */
-export const submitDriverKYC = async (data) => {
+export const submitDriverKYC = async (formData) => {
     try {
-        // data can be FormData or JSON, depending on how you're sending it
-        const response = await axiosInstance.post("/api/drivers", data);
-        // The server should return { success: true, data: createdDoc }
-        return response.data.data; // Return just the doc or entire payload
+        const response = await axiosInstance.post("/api/drivers/create", formData);
+        return response.data.data; // the newly created doc
     } catch (error) {
         throw formatError(error);
     }
@@ -19,17 +16,20 @@ export const submitDriverKYC = async (data) => {
 
 /**
  * Get all KYC submissions (admin side)
- * GET /api/drivers
- * You can pass queries like status, sort, page, limit
+ * GET /api/drivers/all
  */
 export const getAllDriverKYCs = async (params = {}) => {
     try {
-        // For pagination or filters: e.g. { status: 'pending', page: 2, limit: 20 }
-        const response = await axiosInstance.get("/api/drivers", {
-            params,
-        });
-        // The server returns { success: true, data: [...] } plus pagination info
-        return response.data.data; // or entire response.data if you need pagination
+        const response = await axiosInstance.get("/api/drivers/all", { params });
+        return {
+            data: response.data.data,
+            pagination: response.data.pagination || {
+                page: 1,
+                limit: 10,
+                total: response.data.total || 0,
+                totalPages: response.data.totalPages || 1,
+            },
+        };
     } catch (error) {
         throw formatError(error);
     }
@@ -42,7 +42,19 @@ export const getAllDriverKYCs = async (params = {}) => {
 export const getDriverKYCById = async (id) => {
     try {
         const response = await axiosInstance.get(`/api/drivers/${id}`);
-        // The server returns { success: true, data: doc }
+        return response.data.data;
+    } catch (error) {
+        throw formatError(error);
+    }
+};
+
+/**
+ * Get KYC submission by user ID
+ * GET /api/drivers/user/:userId
+ */
+export const getDriverKYCByUser = async (userId) => {
+    try {
+        const response = await axiosInstance.get(`/api/drivers/user/${userId}`);
         return response.data.data;
     } catch (error) {
         throw formatError(error);
@@ -51,12 +63,11 @@ export const getDriverKYCById = async (id) => {
 
 /**
  * Update KYC information (driver side)
- * PUT /api/drivers/:id
+ * PUT /api/drivers/update/:id
  */
 export const updateDriverKYC = async (id, data) => {
     try {
-        const response = await axiosInstance.put(`/api/drivers/${id}`, data);
-        // The server returns { success: true, data: updatedDoc }
+        const response = await axiosInstance.put(`/api/drivers/update/${id}`, data);
         return response.data.data;
     } catch (error) {
         throw formatError(error);
@@ -73,7 +84,6 @@ export const updateKYCStatus = async (id, statusData) => {
             `/api/drivers/${id}/status`,
             statusData
         );
-        // The server returns { success: true, data: updatedDoc }
         return response.data.data;
     } catch (error) {
         throw formatError(error);
@@ -82,14 +92,12 @@ export const updateKYCStatus = async (id, statusData) => {
 
 /**
  * Delete a KYC record (admin side)
- * DELETE /api/drivers/:id
+ * DELETE /api/drivers/delete/:id
  */
 export const deleteDriverKYC = async (id) => {
     try {
-        const response = await axiosInstance.delete(`/api/drivers/${id}`);
-        // The server returns { success: true, message: "..." }
-        // No doc in .data if we just remove it. Return nothing or the entire response
-        return response.data; // e.g. { success: true, message: '...' }
+        const response = await axiosInstance.delete(`/api/drivers/delete/${id}`);
+        return response.data;
     } catch (error) {
         throw formatError(error);
     }

@@ -1,123 +1,105 @@
-import axios from "axios"
-import { Base_Backend_Url } from "../../constant"
-import formatError from "../utils/errorUtils"
-import axiosInstance from "../utils/axiosInstance"
+import axios from "axios";
+import { Base_Backend_Url } from "../../constant";
+import formatError from "../utils/errorUtils";
+import axiosInstance from "../utils/axiosInstance";
 
-// 1) **Submit User KYC (Personal Info Only)**
+// 1) Submit User KYC
 const submitUserKYC = async (formData) => {
     try {
-        // Check if userId exists in the FormData
-        const userId = formData.get("userId")
+        const userId = formData.get("userId");
         if (!userId) {
-            console.error("submitUserKYC: No userId found in FormData")
-            throw new Error("User ID is required for KYC submission")
+            throw new Error("User ID is required for KYC submission");
         }
 
-        console.log("submitUserKYC: Processing request with userId:", userId)
-
-        // Log the FormData contents for debugging
-        console.log("User KYC FormData contents:")
+        // Log some form data for debugging
+        console.log("submitUserKYC formData content:");
         for (const pair of formData.entries()) {
-            if (pair[0] === "citizenshipFront" || pair[0] === "citizenshipBack" || pair[0] === "photo") {
-                console.log(`${pair[0]}: [File object]`)
+            if (["citizenshipFront", "citizenshipBack", "photo"].includes(pair[0])) {
+                console.log(`${pair[0]}: [File object]`);
             } else {
-                console.log(`${pair[0]}: ${pair[1]}`)
+                console.log(`${pair[0]}: ${pair[1]}`);
             }
         }
 
-        const response = await axios.post(`/api/userkyc/kyc/${userId}`, formData, {
-            headers: {
-                "Content-Type": "multipart/form-data",
-            },
-            withCredentials: true,
-        })
+        // We use axios directly here, but you can also call axiosInstance
+        const response = await axios.post(
+            `${Base_Backend_Url}/api/userkyc/kyc/${userId}`,
+            formData,
+            {
+                headers: {
+                    "Content-Type": "multipart/form-data",
+                },
+                withCredentials: true,
+            }
+        );
 
-        console.log("User KYC submitted successfully:", response.data)
-        return response.data
+        return response.data; // { success, message, user: {...} }
     } catch (error) {
-        console.error("Error submitting user KYC:", error.response?.data || error.message)
-        const formattedError = formatError(error)
-        console.log("Formatted error in submitUserKYC:", formattedError)
-        throw formattedError
+        const formattedError = formatError(error);
+        throw formattedError;
     }
-}
-// 2) **Get User KYC Status**
+};
+
+// 2) Get User KYC Status
 const getUserKYCStatus = async (userId) => {
     try {
-        console.log(`Getting KYC status for user ${userId}`);
         const response = await axiosInstance.get(`/api/userkyc/kyc/status/${userId}`);
-        console.log("User KYC status fetched successfully:", response.data);
+        // e.g. { success: true, kycStatus, kycRejectionReason, user }
         return response.data;
     } catch (error) {
-        console.error(`Error getting KYC status for user ${userId}:`, error.response?.data || error.message);
         const formattedError = formatError(error);
-        console.log("Formatted error in getUserKYCStatus:", formattedError);
         throw formattedError;
     }
 };
 
-const getPendingUserKYC = async () => {
-    try {
-        console.log("Fetching pending user KYC requests");
-        const response = await axiosInstance.get(`${Base_Backend_Url}/api/userkyc/pending`);
-        console.log("Fetched pending user KYC requests successfully:", response.data);
-        return response.data;
-    } catch (error) {
-        console.error("Error fetching pending user KYC requests:", error.response?.data || error.message);
-        const formattedError = formatError(error);
-        console.log("Formatted error in getPendingUserKYC:", formattedError);
-        throw formattedError;
-    }
-};
-
-// -- New function: GET all users with any KYC status
+// 3) Get ALL Users with KYC
 const getAllUsersKYC = async () => {
     try {
-        console.log("Fetching all users with KYC");
         const response = await axiosInstance.get(`${Base_Backend_Url}/api/userkyc/all`);
-        console.log("Fetched users with KYC successfully:", response.data);
-        return response.data;
+        return response.data; // { success: true, users: [...] }
     } catch (error) {
-        console.error("Error fetching users with KYC:", error.response?.data || error.message);
         const formattedError = formatError(error);
-        console.log("Formatted error in getAllUsersKYC:", formattedError);
         throw formattedError;
     }
 };
-// 5) **Update User KYC Verification (Admin)**
+
+// 4) Get PENDING KYC
+const getPendingUserKYC = async () => {
+    try {
+        const response = await axiosInstance.get(`${Base_Backend_Url}/api/userkyc/pending`);
+        return response.data; // { success: true, users: [...] }
+    } catch (error) {
+        const formattedError = formatError(error);
+        throw formattedError;
+    }
+};
+
+// 5) Update KYC Verification (Admin)
 const updateUserKYCVerification = async (userId, status, rejectionReason = null) => {
     try {
-        console.log(`Updating user ${userId} KYC verification status to ${status}`);
-        const response = await axiosInstance.put(`${Base_Backend_Url}/api/userkyc/kyc/verify/${userId}`, {
-            status,
-            rejectionReason,
-        });
-        console.log("User KYC verification updated successfully:", response.data);
+        const response = await axiosInstance.put(
+            `${Base_Backend_Url}/api/userkyc/kyc/verify/${userId}`,
+            { status, rejectionReason }
+        );
+        // { success, message, user: {...} }
         return response.data;
     } catch (error) {
-        console.error(`Error updating verification for user ${userId}:`, error.response?.data || error.message);
         const formattedError = formatError(error);
-        console.log("Formatted error in updateUserKYCVerification:", formattedError);
         throw formattedError;
     }
 };
 
-// 6) Get Verified User KYC
+// 6) Get VERIFIED KYC
 const getVerifiedUserKYC = async () => {
     try {
-      console.log("Fetching verified user KYC requests");
-      const response = await axiosInstance.get(`${Base_Backend_Url}/api/userkyc/verified`);
-      console.log("Fetched verified user KYC successfully:", response.data);
-      return response.data;
+        const response = await axiosInstance.get(`${Base_Backend_Url}/api/userkyc/verified`);
+        return response.data; // { success: true, users: [...] }
     } catch (error) {
-      console.error("Error fetching verified user KYC:", error.response?.data || error.message);
-      const formattedError = formatError(error);
-      console.log("Formatted error in getVerifiedUserKYC:", formattedError);
-      throw formattedError;
+        const formattedError = formatError(error);
+        throw formattedError;
     }
-  };
+};
 
-// Exporting all service functions
 const userKYCService = {
     submitUserKYC,
     getUserKYCStatus,
@@ -125,6 +107,6 @@ const userKYCService = {
     getPendingUserKYC,
     updateUserKYCVerification,
     getVerifiedUserKYC,
-}
+};
 
-export default userKYCService
+export default userKYCService;

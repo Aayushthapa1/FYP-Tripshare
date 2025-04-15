@@ -10,7 +10,7 @@ import rideSlice from "../components/Slices/rideSlice";
 import notificationReducer from "../components/Slices/notificationSlice";
 import chatReducer from "../components/Slices/chatSlice";
 import tripStatsReducer from "../components/Slices/driverDashboardSlice";
-
+import ratingReducer from "../components/Slices/ratingSlice";
 
 const store = configureStore({
     reducer: {
@@ -25,6 +25,7 @@ const store = configureStore({
         notification : notificationReducer,
         chat: chatReducer,
         tripStats: tripStatsReducer,
+        rating: ratingReducer,
     },
 });
 

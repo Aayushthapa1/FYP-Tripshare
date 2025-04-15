@@ -1,5 +1,4 @@
-
-
+// userSlice.js - Updated
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 import { fetchUserProfile, updateUserProfile, getAllUsersService } from '../../services/userService.js';
 
@@ -31,10 +30,19 @@ export const fetchAllUsers = createAsyncThunk(
   "user/fetchAllUsers",
   async (_, { rejectWithValue }) => {
     try {
-      const data = await getAllUsersService(); // an array
+      const data = await getAllUsersService();
+      console.log("Data from service:", data); // For debugging
+
+      // Ensure we have an array, even if the service returns something else
+      if (!Array.isArray(data)) {
+        console.warn("Service didn't return an array, converting:", data);
+        return data ? (Array.isArray(data) ? data : []) : [];
+      }
+
       return data;
     } catch (error) {
-      return rejectWithValue(error.message);
+      console.error("Error fetching users:", error);
+      return rejectWithValue(error.message || "Failed to fetch users");
     }
   }
 );
@@ -47,7 +55,12 @@ const userSlice = createSlice({
     loading: false,
     error: null,
   },
-  reducers: {},
+  reducers: {
+    // Add any synchronous reducers here if needed
+    clearUsers: (state) => {
+      state.users = [];
+    }
+  },
   extraReducers: (builder) => {
     builder
       .addCase(getUserProfile.pending, (state) => {
@@ -80,15 +93,16 @@ const userSlice = createSlice({
       })
       .addCase(fetchAllUsers.fulfilled, (state, action) => {
         state.loading = false;
-        // `action.payload` is the array from getAllUsersService
-        state.users = action.payload;
+        state.users = action.payload || []; // Ensure we always have an array
+        console.log("Users saved to state:", state.users); // For debugging
       })
       .addCase(fetchAllUsers.rejected, (state, action) => {
         state.loading = false;
         state.error = action.payload;
+        console.error("Error in fetchAllUsers:", action.payload);
       });
-    ;
   },
 });
 
+export const { clearUsers } = userSlice.actions;
 export default userSlice.reducer;

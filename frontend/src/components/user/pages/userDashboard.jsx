@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useDispatch, useSelector } from "react-redux";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { toast, Toaster } from "sonner";
 import {
   Bell,
@@ -19,11 +19,15 @@ import {
   X,
   ChevronRight,
   Ticket,
+  ArrowLeft,
 } from "lucide-react";
-import ProfileModal from "../../auth/ProfileModal";
+import ProfileModal from "../../auth/ProfilePage";
 import { getUserProfile } from "../../Slices/userSlice";
 import { logoutUser } from "../../Slices/authSlice";
 import { fetchMyBookings } from "../../Slices/bookingSlice";
+import NotificationCenter from "../../socket/notificationDropdown"; // Import the NotificationCenter component
+import { fetchNotifications, getUnreadCount } from "../../Slices/notificationSlice";
+import Chart from 'chart.js/auto';
 
 export default function UserDashboard() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
@@ -33,9 +37,14 @@ export default function UserDashboard() {
   const [isMobileView, setIsMobileView] = useState(false);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
+  const [isNotificationCenterOpen, setIsNotificationCenterOpen] = useState(false);
+  const [localNotifications, setLocalNotifications] = useState([]);
+  const [rideStatsChart, setRideStatsChart] = useState(null);
+  const [paymentStatsChart, setPaymentStatsChart] = useState(null);
 
   const dispatch = useDispatch();
   const navigate = useNavigate();
+  const location = useLocation();
 
   // Get user data from Redux auth state
   const { user } = useSelector((state) => state.auth) || {};
@@ -55,6 +64,13 @@ export default function UserDashboard() {
     loading: bookingsLoading,
     error: bookingsError,
   } = useSelector((state) => state.booking);
+
+  // Get notifications from Redux notification state
+  const { 
+    notifications = [], 
+    unreadCount = 0,
+    loading: notificationsLoading 
+  } = useSelector((state) => state.notification || {});
 
   // Check if mobile view on mount and window resize
   useEffect(() => {
@@ -81,6 +97,8 @@ export default function UserDashboard() {
   useEffect(() => {
     if (userId) {
       dispatch(getUserProfile(userId));
+      dispatch(fetchNotifications());
+      dispatch(getUnreadCount());
     } else if (!isAuthenticated) {
       // Redirect to login if not authenticated
       navigate("/login");
@@ -93,6 +111,93 @@ export default function UserDashboard() {
       dispatch(fetchMyBookings());
     }
   }, [dispatch, activeSection]);
+
+  // Initialize charts when component mounts or when data changes
+  useEffect(() => {
+    // Clean up previous charts to prevent memory leaks
+    if (rideStatsChart) {
+      rideStatsChart.destroy();
+    }
+    if (paymentStatsChart) {
+      paymentStatsChart.destroy();
+    }
+
+    // Only initialize charts on dashboard section
+    if (activeSection === "dashboard") {
+      // Initialize ride stats chart
+      const rideChartCanvas = document.getElementById('rideStatsChart');
+      if (rideChartCanvas) {
+        const ctx = rideChartCanvas.getContext('2d');
+        const newRideChart = new Chart(ctx, {
+          type: 'line',
+          data: {
+            labels: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'],
+            datasets: [{
+              label: 'Rides Taken',
+              data: myBookings ? [myBookings.length, myBookings.length + 2, myBookings.length + 1, myBookings.length + 3, myBookings.length, myBookings.length + 2] : [0, 0, 0, 0, 0, 0],
+              borderColor: '#10b981',
+              backgroundColor: 'rgba(16, 185, 129, 0.1)',
+              tension: 0.3,
+              fill: true
+            }]
+          },
+          options: {
+            responsive: true,
+            plugins: {
+              legend: {
+                position: 'top',
+              },
+              title: {
+                display: true,
+                text: 'Ride Statistics'
+              }
+            }
+          }
+        });
+        setRideStatsChart(newRideChart);
+      }
+
+      // Initialize payment stats chart
+      const paymentChartCanvas = document.getElementById('paymentStatsChart');
+      if (paymentChartCanvas) {
+        const ctx = paymentChartCanvas.getContext('2d');
+        const newPaymentChart = new Chart(ctx, {
+          type: 'bar',
+          data: {
+            labels: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'],
+            datasets: [{
+              label: 'Monthly Spending ($)',
+              data: [25, 30, 45, 35, 40, 50],
+              backgroundColor: '#3b82f6',
+            }]
+          },
+          options: {
+            responsive: true,
+            plugins: {
+              legend: {
+                position: 'top',
+              },
+              title: {
+                display: true,
+                text: 'Payment Statistics'
+              }
+            }
+          }
+        });
+        setPaymentStatsChart(newPaymentChart);
+      }
+    }
+
+    // Clean up charts when component unmounts
+    return () => {
+      if (rideStatsChart) {
+        rideStatsChart.destroy();
+      }
+      if (paymentStatsChart) {
+        paymentStatsChart.destroy();
+      }
+    };
+  }, [activeSection, myBookings]);
 
   const confirmLogout = () => {
     setShowLogoutConfirm(true);
@@ -156,150 +261,23 @@ export default function UserDashboard() {
     document.documentElement.classList.toggle("dark", !darkMode);
   };
 
-  // Dummy data for dashboard
-  const upcomingRides = [
-    {
-      id: 1,
-      date: "2025-03-26",
-      time: "09:30 AM",
-      from: "Home",
-      to: "Office",
-      status: "Scheduled",
-      driver: "John Doe",
-      cost: "$15",
-    },
-    {
-      id: 2,
-      date: "2025-03-27",
-      time: "06:00 PM",
-      from: "Office",
-      to: "Home",
-      status: "Scheduled",
-      driver: "Sarah Smith",
-      cost: "$15",
-    },
-  ];
+  const handleBackNavigation = () => {
+    if (location.state?.from) {
+      navigate(location.state.from);
+    } else {
+      navigate(-1); // Go back to the previous page
+    }
+  };
 
-  const pastRides = [
-    {
-      id: 1,
-      date: "2025-03-25",
-      from: "Home",
-      to: "Office",
-      driver: "Michael Brown",
-      rating: 5,
-      cost: "$15",
-    },
-    {
-      id: 2,
-      date: "2025-03-24",
-      from: "Office",
-      to: "Gym",
-      driver: "Emma Wilson",
-      rating: 4,
-      cost: "$10",
-    },
-    {
-      id: 3,
-      date: "2025-03-23",
-      from: "Gym",
-      to: "Home",
-      driver: "David Lee",
-      rating: 5,
-      cost: "$12",
-    },
-  ];
+  const clearLocalNotifications = () => {
+    setLocalNotifications([]);
+  };
 
-  const payments = [
-    {
-      id: 1,
-      date: "2025-03-25",
-      amount: "$15",
-      method: "Credit Card",
-      status: "Completed",
-    },
-    {
-      id: 2,
-      date: "2025-03-24",
-      amount: "$10",
-      method: "PayPal",
-      status: "Completed",
-    },
-    {
-      id: 3,
-      date: "2025-03-23",
-      amount: "$12",
-      method: "Credit Card",
-      status: "Completed",
-    },
-  ];
-
-  const notifications = [
-    {
-      id: 1,
-      message: "Your ride has been confirmed for tomorrow at 9:30 AM",
-      time: "2 hours ago",
-      isRead: false,
-    },
-    {
-      id: 2,
-      message: "Driver John is 5 minutes away",
-      time: "1 day ago",
-      isRead: true,
-    },
-    {
-      id: 3,
-      message: "Payment of $15 processed successfully",
-      time: "2 days ago",
-      isRead: true,
-    },
-    {
-      id: 4,
-      message: "Rate your last ride with Emma",
-      time: "3 days ago",
-      isRead: false,
-    },
-  ];
-
-  const savedLocations = [
-    { id: 1, name: "Home", address: "123 Main St, Anytown", type: "home" },
-    {
-      id: 2,
-      name: "Office",
-      address: "456 Business Ave, Downtown",
-      type: "work",
-    },
-    {
-      id: 3,
-      name: "Gym",
-      address: "789 Fitness Blvd, Westside",
-      type: "other",
-    },
-  ];
-
-  const favoriteRoutes = [
-    {
-      id: 1,
-      name: "Home to Office",
-      from: "Home",
-      to: "Office",
-      frequency: "Weekdays",
-    },
-    {
-      id: 2,
-      name: "Office to Home",
-      from: "Office",
-      to: "Home",
-      frequency: "Weekdays",
-    },
-    {
-      id: 3,
-      name: "Home to Gym",
-      from: "Home",
-      to: "Gym",
-      frequency: "Weekends",
-    },
-  ];
+  const clearSingleNotification = (notificationId) => {
+    setLocalNotifications(localNotifications.filter(
+      (notif) => notif.id !== notificationId
+    ));
+  };
 
   // If not authenticated, don't render the dashboard
   if (!isAuthenticated && userId === undefined) {
@@ -437,9 +415,9 @@ export default function UserDashboard() {
                   >
                     <Bell className="mr-3 h-5 w-5" />
                     <span>Notifications</span>
-                    {notifications.filter((n) => !n.isRead).length > 0 && (
+                    {unreadCount > 0 && (
                       <span className="ml-auto flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-xs text-white">
-                        {notifications.filter((n) => !n.isRead).length}
+                        {unreadCount}
                       </span>
                     )}
                   </button>
@@ -447,65 +425,10 @@ export default function UserDashboard() {
               </ul>
             </div>
 
-            {/* Preferences navigation */}
-            <div className="mb-6">
-              <p className="mb-2 text-xs font-semibold uppercase text-gray-500 dark:text-gray-400">
-                Preferences
-              </p>
-              <ul className="space-y-1">
-                <li>
-                  <button
-                    onClick={() => setActiveSection("saved-locations")}
-                    className={`flex w-full items-center rounded-lg px-3 py-2 text-left text-sm ${
-                      activeSection === "saved-locations"
-                        ? "bg-green-50 text-green-600 font-medium dark:bg-green-900/30 dark:text-green-400"
-                        : "text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700"
-                    }`}
-                  >
-                    <MapPin className="mr-3 h-5 w-5" />
-                    Saved Locations
-                  </button>
-                </li>
-                <li>
-                  <button
-                    onClick={() => setActiveSection("favorite-routes")}
-                    className={`flex w-full items-center rounded-lg px-3 py-2 text-left text-sm ${
-                      activeSection === "favorite-routes"
-                        ? "bg-green-50 text-green-600 font-medium dark:bg-green-900/30 dark:text-green-400"
-                        : "text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700"
-                    }`}
-                  >
-                    <Heart className="mr-3 h-5 w-5" />
-                    Favorite Routes
-                  </button>
-                </li>
-                <li>
-                  <button
-                    onClick={() => setActiveSection("settings")}
-                    className={`flex w-full items-center rounded-lg px-3 py-2 text-left text-sm ${
-                      activeSection === "settings"
-                        ? "bg-green-50 text-green-600 font-medium dark:bg-green-900/30 dark:text-green-400"
-                        : "text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700"
-                    }`}
-                  >
-                    <Settings className="mr-3 h-5 w-5" />
-                    Settings
-                  </button>
-                </li>
-                <li>
-                  <button
-                    onClick={toggleDarkMode}
-                    className="flex w-full items-center rounded-lg px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700"
-                  >
-                    <Settings className="mr-3 h-5 w-5" />
-                    {darkMode ? "Light Mode" : "Dark Mode"}
-                  </button>
-                </li>
-              </ul>
-            </div>
+           
 
-            {/* Logout button */}
-            <div className="mt-auto border-t border-gray-200 pt-4 dark:border-gray-700">
+            {/* Logout button - Positioned at the bottom */}
+            <div className="mt-auto border-t border-gray-200 pt-4 dark:border-gray-700 absolute bottom-4 left-0 right-0 px-4">
               <button
                 onClick={confirmLogout}
                 className="flex w-full items-center rounded-lg px-3 py-2 text-left text-sm text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/20"
@@ -520,24 +443,34 @@ export default function UserDashboard() {
           <div className="flex-1 overflow-auto">
             {/* Header */}
             <header className="sticky top-0 z-10 flex h-16 items-center border-b border-gray-200 bg-white px-4 dark:border-gray-700 dark:bg-gray-800">
-              <button
-                onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-                className="mr-4 rounded-lg p-2 text-gray-500 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-700 md:hidden"
-              >
-                <Menu className="h-6 w-6" />
-              </button>
+              <div className="flex items-center">
+                <button
+                  onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+                  className="mr-4 rounded-lg p-2 text-gray-500 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-700 md:hidden"
+                >
+                  <Menu className="h-6 w-6" />
+                </button>
+                
+                {/* Back button */}
+                <button
+                  onClick={handleBackNavigation}
+                  className="mr-4 rounded-lg p-2 text-gray-500 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-700"
+                >
+                  <ArrowLeft className="h-5 w-5" />
+                </button>
 
-              <h1 className="text-xl font-semibold text-gray-900 dark:text-white">
-                {activeSection === "dashboard" && "Dashboard"}
-                {activeSection === "upcoming" && "Upcoming Trips"}
-                {activeSection === "bookings" && "My Bookings"}
-                {activeSection === "past-rides" && "Past Rides"}
-                {activeSection === "payments" && "Payment History"}
-                {activeSection === "notifications" && "Notifications"}
-                {activeSection === "saved-locations" && "Saved Locations"}
-                {activeSection === "favorite-routes" && "Favorite Routes"}
-                {activeSection === "settings" && "Settings"}
-              </h1>
+                <h1 className="text-xl font-semibold text-gray-900 dark:text-white">
+                  {activeSection === "dashboard" && "Dashboard"}
+                  {activeSection === "upcoming" && "Upcoming Trips"}
+                  {activeSection === "bookings" && "My Bookings"}
+                  {activeSection === "past-rides" && "Past Rides"}
+                  {activeSection === "payments" && "Payment History"}
+                  {activeSection === "notifications" && "Notifications"}
+                  {activeSection === "saved-locations" && "Saved Locations"}
+                  {activeSection === "favorite-routes" && "Favorite Routes"}
+                  {activeSection === "settings" && "Settings"}
+                </h1>
+              </div>
 
               <div className="ml-auto flex items-center space-x-2">
                 <button
@@ -547,17 +480,30 @@ export default function UserDashboard() {
                   <User className="h-5 w-5" />
                 </button>
 
-                <button
-                  onClick={() => setActiveSection("notifications")}
-                  className="relative rounded-full p-2 text-gray-500 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-700"
-                >
-                  <Bell className="h-5 w-5" />
-                  {notifications.filter((n) => !n.isRead).length > 0 && (
-                    <span className="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-xs text-white">
-                      {notifications.filter((n) => !n.isRead).length}
-                    </span>
+                <div className="relative">
+                  <button
+                    onClick={() => setIsNotificationCenterOpen(!isNotificationCenterOpen)}
+                    className="relative rounded-full p-2 text-gray-500 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-700"
+                  >
+                    <Bell className="h-5 w-5" />
+                    {unreadCount > 0 && (
+                      <span className="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-xs text-white">
+                        {unreadCount}
+                      </span>
+                    )}
+                  </button>
+                  
+                  {/* Notification Center */}
+                  {isNotificationCenterOpen && (
+                    <NotificationCenter 
+                      onClose={() => setIsNotificationCenterOpen(false)}
+                      localNotifications={localNotifications}
+                      clearLocalNotifications={clearLocalNotifications}
+                      clearSingleNotification={clearSingleNotification}
+                      isOpen={isNotificationCenterOpen}
+                    />
                   )}
-                </button>
+                </div>
               </div>
             </header>
 
@@ -566,70 +512,82 @@ export default function UserDashboard() {
               {/* Dashboard */}
               {activeSection === "dashboard" && (
                 <div className="space-y-6">
-                  {/* Quick Actions */}
+                  {/* Statistics Cards */}
                   <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-                    <div className="rounded-lg bg-white p-6 shadow-sm dark:bg-gray-800">
-                      <h3 className="mb-2 text-lg font-medium text-gray-900 dark:text-white">
-                        Book a Ride
-                      </h3>
-                      <p className="mb-4 text-sm text-gray-500 dark:text-gray-400">
-                        Need to go somewhere?
+                    <div className="rounded-lg bg-white p-4 shadow-sm dark:bg-gray-800">
+                      <h4 className="mb-2 text-sm font-medium text-gray-500 dark:text-gray-400">
+                        Total Rides
+                      </h4>
+                      <p className="text-2xl font-semibold text-gray-900 dark:text-white">
+                        {myBookings ? myBookings.length : 0}
                       </p>
-                      <button className="w-full rounded-lg bg-green-600 px-4 py-2 text-white hover:bg-green-700">
-                        Book Now
-                      </button>
                     </div>
-
-                    <div className="rounded-lg bg-white p-6 shadow-sm dark:bg-gray-800">
-                      <h3 className="mb-2 text-lg font-medium text-gray-900 dark:text-white">
-                        Schedule a Ride
-                      </h3>
-                      <p className="mb-4 text-sm text-gray-500 dark:text-gray-400">
-                        Plan ahead for your trip
+                    
+                    <div className="rounded-lg bg-white p-4 shadow-sm dark:bg-gray-800">
+                      <h4 className="mb-2 text-sm font-medium text-gray-500 dark:text-gray-400">
+                        Unread Notifications
+                      </h4>
+                      <p className="text-2xl font-semibold text-gray-900 dark:text-white">
+                        {unreadCount}
                       </p>
-                      <button className="w-full rounded-lg border border-gray-300 bg-white px-4 py-2 text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600">
-                        Schedule
-                      </button>
                     </div>
-
-                    <div className="rounded-lg bg-white p-6 shadow-sm dark:bg-gray-800">
-                      <h3 className="mb-2 text-lg font-medium text-gray-900 dark:text-white">
-                        Add Payment
-                      </h3>
-                      <p className="mb-4 text-sm text-gray-500 dark:text-gray-400">
-                        Add a new payment method
+                    
+                    <div className="rounded-lg bg-white p-4 shadow-sm dark:bg-gray-800">
+                      <h4 className="mb-2 text-sm font-medium text-gray-500 dark:text-gray-400">
+                        Upcoming Trips
+                      </h4>
+                      <p className="text-2xl font-semibold text-gray-900 dark:text-white">
+                        {myBookings ? myBookings.filter(b => 
+                          b.status === 'confirmed' || b.status === 'scheduled'
+                        ).length : 0}
                       </p>
-                      <button className="w-full rounded-lg border border-gray-300 bg-white px-4 py-2 text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600">
-                        Add Method
-                      </button>
                     </div>
-
-                    <div className="rounded-lg bg-white p-6 shadow-sm dark:bg-gray-800">
-                      <h3 className="mb-2 text-lg font-medium text-gray-900 dark:text-white">
-                        Support
-                      </h3>
-                      <p className="mb-4 text-sm text-gray-500 dark:text-gray-400">
-                        Need help with something?
+                    
+                    <div className="rounded-lg bg-white p-4 shadow-sm dark:bg-gray-800">
+                      <h4 className="mb-2 text-sm font-medium text-gray-500 dark:text-gray-400">
+                        Total Spent
+                      </h4>
+                      <p className="text-2xl font-semibold text-gray-900 dark:text-white">
+                        ${myBookings ? myBookings.reduce((total, booking) => 
+                          total + (booking.totalAmount || 0), 0) : 0}
                       </p>
-                      <button className="w-full rounded-lg border border-gray-300 bg-white px-4 py-2 text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600">
-                        Contact Us
-                      </button>
                     </div>
                   </div>
 
-                  {/* Upcoming Rides */}
+                  {/* Charts */}
+                  <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+                    <div className="rounded-lg bg-white p-4 shadow-sm dark:bg-gray-800">
+                      <h3 className="mb-4 text-lg font-medium text-gray-900 dark:text-white">
+                        Ride Statistics
+                      </h3>
+                      <div className="h-64">
+                        <canvas id="rideStatsChart"></canvas>
+                      </div>
+                    </div>
+                    
+                    <div className="rounded-lg bg-white p-4 shadow-sm dark:bg-gray-800">
+                      <h3 className="mb-4 text-lg font-medium text-gray-900 dark:text-white">
+                        Payment Analytics
+                      </h3>
+                      <div className="h-64">
+                        <canvas id="paymentStatsChart"></canvas>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Bookings Preview */}
                   <div className="rounded-lg bg-white shadow-sm dark:bg-gray-800">
                     <div className="flex items-center justify-between border-b border-gray-200 p-4 dark:border-gray-700">
                       <div>
                         <h2 className="text-lg font-medium text-gray-900 dark:text-white">
-                          Upcoming Rides
+                          Recent Bookings
                         </h2>
                         <p className="text-sm text-gray-500 dark:text-gray-400">
-                          Your scheduled rides
+                          Your recent trip bookings
                         </p>
                       </div>
                       <button
-                        onClick={() => setActiveSection("upcoming")}
+                        onClick={() => setActiveSection("bookings")}
                         className="flex items-center text-sm font-medium text-green-600 hover:text-green-700 dark:text-green-400 dark:hover:text-green-300"
                       >
                         View All
@@ -638,155 +596,125 @@ export default function UserDashboard() {
                     </div>
 
                     <div className="p-4">
-                      {upcomingRides.length > 0 ? (
+                      {bookingsLoading ? (
+                        <div className="flex justify-center py-4">
+                          <div className="h-6 w-6 animate-spin rounded-full border-2 border-gray-300 border-t-green-600"></div>
+                        </div>
+                      ) : !myBookings || myBookings.length === 0 ? (
+                        <p className="py-4 text-center text-gray-500 dark:text-gray-400">
+                          No bookings found
+                        </p>
+                      ) : (
                         <div className="space-y-4">
-                          {upcomingRides.map((ride) => (
+                          {myBookings.slice(0, 3).map((booking) => (
                             <div
-                              key={ride.id}
+                              key={booking._id}
                               className="flex flex-col rounded-lg border border-gray-200 p-4 dark:border-gray-700 sm:flex-row sm:items-center sm:justify-between"
                             >
                               <div>
                                 <div className="flex flex-wrap items-center gap-2">
-                                  <span className="rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-medium text-gray-800 dark:bg-gray-700 dark:text-gray-300">
-                                    {ride.date} • {ride.time}
-                                  </span>
                                   <span className="rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-medium text-green-800 dark:bg-green-900/30 dark:text-green-400">
-                                    {ride.status}
+                                    {booking.status || "Confirmed"}
                                   </span>
                                 </div>
                                 <h4 className="mt-2 font-medium text-gray-900 dark:text-white">
-                                  {ride.from} to {ride.to}
+                                  {booking.trip?.departureLocation || "N/A"} → {booking.trip?.destinationLocation || "N/A"}
                                 </h4>
                                 <p className="text-sm text-gray-500 dark:text-gray-400">
-                                  Driver: {ride.driver}
+                                  Seats: {booking.seatsBooked || 1}
                                 </p>
+                                {booking.trip?.departureTime && (
+                                  <p className="text-sm text-gray-500 dark:text-gray-400">
+                                    {new Date(booking.trip.departureTime).toLocaleString()}
+                                  </p>
+                                )}
                               </div>
                               <div className="mt-4 flex items-center gap-2 sm:mt-0">
                                 <p className="font-medium text-gray-900 dark:text-white">
-                                  {ride.cost}
+                                  ${booking.totalAmount || "N/A"}
                                 </p>
-                                <button className="rounded-lg border border-gray-300 bg-white px-3 py-1 text-sm text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600">
+                                <button 
+                                  className="rounded-lg border border-gray-300 bg-white px-3 py-1 text-sm text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600"
+                                  onClick={() => navigate(`/bookings/${booking._id}`)}
+                                >
                                   Details
                                 </button>
                               </div>
                             </div>
                           ))}
                         </div>
-                      ) : (
-                        <p className="py-4 text-center text-gray-500 dark:text-gray-400">
-                          No upcoming rides scheduled
-                        </p>
                       )}
                     </div>
                   </div>
 
-                  {/* Recent Activity */}
-                  <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
-                    {/* Past Rides */}
-                    <div className="rounded-lg bg-white shadow-sm dark:bg-gray-800">
-                      <div className="flex items-center justify-between border-b border-gray-200 p-4 dark:border-gray-700">
-                        <div>
-                          <h2 className="text-lg font-medium text-gray-900 dark:text-white">
-                            Recent Rides
-                          </h2>
-                          <p className="text-sm text-gray-500 dark:text-gray-400">
-                            Your recent trips
-                          </p>
-                        </div>
-                        <button
-                          onClick={() => setActiveSection("past-rides")}
-                          className="flex items-center text-sm font-medium text-green-600 hover:text-green-700 dark:text-green-400 dark:hover:text-green-300"
-                        >
-                          View All
-                          <ChevronRight className="ml-1 h-4 w-4" />
-                        </button>
+                  {/* Notifications Preview */}
+                  <div className="rounded-lg bg-white shadow-sm dark:bg-gray-800">
+                    <div className="flex items-center justify-between border-b border-gray-200 p-4 dark:border-gray-700">
+                      <div>
+                        <h2 className="text-lg font-medium text-gray-900 dark:text-white">
+                          Recent Notifications
+                        </h2>
+                        <p className="text-sm text-gray-500 dark:text-gray-400">
+                          Stay updated
+                        </p>
                       </div>
-
-                      <div className="p-4">
-                        <div className="space-y-4">
-                          {pastRides.slice(0, 2).map((ride) => (
-                            <div
-                              key={ride.id}
-                              className="flex items-center justify-between rounded-lg border border-gray-200 p-4 dark:border-gray-700"
-                            >
-                              <div>
-                                <p className="text-sm text-gray-500 dark:text-gray-400">
-                                  {ride.date}
-                                </p>
-                                <p className="font-medium text-gray-900 dark:text-white">
-                                  {ride.from} to {ride.to}
-                                </p>
-                              </div>
-                              <p className="font-medium text-gray-900 dark:text-white">
-                                {ride.cost}
-                              </p>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
+                      <button
+                        onClick={() => setActiveSection("notifications")}
+                        className="flex items-center text-sm font-medium text-green-600 hover:text-green-700 dark:text-green-400 dark:hover:text-green-300"
+                      >
+                        View All
+                        <ChevronRight className="ml-1 h-4 w-4" />
+                      </button>
                     </div>
 
-                    {/* Notifications */}
-                    <div className="rounded-lg bg-white shadow-sm dark:bg-gray-800">
-                      <div className="flex items-center justify-between border-b border-gray-200 p-4 dark:border-gray-700">
-                        <div>
-                          <h2 className="text-lg font-medium text-gray-900 dark:text-white">
-                            Notifications
-                          </h2>
-                          <p className="text-sm text-gray-500 dark:text-gray-400">
-                            Stay updated
-                          </p>
+                    <div className="p-4">
+                      {notificationsLoading ? (
+                        <div className="flex justify-center py-4">
+                          <div className="h-6 w-6 animate-spin rounded-full border-2 border-gray-300 border-t-green-600"></div>
                         </div>
-                        <button
-                          onClick={() => setActiveSection("notifications")}
-                          className="flex items-center text-sm font-medium text-green-600 hover:text-green-700 dark:text-green-400 dark:hover:text-green-300"
-                        >
-                          View All
-                          <ChevronRight className="ml-1 h-4 w-4" />
-                        </button>
-                      </div>
-
-                      <div className="p-4">
+                      ) : !notifications || notifications.length === 0 ? (
+                        <p className="py-4 text-center text-gray-500 dark:text-gray-400">
+                          No notifications found
+                        </p>
+                      ) : (
                         <div className="space-y-4">
                           {notifications.slice(0, 3).map((notification) => (
                             <div
-                              key={notification.id}
+                              key={notification._id}
                               className={`flex items-start gap-4 rounded-lg border border-gray-200 p-4 dark:border-gray-700 ${
-                                !notification.isRead
+                                !notification.isRead && !notification.readBy?.includes(userId)
                                   ? "bg-gray-50 dark:bg-gray-700/50"
                                   : ""
                               }`}
                             >
                               <Bell className="mt-0.5 h-5 w-5 flex-shrink-0 text-gray-400 dark:text-gray-500" />
                               <div>
-                                <p
-                                  className={`text-sm ${
-                                    !notification.isRead
-                                      ? "font-medium text-gray-900 dark:text-white"
-                                      : "text-gray-700 dark:text-gray-300"
-                                  }`}
-                                >
+                                <p className={`text-sm ${
+                                  !notification.isRead && !notification.readBy?.includes(userId)
+                                    ? "font-medium text-gray-900 dark:text-white"
+                                    : "text-gray-700 dark:text-gray-300"
+                                }`}>
                                   {notification.message}
                                 </p>
                                 <p className="text-xs text-gray-500 dark:text-gray-400">
-                                  {notification.time}
+                                  {new Date(notification.createdAt).toLocaleString()}
                                 </p>
                               </div>
                             </div>
                           ))}
                         </div>
-                      </div>
+                      )}
                     </div>
                   </div>
                 </div>
               )}
 
-              {/* Upcoming Rides Section */}
+              {/* Upcoming Trips Section */}
               {activeSection === "upcoming" && (
                 <div className="rounded-lg bg-white shadow-sm dark:bg-gray-800">
                   <div className="border-b border-gray-200 p-4 dark:border-gray-700">
                     <h2 className="text-lg font-medium text-gray-900 dark:text-white">
-                      Upcoming Rides
+                      Upcoming Trips
                     </h2>
                     <p className="text-sm text-gray-500 dark:text-gray-400">
                       All your scheduled rides
@@ -794,49 +722,73 @@ export default function UserDashboard() {
                   </div>
 
                   <div className="p-4">
-                    {upcomingRides.length > 0 ? (
+                    {bookingsLoading ? (
+                      <div className="flex justify-center py-8">
+                        <div className="h-8 w-8 animate-spin rounded-full border-4 border-gray-300 border-t-green-600"></div>
+                      </div>
+                    ) : !myBookings || myBookings.length === 0 || 
+                        !myBookings.some(b => b.status === 'confirmed' || b.status === 'scheduled') ? (
+                      <p className="py-8 text-center text-gray-500 dark:text-gray-400">
+                        No upcoming trips scheduled
+                      </p>
+                    ) : (
                       <div className="space-y-4">
-                        {upcomingRides.map((ride) => (
-                          <div
-                            key={ride.id}
-                            className="flex flex-col rounded-lg border border-gray-200 p-4 dark:border-gray-700 sm:flex-row sm:items-center sm:justify-between"
-                          >
-                            <div>
-                              <div className="flex flex-wrap items-center gap-2">
-                                <span className="rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-medium text-gray-800 dark:bg-gray-700 dark:text-gray-300">
-                                  {ride.date} • {ride.time}
-                                </span>
-                                <span className="rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-medium text-green-800 dark:bg-green-900/30 dark:text-green-400">
-                                  {ride.status}
-                                </span>
+                        {myBookings
+                          .filter(b => b.status === 'confirmed' || b.status === 'scheduled')
+                          .map((booking) => (
+                            <div
+                              key={booking._id}
+                              className="flex flex-col rounded-lg border border-gray-200 p-4 dark:border-gray-700 sm:flex-row sm:items-center sm:justify-between"
+                            >
+                              <div>
+                                <div className="flex flex-wrap items-center gap-2">
+                                  {booking.trip?.departureTime && (
+                                    <span className="rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-medium text-gray-800 dark:bg-gray-700 dark:text-gray-300">
+                                      {new Date(booking.trip.departureTime).toLocaleDateString()} • 
+                                      {new Date(booking.trip.departureTime).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+                                    </span>
+                                  )}
+                                  <span className="rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-medium text-green-800 dark:bg-green-900/30 dark:text-green-400">
+                                    {booking.status}
+                                  </span>
+                                </div>
+                                <h4 className="mt-2 font-medium text-gray-900 dark:text-white">
+                                  {booking.trip?.departureLocation || "N/A"} → {booking.trip?.destinationLocation || "N/A"}
+                                </h4>
+                                <p className="text-sm text-gray-500 dark:text-gray-400">
+                                  Seats: {booking.seatsBooked || 1}
+                                </p>
+                                {booking.trip?.driverName && (
+                                  <p className="text-sm text-gray-500 dark:text-gray-400">
+                                    Driver: {booking.trip.driverName}
+                                  </p>
+                                )}
                               </div>
-                              <h4 className="mt-2 font-medium text-gray-900 dark:text-white">
-                                {ride.from} to {ride.to}
-                              </h4>
-                              <p className="text-sm text-gray-500 dark:text-gray-400">
-                                Driver: {ride.driver}
-                              </p>
-                            </div>
-                            <div className="mt-4 flex items-center gap-2 sm:mt-0">
-                              <p className="font-medium text-gray-900 dark:text-white">
-                                {ride.cost}
-                              </p>
-                              <div className="flex gap-2">
-                                <button className="rounded-lg bg-red-600 px-3 py-1 text-sm text-white hover:bg-red-700">
-                                  Cancel
-                                </button>
-                                <button className="rounded-lg border border-gray-300 bg-white px-3 py-1 text-sm text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600">
-                                  Reschedule
-                                </button>
+                              <div className="mt-4 flex items-center gap-2 sm:mt-0">
+                                <p className="font-medium text-gray-900 dark:text-white">
+                                  ${booking.totalAmount || "N/A"}
+                                </p>
+                                <div className="flex gap-2">
+                                  <button 
+                                    className="rounded-lg bg-red-600 px-3 py-1 text-sm text-white hover:bg-red-700"
+                                    onClick={() => {
+                                      // Handle cancellation logic here
+                                      toast.info("Cancellation functionality would be implemented here");
+                                    }}
+                                  >
+                                    Cancel
+                                  </button>
+                                  <button 
+                                    className="rounded-lg border border-gray-300 bg-white px-3 py-1 text-sm text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600"
+                                    onClick={() => navigate(`/bookings/${booking._id}`)}
+                                  >
+                                    Details
+                                  </button>
+                                </div>
                               </div>
                             </div>
-                          </div>
                         ))}
                       </div>
-                    ) : (
-                      <p className="py-8 text-center text-gray-500 dark:text-gray-400">
-                        No upcoming rides scheduled
-                      </p>
                     )}
                   </div>
                 </div>
@@ -858,7 +810,6 @@ export default function UserDashboard() {
                     {bookingsLoading ? (
                       <div className="flex justify-center py-8">
                         <div className="h-8 w-8 animate-spin rounded-full border-4 border-gray-300 border-t-green-600"></div>
-                        <span className="sr-only">Loading bookings...</span>
                       </div>
                     ) : bookingsError ? (
                       <div className="py-8 text-center">
@@ -866,13 +817,17 @@ export default function UserDashboard() {
                           Error loading bookings: {bookingsError}
                         </p>
                         <button
-                          onClick={() => dispatch(getMyBookings())}
+                          onClick={() => dispatch(fetchMyBookings())}
                           className="mt-4 rounded-lg bg-green-600 px-4 py-2 text-white hover:bg-green-700"
                         >
                           Try Again
                         </button>
                       </div>
-                    ) : myBookings && myBookings.length > 0 ? (
+                    ) : !myBookings || myBookings.length === 0 ? (
+                      <p className="py-8 text-center text-gray-500 dark:text-gray-400">
+                        No bookings found
+                      </p>
+                    ) : (
                       <div className="space-y-4">
                         {myBookings.map((booking) => (
                           <div
@@ -886,38 +841,31 @@ export default function UserDashboard() {
                                 </span>
                               </div>
                               <h4 className="mt-2 font-medium text-gray-900 dark:text-white">
-                                {booking.trip?.departureLocation} →{" "}
-                                {booking.trip?.destinationLocation}
+                                {booking.trip?.departureLocation || "N/A"} → {booking.trip?.destinationLocation || "N/A"}
                               </h4>
                               <p className="text-sm text-gray-500 dark:text-gray-400">
-                                Seats: {booking.seatsBooked}
+                                Seats: {booking.seatsBooked || 1}
                               </p>
                               {booking.trip?.departureTime && (
                                 <p className="text-sm text-gray-500 dark:text-gray-400">
-                                  Departure:{" "}
-                                  {new Date(
-                                    booking.trip.departureTime
-                                  ).toLocaleString()}
+                                  Departure: {new Date(booking.trip.departureTime).toLocaleString()}
                                 </p>
                               )}
                             </div>
                             <div className="mt-4 flex items-center gap-2 sm:mt-0">
-                              {booking.totalAmount && (
-                                <p className="font-medium text-gray-900 dark:text-white">
-                                  ${booking.totalAmount}
-                                </p>
-                              )}
-                              <button className="rounded-lg border border-gray-300 bg-white px-3 py-1 text-sm text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600">
+                              <p className="font-medium text-gray-900 dark:text-white">
+                                ${booking.totalAmount || "N/A"}
+                              </p>
+                              <button 
+                                className="rounded-lg border border-gray-300 bg-white px-3 py-1 text-sm text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600"
+                                onClick={() => navigate(`/bookings/${booking._id}`)}
+                              >
                                 View Details
                               </button>
                             </div>
                           </div>
                         ))}
                       </div>
-                    ) : (
-                      <p className="py-8 text-center text-gray-500 dark:text-gray-400">
-                        No bookings found.
-                      </p>
                     )}
                   </div>
                 </div>
@@ -936,44 +884,67 @@ export default function UserDashboard() {
                   </div>
 
                   <div className="p-4">
-                    <div className="space-y-4">
-                      {pastRides.map((ride) => (
-                        <div
-                          key={ride.id}
-                          className="flex flex-col rounded-lg border border-gray-200 p-4 dark:border-gray-700 sm:flex-row sm:items-center sm:justify-between"
-                        >
-                          <div>
-                            <p className="text-sm text-gray-500 dark:text-gray-400">
-                              {ride.date}
-                            </p>
-                            <h4 className="mt-1 font-medium text-gray-900 dark:text-white">
-                              {ride.from} to {ride.to}
-                            </h4>
-                            <p className="text-sm text-gray-500 dark:text-gray-400">
-                              Driver: {ride.driver}
-                            </p>
-                          </div>
-                          <div className="mt-4 flex items-center gap-4 sm:mt-0">
-                            <div className="flex items-center">
-                              <p className="mr-2 font-medium text-gray-900 dark:text-white">
-                                {ride.cost}
-                              </p>
-                              <div className="flex items-center">
-                                <span className="mr-1 text-sm text-gray-500 dark:text-gray-400">
-                                  Rating:
-                                </span>
-                                <span className="text-yellow-500">
-                                  {"★".repeat(ride.rating)}
-                                </span>
+                    {bookingsLoading ? (
+                      <div className="flex justify-center py-8">
+                        <div className="h-8 w-8 animate-spin rounded-full border-4 border-gray-300 border-t-green-600"></div>
+                      </div>
+                    ) : !myBookings || myBookings.length === 0 || 
+                        !myBookings.some(b => b.status === 'completed') ? (
+                      <p className="py-8 text-center text-gray-500 dark:text-gray-400">
+                        No past rides found
+                      </p>
+                    ) : (
+                      <div className="space-y-4">
+                        {myBookings
+                          .filter(b => b.status === 'completed')
+                          .map((booking) => (
+                            <div
+                              key={booking._id}
+                              className="flex flex-col rounded-lg border border-gray-200 p-4 dark:border-gray-700 sm:flex-row sm:items-center sm:justify-between"
+                            >
+                              <div>
+                                {booking.trip?.departureTime && (
+                                  <p className="text-sm text-gray-500 dark:text-gray-400">
+                                    {new Date(booking.trip.departureTime).toLocaleDateString()}
+                                  </p>
+                                )}
+                                <h4 className="mt-1 font-medium text-gray-900 dark:text-white">
+                                  {booking.trip?.departureLocation || "N/A"} → {booking.trip?.destinationLocation || "N/A"}
+                                </h4>
+                                {booking.trip?.driverName && (
+                                  <p className="text-sm text-gray-500 dark:text-gray-400">
+                                    Driver: {booking.trip.driverName}
+                                  </p>
+                                )}
+                              </div>
+                              <div className="mt-4 flex items-center gap-4 sm:mt-0">
+                                <div className="flex items-center">
+                                  <p className="mr-2 font-medium text-gray-900 dark:text-white">
+                                    ${booking.totalAmount || "N/A"}
+                                  </p>
+                                  {booking.rating && (
+                                    <div className="flex items-center">
+                                      <span className="mr-1 text-sm text-gray-500 dark:text-gray-400">
+                                        Rating:
+                                      </span>
+                                      <span className="text-yellow-500">
+                                        {"★".repeat(booking.rating)}
+                                        {"☆".repeat(5 - booking.rating)}
+                                      </span>
+                                    </div>
+                                  )}
+                                </div>
+                                <button 
+                                  className="rounded-lg border border-gray-300 bg-white px-3 py-1 text-sm text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600"
+                                  onClick={() => navigate(`/bookings/${booking._id}`)}
+                                >
+                                  Receipt
+                                </button>
                               </div>
                             </div>
-                            <button className="rounded-lg border border-gray-300 bg-white px-3 py-1 text-sm text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600">
-                              Receipt
-                            </button>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
+                          ))}
+                      </div>
+                    )}
                   </div>
                 </div>
               )}
@@ -991,34 +962,59 @@ export default function UserDashboard() {
                   </div>
 
                   <div className="p-4">
-                    <div className="space-y-4">
-                      {payments.map((payment) => (
-                        <div
-                          key={payment.id}
-                          className="flex flex-col rounded-lg border border-gray-200 p-4 dark:border-gray-700 sm:flex-row sm:items-center sm:justify-between"
-                        >
-                          <div>
-                            <p className="text-sm text-gray-500 dark:text-gray-400">
-                              {payment.date}
-                            </p>
-                            <h4 className="mt-1 font-medium text-gray-900 dark:text-white">
-                              {payment.amount}
-                            </h4>
-                            <p className="text-sm text-gray-500 dark:text-gray-400">
-                              Method: {payment.method}
-                            </p>
-                          </div>
-                          <div className="mt-4 flex items-center gap-2 sm:mt-0">
-                            <span className="rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-medium text-green-800 dark:bg-green-900/30 dark:text-green-400">
-                              {payment.status}
-                            </span>
-                            <button className="rounded-lg border border-gray-300 bg-white px-3 py-1 text-sm text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600">
-                              Download
-                            </button>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
+                    {bookingsLoading ? (
+                      <div className="flex justify-center py-8">
+                        <div className="h-8 w-8 animate-spin rounded-full border-4 border-gray-300 border-t-green-600"></div>
+                      </div>
+                    ) : !myBookings || myBookings.length === 0 || 
+                        !myBookings.some(b => b.paymentStatus === 'completed') ? (
+                      <p className="py-8 text-center text-gray-500 dark:text-gray-400">
+                        No payment records found
+                      </p>
+                    ) : (
+                      <div className="space-y-4">
+                        {myBookings
+                          .filter(b => b.paymentStatus === 'completed')
+                          .map((booking) => (
+                            <div
+                              key={booking._id}
+                              className="flex flex-col rounded-lg border border-gray-200 p-4 dark:border-gray-700 sm:flex-row sm:items-center sm:justify-between"
+                            >
+                              <div>
+                                {booking.paymentDate ? (
+                                  <p className="text-sm text-gray-500 dark:text-gray-400">
+                                    {new Date(booking.paymentDate).toLocaleDateString()}
+                                  </p>
+                                ) : booking.trip?.departureTime && (
+                                  <p className="text-sm text-gray-500 dark:text-gray-400">
+                                    {new Date(booking.trip.departureTime).toLocaleDateString()}
+                                  </p>
+                                )}
+                                <h4 className="mt-1 font-medium text-gray-900 dark:text-white">
+                                  ${booking.totalAmount || "N/A"}
+                                </h4>
+                                <p className="text-sm text-gray-500 dark:text-gray-400">
+                                  Method: {booking.paymentMethod || "Credit Card"}
+                                </p>
+                              </div>
+                              <div className="mt-4 flex items-center gap-2 sm:mt-0">
+                                <span className="rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-medium text-green-800 dark:bg-green-900/30 dark:text-green-400">
+                                  {booking.paymentStatus || "Completed"}
+                                </span>
+                                <button 
+                                  className="rounded-lg border border-gray-300 bg-white px-3 py-1 text-sm text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600"
+                                  onClick={() => {
+                                    // Handle download logic here
+                                    toast.info("Download receipt functionality would be implemented here");
+                                  }}
+                                >
+                                  Download
+                                </button>
+                              </div>
+                            </div>
+                          ))}
+                      </div>
+                    )}
                   </div>
                 </div>
               )}
@@ -1037,7 +1033,20 @@ export default function UserDashboard() {
 
                   <div className="p-4">
                     <div className="mb-4 flex justify-end">
-                      <button className="rounded-lg border border-gray-300 bg-white px-3 py-1 text-sm text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600">
+                      <button 
+                        className="rounded-lg border border-gray-300 bg-white px-3 py-1 text-sm text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600"
+                        onClick={() => {
+                          // Mark all notifications as read
+                          dispatch(markAllAsRead())
+                            .then(() => {
+                              toast.success("All notifications marked as read");
+                              dispatch(getUnreadCount());
+                            })
+                            .catch(err => {
+                              toast.error("Failed to mark notifications as read");
+                            });
+                        }}
+                      >
                         Mark All as Read
                       </button>
                     </div>
@@ -1053,39 +1062,60 @@ export default function UserDashboard() {
                       </div>
                     </div>
 
-                    <div className="space-y-4">
-                      {notifications.map((notification) => (
-                        <div
-                          key={notification.id}
-                          className={`flex items-start gap-4 rounded-lg border border-gray-200 p-4 dark:border-gray-700 ${
-                            !notification.isRead
-                              ? "bg-gray-50 dark:bg-gray-700/50"
-                              : ""
-                          }`}
-                        >
-                          <Bell className="mt-0.5 h-5 w-5 flex-shrink-0 text-gray-400 dark:text-gray-500" />
-                          <div className="flex-1">
-                            <p
-                              className={`text-sm ${
-                                !notification.isRead
+                    {notificationsLoading ? (
+                      <div className="flex justify-center py-8">
+                        <div className="h-8 w-8 animate-spin rounded-full border-4 border-gray-300 border-t-green-600"></div>
+                      </div>
+                    ) : !notifications || notifications.length === 0 ? (
+                      <p className="py-8 text-center text-gray-500 dark:text-gray-400">
+                        No notifications found
+                      </p>
+                    ) : (
+                      <div className="space-y-4">
+                        {notifications.map((notification) => (
+                          <div
+                            key={notification._id}
+                            className={`flex items-start gap-4 rounded-lg border border-gray-200 p-4 dark:border-gray-700 ${
+                              !notification.isRead && !notification.readBy?.includes(userId)
+                                ? "bg-gray-50 dark:bg-gray-700/50"
+                                : ""
+                            }`}
+                          >
+                            <Bell className="mt-0.5 h-5 w-5 flex-shrink-0 text-gray-400 dark:text-gray-500" />
+                            <div className="flex-1">
+                              <p className={`text-sm ${
+                                !notification.isRead && !notification.readBy?.includes(userId)
                                   ? "font-medium text-gray-900 dark:text-white"
                                   : "text-gray-700 dark:text-gray-300"
-                              }`}
-                            >
-                              {notification.message}
-                            </p>
-                            <p className="text-xs text-gray-500 dark:text-gray-400">
-                              {notification.time}
-                            </p>
+                              }`}>
+                                {notification.message}
+                              </p>
+                              <p className="text-xs text-gray-500 dark:text-gray-400">
+                                {new Date(notification.createdAt).toLocaleString()}
+                              </p>
+                            </div>
+                            {(!notification.isRead && !notification.readBy?.includes(userId)) && (
+                              <button 
+                                className="rounded-lg px-2 py-1 text-sm text-gray-500 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-700"
+                                onClick={() => {
+                                  // Mark notification as read
+                                  dispatch(markNotificationAsRead(notification._id))
+                                    .then(() => {
+                                      toast.success("Notification marked as read");
+                                      dispatch(getUnreadCount());
+                                    })
+                                    .catch(err => {
+                                      toast.error("Failed to mark notification as read");
+                                    });
+                                }}
+                              >
+                                Mark as Read
+                              </button>
+                            )}
                           </div>
-                          {!notification.isRead && (
-                            <button className="rounded-lg px-2 py-1 text-sm text-gray-500 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-700">
-                              Mark as Read
-                            </button>
-                          )}
-                        </div>
-                      ))}
-                    </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 </div>
               )}
@@ -1093,51 +1123,19 @@ export default function UserDashboard() {
               {/* Saved Locations Section */}
               {activeSection === "saved-locations" && (
                 <div className="rounded-lg bg-white shadow-sm dark:bg-gray-800">
-                  <div className="flex items-center justify-between border-b border-gray-200 p-4 dark:border-gray-700">
-                    <div>
-                      <h2 className="text-lg font-medium text-gray-900 dark:text-white">
-                        Saved Locations
-                      </h2>
-                      <p className="text-sm text-gray-500 dark:text-gray-400">
-                        Your frequently visited places
-                      </p>
-                    </div>
-                    <button className="rounded-lg bg-green-600 px-4 py-2 text-white hover:bg-green-700">
-                      Add Location
-                    </button>
+                  <div className="border-b border-gray-200 p-4 dark:border-gray-700">
+                    <h2 className="text-lg font-medium text-gray-900 dark:text-white">
+                      Saved Locations
+                    </h2>
+                    <p className="text-sm text-gray-500 dark:text-gray-400">
+                      Manage your saved locations
+                    </p>
                   </div>
 
                   <div className="p-4">
-                    <div className="space-y-4">
-                      {savedLocations.map((location) => (
-                        <div
-                          key={location.id}
-                          className="flex items-center justify-between rounded-lg border border-gray-200 p-4 dark:border-gray-700"
-                        >
-                          <div>
-                            <div className="flex items-center gap-2">
-                              <span className="rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-medium text-gray-800 dark:bg-gray-700 dark:text-gray-300">
-                                {location.type}
-                              </span>
-                              <h4 className="font-medium text-gray-900 dark:text-white">
-                                {location.name}
-                              </h4>
-                            </div>
-                            <p className="text-sm text-gray-500 dark:text-gray-400">
-                              {location.address}
-                            </p>
-                          </div>
-                          <div className="flex gap-2">
-                            <button className="rounded-lg border border-gray-300 bg-white px-3 py-1 text-sm text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600">
-                              Edit
-                            </button>
-                            <button className="rounded-lg border border-red-300 bg-white px-3 py-1 text-sm text-red-700 hover:bg-red-50 dark:border-red-700 dark:bg-red-900/20 dark:text-red-400 dark:hover:bg-red-900/30">
-                              Delete
-                            </button>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
+                    <p className="py-8 text-center text-gray-500 dark:text-gray-400">
+                      You have no saved locations yet
+                    </p>
                   </div>
                 </div>
               )}
@@ -1145,49 +1143,19 @@ export default function UserDashboard() {
               {/* Favorite Routes Section */}
               {activeSection === "favorite-routes" && (
                 <div className="rounded-lg bg-white shadow-sm dark:bg-gray-800">
-                  <div className="flex items-center justify-between border-b border-gray-200 p-4 dark:border-gray-700">
-                    <div>
-                      <h2 className="text-lg font-medium text-gray-900 dark:text-white">
-                        Favorite Routes
-                      </h2>
-                      <p className="text-sm text-gray-500 dark:text-gray-400">
-                        Your saved routes
-                      </p>
-                    </div>
-                    <button className="rounded-lg bg-green-600 px-4 py-2 text-white hover:bg-green-700">
-                      Add Route
-                    </button>
+                  <div className="border-b border-gray-200 p-4 dark:border-gray-700">
+                    <h2 className="text-lg font-medium text-gray-900 dark:text-white">
+                      Favorite Routes
+                    </h2>
+                    <p className="text-sm text-gray-500 dark:text-gray-400">
+                      Manage your favorite routes
+                    </p>
                   </div>
 
                   <div className="p-4">
-                    <div className="space-y-4">
-                      {favoriteRoutes.map((route) => (
-                        <div
-                          key={route.id}
-                          className="flex items-center justify-between rounded-lg border border-gray-200 p-4 dark:border-gray-700"
-                        >
-                          <div>
-                            <h4 className="font-medium text-gray-900 dark:text-white">
-                              {route.name}
-                            </h4>
-                            <p className="text-sm text-gray-500 dark:text-gray-400">
-                              From {route.from} to {route.to}
-                            </p>
-                            <p className="text-xs text-gray-500 dark:text-gray-400">
-                              Frequency: {route.frequency}
-                            </p>
-                          </div>
-                          <div className="flex gap-2">
-                            <button className="rounded-lg bg-green-600 px-3 py-1 text-sm text-white hover:bg-green-700">
-                              Book Now
-                            </button>
-                            <button className="rounded-lg border border-gray-300 bg-white px-3 py-1 text-sm text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600">
-                              Edit
-                            </button>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
+                    <p className="py-8 text-center text-gray-500 dark:text-gray-400">
+                      You have no favorite routes yet
+                    </p>
                   </div>
                 </div>
               )}
@@ -1200,134 +1168,48 @@ export default function UserDashboard() {
                       Settings
                     </h2>
                     <p className="text-sm text-gray-500 dark:text-gray-400">
-                      Manage your account preferences
+                      Manage your account settings
                     </p>
                   </div>
 
                   <div className="p-4">
                     <div className="space-y-6">
                       <div>
-                        <h3 className="text-lg font-medium text-gray-900 dark:text-white">
-                          Account Settings
+                        <h3 className="text-md font-medium text-gray-900 dark:text-white">
+                          Profile Information
                         </h3>
-                        <div className="mt-4 space-y-4">
-                          <div className="flex items-center justify-between">
-                            <div>
-                              <p className="font-medium text-gray-900 dark:text-white">
-                                Email Notifications
-                              </p>
-                              <p className="text-sm text-gray-500 dark:text-gray-400">
-                                Receive email updates about your rides
-                              </p>
-                            </div>
-                            <button className="rounded-lg border border-gray-300 bg-white px-3 py-1 text-sm text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600">
-                              Enabled
-                            </button>
-                          </div>
-                          <div className="flex items-center justify-between">
-                            <div>
-                              <p className="font-medium text-gray-900 dark:text-white">
-                                SMS Notifications
-                              </p>
-                              <p className="text-sm text-gray-500 dark:text-gray-400">
-                                Receive text messages about your rides
-                              </p>
-                            </div>
-                            <button className="rounded-lg border border-gray-300 bg-white px-3 py-1 text-sm text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600">
-                              Enabled
-                            </button>
-                          </div>
-                          <div className="flex items-center justify-between">
-                            <div>
-                              <p className="font-medium text-gray-900 dark:text-white">
-                                Dark Mode
-                              </p>
-                              <p className="text-sm text-gray-500 dark:text-gray-400">
-                                Toggle between light and dark theme
-                              </p>
-                            </div>
-                            <button
-                              className="rounded-lg border border-gray-300 bg-white px-3 py-1 text-sm text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600"
-                              onClick={toggleDarkMode}
-                            >
-                              {darkMode ? "Enabled" : "Disabled"}
-                            </button>
-                          </div>
-                        </div>
+                        <button 
+                          className="mt-2 rounded-lg bg-green-600 px-4 py-2 text-white hover:bg-green-700"
+                          onClick={() => setIsProfileModalOpen(true)}
+                        >
+                          Edit Profile
+                        </button>
                       </div>
 
                       <div>
-                        <h3 className="text-lg font-medium text-gray-900 dark:text-white">
-                          Privacy Settings
+                        <h3 className="text-md font-medium text-gray-900 dark:text-white">
+                          Dark Mode
                         </h3>
-                        <div className="mt-4 space-y-4">
-                          <div className="flex items-center justify-between">
-                            <div>
-                              <p className="font-medium text-gray-900 dark:text-white">
-                                Location Sharing
-                              </p>
-                              <p className="text-sm text-gray-500 dark:text-gray-400">
-                                Share your location with drivers
-                              </p>
-                            </div>
-                            <button className="rounded-lg border border-gray-300 bg-white px-3 py-1 text-sm text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600">
-                              Enabled
-                            </button>
-                          </div>
-                          <div className="flex items-center justify-between">
-                            <div>
-                              <p className="font-medium text-gray-900 dark:text-white">
-                                Data Collection
-                              </p>
-                              <p className="text-sm text-gray-500 dark:text-gray-400">
-                                Allow us to collect usage data to improve
-                                service
-                              </p>
-                            </div>
-                            <button className="rounded-lg border border-gray-300 bg-white px-3 py-1 text-sm text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600">
-                              Enabled
-                            </button>
-                          </div>
-                        </div>
+                        <button
+                          onClick={toggleDarkMode}
+                          className="mt-2 inline-flex items-center rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600"
+                        >
+                          {darkMode ? "Switch to Light Mode" : "Switch to Dark Mode"}
+                        </button>
                       </div>
 
                       <div>
-                        <h3 className="text-lg font-medium text-gray-900 dark:text-white">
-                          Payment Settings
+                        <h3 className="text-md font-medium text-gray-900 dark:text-white">
+                          Account Actions
                         </h3>
-                        <div className="mt-4 space-y-4">
-                          <div className="flex items-center justify-between">
-                            <div>
-                              <p className="font-medium text-gray-900 dark:text-white">
-                                Default Payment Method
-                              </p>
-                              <p className="text-sm text-gray-500 dark:text-gray-400">
-                                Credit Card ending in 4567
-                              </p>
-                            </div>
-                            <button className="rounded-lg border border-gray-300 bg-white px-3 py-1 text-sm text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600">
-                              Change
-                            </button>
-                          </div>
-                          <div className="flex items-center justify-between">
-                            <div>
-                              <p className="font-medium text-gray-900 dark:text-white">
-                                Auto-Pay
-                              </p>
-                              <p className="text-sm text-gray-500 dark:text-gray-400">
-                                Automatically pay for rides
-                              </p>
-                            </div>
-                            <button className="rounded-lg border border-gray-300 bg-white px-3 py-1 text-sm text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600">
-                              Enabled
-                            </button>
-                          </div>
-                        </div>
+                        <button
+                          onClick={confirmLogout}
+                          className="mt-2 inline-flex items-center rounded-lg bg-red-600 px-4 py-2 text-white hover:bg-red-700"
+                        >
+                          <LogOut className="mr-2 h-4 w-4" />
+                          Logout
+                        </button>
                       </div>
-
-                      <button className="w-full rounded-lg bg-green-600 px-4 py-2 text-white hover:bg-green-700">
-                        Save Changes
-                      </button>
                     </div>
                   </div>
                 </div>

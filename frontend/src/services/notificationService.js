@@ -1,14 +1,13 @@
 import axios from "axios";
 import { Base_Backend_Url } from "../../constant";
 import formatError from "../utils/errorUtils";
-import axiosInstance from "../utils/axiosInstance"; // if you prefer your custom instance
 
 /**
- * GET user’s notifications
+ * GET user's notifications
  */
 const getNotifications = async () => {
     try {
-        const response = await axios.get(`${Base_Backend_Url}/api/notifications`, {
+        const response = await axios.get(`${Base_Backend_Url}/api/notifications/notifications`, {
             withCredentials: true,
         });
         return response.data; // e.g. { success: true, data: [...] }
@@ -74,7 +73,22 @@ const deleteNotification = async (notificationId) => {
             `${Base_Backend_Url}/api/notifications/${notificationId}`,
             { withCredentials: true }
         );
-        return response.data; // { success: true, data: deletedDoc }
+        return response.data; // { success: true, data: deletedDoc, notificationId }
+    } catch (error) {
+        throw formatError(error);
+    }
+};
+
+/**
+ * GET unread notification count
+ */
+const getUnreadCount = async () => {
+    try {
+        const response = await axios.get(
+            `${Base_Backend_Url}/api/notifications/unread-count`,
+            { withCredentials: true }
+        );
+        return response.data; // { success: true, count: 5 }
     } catch (error) {
         throw formatError(error);
     }
@@ -86,6 +100,7 @@ const notificationService = {
     markNotificationAsRead,
     markAllNotificationsAsRead,
     deleteNotification,
+    getUnreadCount,
 };
 
 export default notificationService;

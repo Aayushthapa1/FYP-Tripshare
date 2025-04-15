@@ -1,10 +1,15 @@
-import { useEffect, useState } from "react";
-import { useSelector, useDispatch } from "react-redux";
-import { toast } from "sonner";
+import React, { useState, useEffect } from "react";
+import { useDispatch, useSelector } from "react-redux";
+import { useNavigate } from "react-router-dom";
+import { toast } from "react-toastify";
 import {
   fetchPendingUserKYC,
   updateUserKYCStatus,
 } from "../../Slices/userKYCSlice";
+import {
+  fetchAllDriverKYCsAction,
+  updateDriverKYCStatusAction,
+} from "../../Slices/driverKYCSlice";
 import {
   FileText,
   ChevronDown,
@@ -15,58 +20,92 @@ import {
   Mail,
   Calendar,
   Eye,
+  Car,
+  CreditCard,
+  Filter,
 } from "lucide-react";
 
 const AdminKYCRequests = () => {
   const dispatch = useDispatch();
-  const { pendingUsers, loading, updateLoading, error, message } = useSelector(
-    (state) => state.userKYC
-  );
+  const navigate = useNavigate();
+
+  // Get data from Redux store
+  const {
+    pendingUsers,
+    loading: userLoading,
+    updateLoading: userUpdateLoading,
+    error: userError,
+    message: userMessage,
+  } = useSelector((state) => state.userKYC);
+
+  const {
+    submissions: pendingDrivers,
+    loading: driverLoading,
+    error: driverError,
+    status: driverStatus,
+    operation: driverOperation,
+  } = useSelector((state) => state.driverKYC);
 
   // Local states
+  const [kycType, setKycType] = useState("user"); // 'user' or 'driver'
   const [rejectionReasons, setRejectionReasons] = useState({});
-  const [expandedUser, setExpandedUser] = useState(null);
+  const [expandedItem, setExpandedItem] = useState(null);
   const [confirmAction, setConfirmAction] = useState(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [viewImage, setViewImage] = useState(null);
   const [sortBy, setSortBy] = useState("date");
   const [sortOrder, setSortOrder] = useState("desc");
+  const [statusFilter, setStatusFilter] = useState("pending");
 
-  // Fetch pending KYC requests on mount
+  // Fetch KYC requests on mount and when type changes
   useEffect(() => {
-    dispatch(fetchPendingUserKYC());
-  }, [dispatch]);
+    if (kycType === "user") {
+      dispatch(fetchPendingUserKYC());
+    } else {
+      dispatch(fetchAllDriverKYCsAction({ status: statusFilter }));
+    }
+  }, [dispatch, kycType, statusFilter]);
 
   // Show success/error messages via toasts
   useEffect(() => {
-    if (message) {
-      toast.success(message);
+    if (userMessage) {
+      toast.success(userMessage);
     }
-    if (error) {
-      toast.error(error);
+    if (userError) {
+      toast.error(userError);
     }
-  }, [message, error]);
+    if (driverError) {
+      toast.error(
+        typeof driverError === "string"
+          ? driverError
+          : driverError.message || "An error occurred"
+      );
+    }
+    if (driverOperation === "status" && driverStatus === "succeeded") {
+      toast.success("Driver KYC status updated successfully");
+    }
+  }, [userMessage, userError, driverError, driverOperation, driverStatus]);
 
   // Handle rejection reason input
-  const handleReasonChange = (userId, reason) => {
+  const handleReasonChange = (id, reason) => {
     setRejectionReasons({
       ...rejectionReasons,
-      [userId]: reason,
+      [id]: reason,
     });
   };
 
-  // Toggle expanded view for a user
-  const toggleExpand = (userId) => {
-    setExpandedUser(expandedUser === userId ? null : userId);
+  // Toggle expanded view for an item
+  const toggleExpand = (id) => {
+    setExpandedItem(expandedItem === id ? null : id);
   };
 
   // Set up confirmation for approve/reject
-  const setupConfirmation = (action, userId) => {
-    if (action === "reject" && !rejectionReasons[userId]?.trim()) {
+  const setupConfirmation = (action, id, itemType) => {
+    if (action === "reject" && !rejectionReasons[id]?.trim()) {
       toast.error("Please provide a rejection reason");
       return;
     }
-    setConfirmAction({ action, userId });
+    setConfirmAction({ action, id, itemType });
   };
 
   // Cancel confirmation
@@ -75,12 +114,20 @@ const AdminKYCRequests = () => {
   };
 
   // Approve KYC
-  const handleApprove = async (userId) => {
+  const handleApprove = async (id, itemType) => {
     try {
-      await dispatch(
-        updateUserKYCStatus({ userId, status: "verified" })
-      ).unwrap();
-      toast.success("KYC Approved Successfully");
+      if (itemType === "user") {
+        await dispatch(
+          updateUserKYCStatus({ userId: id, status: "verified" })
+        ).unwrap();
+      } else {
+        await dispatch(
+          updateDriverKYCStatusAction({
+            id,
+            statusData: { status: "verified" },
+          })
+        ).unwrap();
+      }
       setConfirmAction(null);
     } catch (err) {
       toast.error(err || "Failed to approve KYC");
@@ -88,24 +135,37 @@ const AdminKYCRequests = () => {
   };
 
   // Reject KYC (requires a reason)
-  const handleReject = async (userId) => {
-    const reason = rejectionReasons[userId] || "";
+  const handleReject = async (id, itemType) => {
+    const reason = rejectionReasons[id] || "";
     if (!reason.trim()) {
       toast.error("Please provide a rejection reason");
       return;
     }
+
     try {
-      await dispatch(
-        updateUserKYCStatus({
-          userId,
-          status: "rejected",
-          rejectionReason: reason,
-        })
-      ).unwrap();
-      toast.success("KYC Rejected Successfully");
+      if (itemType === "user") {
+        await dispatch(
+          updateUserKYCStatus({
+            userId: id,
+            status: "rejected",
+            rejectionReason: reason,
+          })
+        ).unwrap();
+      } else {
+        await dispatch(
+          updateDriverKYCStatusAction({
+            id,
+            statusData: {
+              status: "rejected",
+              rejectionReason: reason,
+            },
+          })
+        ).unwrap();
+      }
+
       setRejectionReasons({
         ...rejectionReasons,
-        [userId]: "",
+        [id]: "",
       });
       setConfirmAction(null);
     } catch (err) {
@@ -113,33 +173,78 @@ const AdminKYCRequests = () => {
     }
   };
 
-  // Refresh the list
-  const handleRefresh = () => {
-    dispatch(fetchPendingUserKYC());
+  // Needs resubmission (driver only)
+  const handleNeedsResubmission = async (id) => {
+    const reason = rejectionReasons[id] || "";
+    if (!reason.trim()) {
+      toast.error("Please provide a reason for resubmission");
+      return;
+    }
+
+    try {
+      await dispatch(
+        updateDriverKYCStatusAction({
+          id,
+          statusData: {
+            status: "needs_resubmission",
+            rejectionReason: reason,
+          },
+        })
+      ).unwrap();
+
+      setRejectionReasons({
+        ...rejectionReasons,
+        [id]: "",
+      });
+      setConfirmAction(null);
+    } catch (err) {
+      toast.error(err || "Failed to update KYC status");
+    }
   };
 
-  // Filter users based on search term
-  const filteredUsers = pendingUsers
-    ? pendingUsers.filter(
-        (user) =>
-          user.fullName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          user.email?.toLowerCase().includes(searchTerm.toLowerCase())
-      )
-    : [];
-
-  // Sort users
-  const sortedUsers = [...filteredUsers].sort((a, b) => {
-    if (sortBy === "name") {
-      return sortOrder === "asc"
-        ? a.fullName.localeCompare(b.fullName)
-        : b.fullName.localeCompare(a.fullName);
-    } else if (sortBy === "date") {
-      return sortOrder === "asc"
-        ? new Date(a.createdAt) - new Date(b.createdAt)
-        : new Date(b.createdAt) - new Date(a.createdAt);
+  // Refresh the list
+  const handleRefresh = () => {
+    if (kycType === "user") {
+      dispatch(fetchPendingUserKYC());
+    } else {
+      dispatch(fetchAllDriverKYCsAction({ status: statusFilter }));
     }
-    return 0;
-  });
+  };
+
+  // Filter items based on search term
+  const getFilteredItems = () => {
+    const items = kycType === "user" ? pendingUsers : pendingDrivers;
+    
+    if (!items) return [];
+    
+    return items.filter(item => {
+      const fullName = kycType === "user" ? item.fullName : item.fullName;
+      const email = kycType === "user" ? item.email : item.email;
+      
+      return (
+        fullName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        email?.toLowerCase().includes(searchTerm.toLowerCase())
+      );
+    });
+  };
+
+  // Sort filtered items
+  const getSortedItems = () => {
+    const filteredItems = getFilteredItems();
+    
+    return [...filteredItems].sort((a, b) => {
+      if (sortBy === "name") {
+        return sortOrder === "asc"
+          ? a.fullName.localeCompare(b.fullName)
+          : b.fullName.localeCompare(a.fullName);
+      } else if (sortBy === "date") {
+        return sortOrder === "asc"
+          ? new Date(a.createdAt) - new Date(b.createdAt)
+          : new Date(b.createdAt) - new Date(a.createdAt);
+      }
+      return 0;
+    });
+  };
 
   // Format date
   const formatDate = (dateString) => {
@@ -161,6 +266,10 @@ const AdminKYCRequests = () => {
   const closeImageModal = () => {
     setViewImage(null);
   };
+
+  // Get items to display
+  const items = getSortedItems();
+  const loading = kycType === "user" ? userLoading : driverLoading;
 
   return (
     <div className="bg-white min-h-screen p-6">
@@ -192,8 +301,51 @@ const AdminKYCRequests = () => {
         </div>
       </div>
 
-      {/* Sorting Controls */}
-      <div className="flex justify-between items-center mb-6">
+      {/* KYC Type Selector and Filters */}
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
+        <div className="flex items-center space-x-4">
+          <div className="flex items-center space-x-1 bg-gray-100 p-1 rounded-lg">
+            <button
+              onClick={() => setKycType("user")}
+              className={`px-4 py-2 rounded-md text-sm font-medium ${
+                kycType === "user"
+                  ? "bg-white text-blue-600 shadow-sm"
+                  : "text-gray-600 hover:text-gray-800"
+              }`}
+            >
+              <User className="inline mr-1" size={16} /> User KYC
+            </button>
+            <button
+              onClick={() => setKycType("driver")}
+              className={`px-4 py-2 rounded-md text-sm font-medium ${
+                kycType === "driver"
+                  ? "bg-white text-blue-600 shadow-sm"
+                  : "text-gray-600 hover:text-gray-800"
+              }`}
+            >
+              <Car className="inline mr-1" size={16} /> Driver KYC
+            </button>
+          </div>
+
+          {kycType === "driver" && (
+            <div className="flex items-center space-x-2">
+              <Filter size={16} className="text-gray-500" />
+              <select
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value)}
+                className="border border-gray-300 rounded-md px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+              >
+                <option value="pending">Pending</option>
+                <option value="verified">Verified</option>
+                <option value="rejected">Rejected</option>
+                <option value="needs_resubmission">Needs Resubmission</option>
+                <option value="">All Statuses</option>
+              </select>
+            </div>
+          )}
+        </div>
+
+        {/* Sorting Controls */}
         <div className="flex items-center space-x-2">
           <span className="text-sm text-gray-600">Sort by:</span>
           <button
@@ -227,10 +379,6 @@ const AdminKYCRequests = () => {
             Date
           </button>
         </div>
-        <div className="text-sm text-gray-600">
-          {filteredUsers.length}{" "}
-          {filteredUsers.length === 1 ? "request" : "requests"} pending
-        </div>
       </div>
 
       {/* Loading State */}
@@ -242,7 +390,7 @@ const AdminKYCRequests = () => {
       )}
 
       {/* Empty State */}
-      {!loading && filteredUsers.length === 0 && (
+      {!loading && items.length === 0 && (
         <div className="text-center py-12">
           <FileText className="w-12 h-12 text-gray-300 mx-auto mb-4" />
           <h2 className="text-xl font-semibold text-gray-800 mb-2">
@@ -251,43 +399,55 @@ const AdminKYCRequests = () => {
           <p className="text-gray-500">
             {searchTerm
               ? "No results match your search criteria."
-              : "There are no pending KYC verification requests at the moment."}
+              : `There are no ${statusFilter || "pending"} ${kycType} KYC verification requests at the moment.`}
           </p>
         </div>
       )}
 
       {/* KYC Request Cards */}
       <div className="space-y-4">
-        {sortedUsers.map((user) => (
+        {items.map((item) => (
           <div
-            key={user._id}
+            key={item._id}
             className="border border-gray-200 rounded-lg overflow-hidden transition-all duration-200"
           >
             {/* Card Header */}
             <div className="p-4 flex flex-wrap items-center justify-between">
               <div className="flex items-center space-x-3">
                 <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
-                  <User className="w-5 h-5 text-blue-600" />
+                  {kycType === "user" ? (
+                    <User className="w-5 h-5 text-blue-600" />
+                  ) : (
+                    <Car className="w-5 h-5 text-blue-600" />
+                  )}
                 </div>
                 <div>
                   <h2 className="text-lg font-semibold text-gray-800">
-                    {user.fullName}
+                    {item.fullName}
                   </h2>
                   <div className="flex items-center text-sm text-gray-500">
                     <Mail className="w-4 h-4 mr-1" />
-                    {user.email}
+                    {item.email}
                   </div>
                 </div>
               </div>
               <div className="flex items-center space-x-2 mt-2 md:mt-0">
-                <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
-                  Pending
+                <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium ${
+                  item.status === "verified" 
+                    ? "bg-green-100 text-green-800" 
+                    : item.status === "rejected"
+                    ? "bg-red-100 text-red-800"
+                    : item.status === "needs_resubmission"
+                    ? "bg-orange-100 text-orange-800"
+                    : "bg-yellow-100 text-yellow-800"
+                }`}>
+                  {item.status ? item.status.charAt(0).toUpperCase() + item.status.slice(1).replace('_', ' ') : "Pending"}
                 </span>
                 <button
-                  onClick={() => toggleExpand(user._id)}
+                  onClick={() => toggleExpand(item._id)}
                   className="p-1 text-gray-400 hover:text-gray-600 rounded-full"
                   aria-label={
-                    expandedUser === user._id
+                    expandedItem === item._id
                       ? "Collapse details"
                       : "Expand details"
                   }
@@ -295,7 +455,7 @@ const AdminKYCRequests = () => {
                   <ChevronDown
                     size={20}
                     className={
-                      expandedUser === user._id ? "transform rotate-180" : ""
+                      expandedItem === item._id ? "transform rotate-180" : ""
                     }
                   />
                 </button>
@@ -303,13 +463,13 @@ const AdminKYCRequests = () => {
             </div>
 
             {/* Expanded Content */}
-            {expandedUser === user._id && (
+            {expandedItem === item._id && (
               <div className="p-4 border-t border-gray-100 bg-gray-50">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  {/* User Details */}
+                  {/* User/Driver Info */}
                   <div>
                     <h3 className="text-sm font-medium text-gray-500 mb-3">
-                      User Information
+                      {kycType === "user" ? "User" : "Driver"} Information
                     </h3>
                     <div className="space-y-3">
                       <div className="flex items-start">
@@ -317,7 +477,7 @@ const AdminKYCRequests = () => {
                         <div>
                           <p className="text-xs text-gray-500">Full Name</p>
                           <p className="font-medium text-gray-900">
-                            {user.fullName}
+                            {item.fullName}
                           </p>
                         </div>
                       </div>
@@ -326,7 +486,7 @@ const AdminKYCRequests = () => {
                         <div>
                           <p className="text-xs text-gray-500">Email Address</p>
                           <p className="font-medium text-gray-900">
-                            {user.email}
+                            {item.email}
                           </p>
                         </div>
                       </div>
@@ -337,10 +497,23 @@ const AdminKYCRequests = () => {
                             Submission Date
                           </p>
                           <p className="font-medium text-gray-900">
-                            {formatDate(user.createdAt)}
+                            {formatDate(item.createdAt)}
                           </p>
                         </div>
                       </div>
+                      {kycType === "driver" && item.licenseNumber && (
+                        <div className="flex items-start">
+                          <CreditCard className="w-5 h-5 text-gray-400 mr-2 mt-0.5" />
+                          <div>
+                            <p className="text-xs text-gray-500">
+                              License Number
+                            </p>
+                            <p className="font-medium text-gray-900">
+                              {item.licenseNumber}
+                            </p>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   </div>
 
@@ -350,68 +523,137 @@ const AdminKYCRequests = () => {
                       KYC Documents
                     </h3>
                     <div className="grid grid-cols-2 gap-4">
-                      {user.citizenshipFront && (
-                        <div className="border border-gray-200 rounded-lg overflow-hidden bg-white">
-                          <div className="aspect-w-16 aspect-h-9 bg-gray-100 relative">
-                            <img
-                              src={user.citizenshipFront || "/placeholder.svg"}
-                              alt="Citizenship Front"
-                              className="object-cover w-full h-full"
-                              onError={(e) => {
-                                e.target.src =
-                                  "/placeholder.svg?height=150&width=250";
-                              }}
-                            />
-                            <button
-                              onClick={() =>
-                                openImageModal(
-                                  user.citizenshipFront,
-                                  "Citizenship Front"
-                                )
-                              }
-                              className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-0 hover:bg-opacity-30 transition-all duration-200"
-                            >
-                              <Eye className="w-6 h-6 text-white opacity-0 group-hover:opacity-100" />
-                            </button>
-                          </div>
-                          <div className="p-2 text-center">
-                            <p className="text-xs font-medium text-gray-700">
-                              Citizenship Front
-                            </p>
-                          </div>
-                        </div>
+                      {kycType === "user" && (
+                        <>
+                          {item.citizenshipFront && (
+                            <div className="border border-gray-200 rounded-lg overflow-hidden bg-white">
+                              <div className="aspect-w-16 aspect-h-9 bg-gray-100 relative">
+                                <img
+                                  src={item.citizenshipFront || "/placeholder.svg"}
+                                  alt="Citizenship Front"
+                                  className="object-cover w-full h-full"
+                                  onError={(e) => {
+                                    e.target.src =
+                                      "/placeholder.svg?height=150&width=250";
+                                  }}
+                                />
+                                <button
+                                  onClick={() =>
+                                    openImageModal(
+                                      item.citizenshipFront,
+                                      "Citizenship Front"
+                                    )
+                                  }
+                                  className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-0 hover:bg-opacity-30 transition-all duration-200"
+                                >
+                                  <Eye className="w-6 h-6 text-white opacity-0 group-hover:opacity-100" />
+                                </button>
+                              </div>
+                              <div className="p-2 text-center">
+                                <p className="text-xs font-medium text-gray-700">
+                                  Citizenship Front
+                                </p>
+                              </div>
+                            </div>
+                          )}
+                          {item.citizenshipBack && (
+                            <div className="border border-gray-200 rounded-lg overflow-hidden bg-white">
+                              <div className="aspect-w-16 aspect-h-9 bg-gray-100 relative">
+                                <img
+                                  src={item.citizenshipBack || "/placeholder.svg"}
+                                  alt="Citizenship Back"
+                                  className="object-cover w-full h-full"
+                                  onError={(e) => {
+                                    e.target.src =
+                                      "/placeholder.svg?height=150&width=250";
+                                  }}
+                                />
+                                <button
+                                  onClick={() =>
+                                    openImageModal(
+                                      item.citizenshipBack,
+                                      "Citizenship Back"
+                                    )
+                                  }
+                                  className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-0 hover:bg-opacity-30 transition-all duration-200"
+                                >
+                                  <Eye className="w-6 h-6 text-white opacity-0 group-hover:opacity-100" />
+                                </button>
+                              </div>
+                              <div className="p-2 text-center">
+                                <p className="text-xs font-medium text-gray-700">
+                                  Citizenship Back
+                                </p>
+                              </div>
+                            </div>
+                          )}
+                        </>
                       )}
-
-                      {user.citizenshipBack && (
-                        <div className="border border-gray-200 rounded-lg overflow-hidden bg-white">
-                          <div className="aspect-w-16 aspect-h-9 bg-gray-100 relative">
-                            <img
-                              src={user.citizenshipBack || "/placeholder.svg"}
-                              alt="Citizenship Back"
-                              className="object-cover w-full h-full"
-                              onError={(e) => {
-                                e.target.src =
-                                  "/placeholder.svg?height=150&width=250";
-                              }}
-                            />
-                            <button
-                              onClick={() =>
-                                openImageModal(
-                                  user.citizenshipBack,
-                                  "Citizenship Back"
-                                )
-                              }
-                              className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-0 hover:bg-opacity-30 transition-all duration-200"
-                            >
-                              <Eye className="w-6 h-6 text-white opacity-0 group-hover:opacity-100" />
-                            </button>
-                          </div>
-                          <div className="p-2 text-center">
-                            <p className="text-xs font-medium text-gray-700">
-                              Citizenship Back
-                            </p>
-                          </div>
-                        </div>
+                      {kycType === "driver" && (
+                        <>
+                          {item.frontPhoto && (
+                            <div className="border border-gray-200 rounded-lg overflow-hidden bg-white">
+                              <div className="aspect-w-16 aspect-h-9 bg-gray-100 relative">
+                                <img
+                                  src={item.frontPhoto || "/placeholder.svg"}
+                                  alt="License Front"
+                                  className="object-cover w-full h-full"
+                                  onError={(e) => {
+                                    e.target.src =
+                                      "/placeholder.svg?height=150&width=250";
+                                  }}
+                                />
+                                <button
+                                  onClick={() =>
+                                    openImageModal(
+                                      item.frontPhoto,
+                                      "License Front"
+                                    )
+                                  }
+                                  className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-0 hover:bg-opacity-30 transition-all duration-200"
+                                >
+                                  <Eye className="w-6 h-6 text-white opacity-0 group-hover:opacity-100" />
+                                </button>
+                              </div>
+                              <div className="p-2 text-center">
+                                <p className="text-xs font-medium text-gray-700">
+                                  License Front
+                                </p>
+                              </div>
+                            </div>
+                          )}
+                          {item.backPhoto && (
+                            <div className="border border-gray-200 rounded-lg overflow-hidden bg-white">
+                              <div className="aspect-w-16 aspect-h-9 bg-gray-100 relative">
+                                <img
+                                  src={item.backPhoto || "/placeholder.svg"}
+                                  alt="License Back"
+                                  className="object-cover w-full h-full"
+                                  onError={(e) => {
+                                    e.target.src =
+                                      "/placeholder.svg?height=150&width=250";
+                                  }}
+                                />
+                                <button
+                                  onClick={() =>
+                                    openImageModal(
+                                      item.backPhoto,
+                                      "License Back"
+                                    )
+                                  }
+                                  className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-0 hover:bg-opacity-30 transition-all duration-200"
+                                >
+                                  <Eye className="w-6 h-6 text-white opacity-0 group-hover:opacity-100" />
+                                </button>
+                              </div>
+                              <div className="p-2 text-center">
+                                <p className="text-xs font-medium text-gray-700">
+                                  License Back
+                                </p>
+                              </div>
+                            </div>
+                          )}
+                        </>
                       )}
                     </div>
                   </div>
@@ -420,16 +662,16 @@ const AdminKYCRequests = () => {
                 {/* Rejection Reason Input */}
                 <div className="mt-6">
                   <label
-                    htmlFor={`rejection-${user._id}`}
+                    htmlFor={`rejection-${item._id}`}
                     className="block text-sm font-medium text-gray-700 mb-2"
                   >
                     Rejection Reason (required if rejecting)
                   </label>
                   <textarea
-                    id={`rejection-${user._id}`}
-                    value={rejectionReasons[user._id] || ""}
+                    id={`rejection-${item._id}`}
+                    value={rejectionReasons[item._id] || ""}
                     onChange={(e) =>
-                      handleReasonChange(user._id, e.target.value)
+                      handleReasonChange(item._id, e.target.value)
                     }
                     placeholder="Provide a detailed reason for rejection..."
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 resize-none"
@@ -440,16 +682,25 @@ const AdminKYCRequests = () => {
                 {/* Action Buttons */}
                 <div className="mt-4 flex justify-end gap-3">
                   <button
-                    onClick={() => setupConfirmation("reject", user._id)}
+                    onClick={() => setupConfirmation("reject", item._id, kycType)}
                     className="px-4 py-2 bg-white border border-red-300 text-red-600 rounded-lg hover:bg-red-50 transition-colors flex items-center"
-                    disabled={updateLoading}
+                    disabled={userUpdateLoading}
                   >
                     <X size={18} className="mr-1.5" /> Reject
                   </button>
+                  {kycType === "driver" && (
+                    <button
+                      onClick={() => setupConfirmation("resubmit", item._id, kycType)}
+                      className="px-4 py-2 bg-white border border-orange-300 text-orange-600 rounded-lg hover:bg-orange-50 transition-colors flex items-center"
+                      disabled={userUpdateLoading}
+                    >
+                      <RefreshCw size={18} className="mr-1.5" /> Need Resubmission
+                    </button>
+                  )}
                   <button
-                    onClick={() => setupConfirmation("approve", user._id)}
+                    onClick={() => setupConfirmation("approve", item._id, kycType)}
                     className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center"
-                    disabled={updateLoading}
+                    disabled={userUpdateLoading}
                   >
                     <Check size={18} className="mr-1.5" /> Approve
                   </button>
@@ -458,19 +709,28 @@ const AdminKYCRequests = () => {
             )}
 
             {/* Card Footer with Actions (when collapsed) */}
-            {expandedUser !== user._id && (
+            {expandedItem !== item._id && (
               <div className="p-4 border-t border-gray-100 flex justify-end gap-3">
                 <button
-                  onClick={() => setupConfirmation("reject", user._id)}
+                  onClick={() => setupConfirmation("reject", item._id, kycType)}
                   className="px-4 py-2 bg-white border border-red-300 text-red-600 rounded-lg hover:bg-red-50 transition-colors"
-                  disabled={updateLoading}
+                  disabled={userUpdateLoading}
                 >
                   Reject
                 </button>
+                {kycType === "driver" && (
+                  <button
+                    onClick={() => setupConfirmation("resubmit", item._id, kycType)}
+                    className="px-4 py-2 bg-white border border-orange-300 text-orange-600 rounded-lg hover:bg-orange-50 transition-colors"
+                    disabled={userUpdateLoading}
+                  >
+                    Need Resubmission
+                  </button>
+                )}
                 <button
-                  onClick={() => setupConfirmation("approve", user._id)}
+                  onClick={() => setupConfirmation("approve", item._id, kycType)}
                   className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-                  disabled={updateLoading}
+                  disabled={userUpdateLoading}
                 >
                   Approve
                 </button>
@@ -488,21 +748,25 @@ const AdminKYCRequests = () => {
               <h2 className="text-xl font-semibold text-gray-800 mb-4">
                 {confirmAction.action === "approve"
                   ? "Approve KYC"
+                  : confirmAction.action === "resubmit"
+                  ? "Request Resubmission"
                   : "Reject KYC"}
               </h2>
               <p className="text-gray-600 mb-6">
                 {confirmAction.action === "approve"
                   ? "Are you sure you want to approve this KYC verification?"
+                  : confirmAction.action === "resubmit"
+                  ? "Are you sure you want to request resubmission of this KYC?"
                   : "Are you sure you want to reject this KYC verification?"}
               </p>
 
-              {confirmAction.action === "reject" && (
+              {(confirmAction.action === "reject" || confirmAction.action === "resubmit") && (
                 <div className="mb-6">
                   <p className="text-sm font-medium text-gray-700 mb-2">
-                    Rejection Reason:
+                    Reason:
                   </p>
                   <div className="p-3 bg-gray-50 border border-gray-200 rounded-lg text-gray-700">
-                    {rejectionReasons[confirmAction.userId]}
+                    {rejectionReasons[confirmAction.id]}
                   </div>
                 </div>
               )}
@@ -517,22 +781,28 @@ const AdminKYCRequests = () => {
                 <button
                   onClick={() =>
                     confirmAction.action === "approve"
-                      ? handleApprove(confirmAction.userId)
-                      : handleReject(confirmAction.userId)
+                      ? handleApprove(confirmAction.id, confirmAction.itemType)
+                      : confirmAction.action === "resubmit"
+                      ? handleNeedsResubmission(confirmAction.id)
+                      : handleReject(confirmAction.id, confirmAction.itemType)
                   }
                   className={`px-4 py-2 text-white rounded-lg transition-colors ${
                     confirmAction.action === "approve"
                       ? "bg-blue-600 hover:bg-blue-700"
+                      : confirmAction.action === "resubmit"
+                      ? "bg-orange-600 hover:bg-orange-700"
                       : "bg-red-600 hover:bg-red-700"
                   }`}
                 >
-                  {updateLoading ? (
+                  {userUpdateLoading ? (
                     <span className="flex items-center">
                       <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2"></div>
                       Processing...
                     </span>
                   ) : confirmAction.action === "approve" ? (
                     "Confirm Approval"
+                  ) : confirmAction.action === "resubmit" ? (
+                    "Confirm Resubmission Request"
                   ) : (
                     "Confirm Rejection"
                   )}

@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { useLocation, useNavigate ,useParams} from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { useSelector, useDispatch } from "react-redux";
 import {
   Check,
@@ -23,7 +23,6 @@ const PaymentSuccess = () => {
   const location = useLocation();
   const dispatch = useDispatch();
   const [loading, setLoading] = useState(true);
-  const { paymentId } = useParams();
 
   // Get auth user and payment details from Redux store
   const { user } = useSelector((state) => state.auth);
@@ -40,7 +39,8 @@ const PaymentSuccess = () => {
     const transactionId = queryParams.get("transaction_id");
     const purchaseOrderId = queryParams.get("purchase_order_id");
 
-
+    // Added payment_id to potential query params
+    const paymentId = queryParams.get("payment_id");
 
     console.log("Query parameters:", {
       pidx,

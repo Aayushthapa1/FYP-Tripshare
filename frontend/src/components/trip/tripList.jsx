@@ -13,6 +13,7 @@ import { fetchMyBookings, createBooking } from "../Slices/bookingSlice";
 import { useNavigate } from "react-router-dom";
 import { Toaster, toast } from "sonner";
 import { initiatePayment } from "../Slices/paymentSlice";
+// import { completePayment } from "../Slices/paymentSlice";
 import {
   MapPin,
   Calendar,
@@ -41,201 +42,7 @@ import Navbar from "../layout/Navbar";
 import Footer from "../layout/Footer";
 import Pagination from "../../utils/Pagination.jsx";
 import { useSearchParams } from "react-router-dom";
-
-// Google Maps Component
-const GoogleMapComponent = ({ trips, apiKey }) => {
-  const mapRef = useRef(null);
-  const [map, setMap] = useState(null);
-  const [currentLocation, setCurrentLocation] = useState(null);
-
-  useEffect(() => {
-    // Load Google Maps script
-    const script = document.createElement("script");
-    script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places`;
-    script.async = true;
-    script.defer = true;
-    script.onload = initMap;
-    document.head.appendChild(script);
-
-    return () => {
-      document.head.removeChild(script);
-    };
-  }, [apiKey]);
-
-  const initMap = () => {
-    if (!mapRef.current) return;
-
-    // Default center (Nepal)
-    const defaultCenter = { lat: 27.7172, lng: 85.324 };
-
-    const newMap = new window.google.maps.Map(mapRef.current, {
-      zoom: 7,
-      center: defaultCenter,
-      mapTypeControl: true,
-      streetViewControl: false,
-      fullscreenControl: true,
-    });
-
-    setMap(newMap);
-
-    // Try to get user's current location
-    if (navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(
-        (position) => {
-          const userLocation = {
-            lat: position.coords.latitude,
-            lng: position.coords.longitude,
-          };
-          setCurrentLocation(userLocation);
-          newMap.setCenter(userLocation);
-          newMap.setZoom(10);
-
-          // Add marker for user's location
-          new window.google.maps.Marker({
-            position: userLocation,
-            map: newMap,
-            icon: {
-              path: window.google.maps.SymbolPath.CIRCLE,
-              scale: 10,
-              fillColor: "#4285F4",
-              fillOpacity: 1,
-              strokeColor: "#ffffff",
-              strokeWeight: 2,
-            },
-            title: "Your Location",
-          });
-        },
-        () => {
-          // Handle geolocation error
-          console.log("Error: The Geolocation service failed.");
-        }
-      );
-    }
-  };
-
-  // Add markers for trips when trips or map changes
-  useEffect(() => {
-    if (!map || !trips.length) return;
-
-    // Clear existing markers
-    map.data.forEach((feature) => {
-      map.data.remove(feature);
-    });
-
-    // Known city coordinates in Nepal
-    const cityCoordinates = {
-      Kathmandu: { lat: 27.7172, lng: 85.324 },
-      Pokhara: { lat: 28.2096, lng: 83.9856 },
-      Itahari: { lat: 26.6631, lng: 87.2773 },
-      Biratnagar: { lat: 26.4525, lng: 87.2718 },
-      Birgunj: { lat: 27.0104, lng: 84.877 },
-      Dharan: { lat: 26.8065, lng: 87.2846 },
-      Butwal: { lat: 27.7006, lng: 83.4482 },
-      Nepalgunj: { lat: 28.05, lng: 81.6167 },
-      Bhaktapur: { lat: 27.671, lng: 85.4298 },
-      Lalitpur: { lat: 27.6588, lng: 85.3247 },
-    };
-
-    // Add markers for each trip
-    trips.forEach((trip) => {
-      // Check if we have coordinates for departure location
-      if (cityCoordinates[trip.departureLocation]) {
-        const marker = new window.google.maps.Marker({
-          position: cityCoordinates[trip.departureLocation],
-          map: map,
-          title: `From: ${trip.departureLocation}`,
-          icon: {
-            url: "http://maps.google.com/mapfiles/ms/icons/green-dot.png",
-          },
-        });
-
-        // Add info window
-        const infoWindow = new window.google.maps.InfoWindow({
-          content: `
-            <div style="padding: 10px; max-width: 200px;">
-              <h3 style="margin: 0 0 5px; font-weight: bold;">${
-                trip.departureLocation
-              }</h3>
-              <p style="margin: 0 0 5px;">To: ${trip.destinationLocation}</p>
-              <p style="margin: 0 0 5px;">Date: ${formatDate(
-                trip.departureDate
-              )}</p>
-              <p style="margin: 0;">Price: Rs${trip.price}</p>
-            </div>
-          `,
-        });
-
-        marker.addListener("click", () => {
-          infoWindow.open(map, marker);
-        });
-      }
-
-      // Check if we have coordinates for destination location
-      if (cityCoordinates[trip.destinationLocation]) {
-        const marker = new window.google.maps.Marker({
-          position: cityCoordinates[trip.destinationLocation],
-          map: map,
-          title: `To: ${trip.destinationLocation}`,
-          icon: {
-            url: "http://maps.google.com/mapfiles/ms/icons/red-dot.png",
-          },
-        });
-
-        // Add info window
-        const infoWindow = new window.google.maps.InfoWindow({
-          content: `
-            <div style="padding: 10px; max-width: 200px;">
-              <h3 style="margin: 0 0 5px; font-weight: bold;">${
-                trip.destinationLocation
-              }</h3>
-              <p style="margin: 0 0 5px;">From: ${trip.departureLocation}</p>
-              <p style="margin: 0 0 5px;">Date: ${formatDate(
-                trip.departureDate
-              )}</p>
-              <p style="margin: 0;">Price: Rs${trip.price}</p>
-            </div>
-          `,
-        });
-
-        marker.addListener("click", () => {
-          infoWindow.open(map, marker);
-        });
-      }
-
-      // Draw route line between departure and destination if both exist
-      if (
-        cityCoordinates[trip.departureLocation] &&
-        cityCoordinates[trip.destinationLocation]
-      ) {
-        const directionsService = new window.google.maps.DirectionsService();
-        const directionsRenderer = new window.google.maps.DirectionsRenderer({
-          map: map,
-          suppressMarkers: true,
-          polylineOptions: {
-            strokeColor: "#4285F4",
-            strokeWeight: 4,
-            strokeOpacity: 0.7,
-          },
-        });
-
-        directionsService.route(
-          {
-            origin: cityCoordinates[trip.departureLocation],
-            destination: cityCoordinates[trip.destinationLocation],
-            travelMode: window.google.maps.TravelMode.DRIVING,
-          },
-          (response, status) => {
-            if (status === "OK") {
-              directionsRenderer.setDirections(response);
-            }
-          }
-        );
-      }
-    });
-  }, [trips, map]);
-
-  return <div ref={mapRef} style={{ width: "100%", height: "100%" }} />;
-};
+import EnhancedGoogleMap from "./EnhancedGoogleMap";
 
 // Import your existing Pagination component
 
@@ -799,6 +606,8 @@ const TripList = () => {
                       </div>
                     </div>
 
+                    
+
                     {/* Driver Info & Actions */}
                     <div className="mt-4 flex items-center justify-between">
                       <div className="flex items-center">
@@ -921,9 +730,12 @@ const TripList = () => {
 
           {/* Map Section */}
           <div className="lg:w-1/2 bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden h-[calc(100vh-200px)] sticky top-32">
-            <GoogleMapComponent
+            <EnhancedGoogleMap
               trips={currentTrips}
               apiKey={import.meta.env.VITE_GOOGLE_MAPS_API_KEY}
+              onLocationFound={(location) =>
+                console.log("User location:", location)
+              }
             />
           </div>
         </div>

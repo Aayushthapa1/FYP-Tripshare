@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import {
   ArrowLeft,
@@ -14,6 +14,7 @@ import {
   Save,
   AlertTriangle,
   X,
+  Search,
 } from "lucide-react";
 import { Toaster, toast } from "sonner";
 import { useDispatch, useSelector } from "react-redux";
@@ -24,7 +25,11 @@ import {
   resetTripState,
 } from "../Slices/tripSlice";
 import Navbar from "./../layout/Navbar";
-import Footer from "./../layout/Footer"; 
+import Footer from "./../layout/Footer";
+import RoutePreviewMap from "./RoutePreviewMap";
+
+// Get Google Maps API Key from environment variables
+const GOOGLE_MAPS_API_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
 
 const TripForm = () => {
   const navigate = useNavigate();
@@ -44,6 +49,21 @@ const TripForm = () => {
 
   // Track whether the form has been modified
   const [isFormDirty, setIsFormDirty] = useState(false);
+
+  // Refs for Google Places Autocomplete
+  const departureInputRef = useRef(null);
+  const destinationInputRef = useRef(null);
+  const autocompleteFromRef = useRef(null);
+  const autocompleteToRef = useRef(null);
+
+  // Store selected place details
+  const [departureDetails, setDepartureDetails] = useState(null);
+  const [destinationDetails, setDestinationDetails] = useState(null);
+
+  // Loading state for Places API
+  const [placesApiLoaded, setPlacesApiLoaded] = useState(false);
+  const [isGoogleMapsScriptLoaded, setIsGoogleMapsScriptLoaded] =
+    useState(false);
 
   // Local form state
   const [formData, setFormData] = useState({
@@ -66,12 +86,151 @@ const TripForm = () => {
     description: "",
   });
 
+  // Load Google Maps script dynamically if not already loaded
+  useEffect(() => {
+    // Check if script is already loaded
+    if (window.google && window.google.maps && window.google.maps.places) {
+      setIsGoogleMapsScriptLoaded(true);
+      return;
+    }
+
+    // Check if script tag already exists
+    const existingScript = document.getElementById("google-maps-script");
+    if (existingScript) {
+      return;
+    }
+
+    // Create script tag and load Google Maps API
+    const script = document.createElement("script");
+    script.id = "google-maps-script";
+    script.src = `https://maps.googleapis.com/maps/api/js?key=${GOOGLE_MAPS_API_KEY}&libraries=places,geometry&callback=initPlacesCallback`;
+    script.async = true;
+    script.defer = true;
+
+    // Create a global callback function
+    window.initPlacesCallback = () => {
+      setIsGoogleMapsScriptLoaded(true);
+    };
+
+    document.head.appendChild(script);
+
+    // Cleanup
+    return () => {
+      // Clean up the global callback
+      window.initPlacesCallback = null;
+
+      // Optionally remove the script tag on unmount
+      // document.head.removeChild(script);
+    };
+  }, []);
+
+  // Initialize Places Autocomplete when Google Maps script is loaded
+  useEffect(() => {
+    if (!isGoogleMapsScriptLoaded) return;
+
+    initPlacesAutocomplete();
+  }, [isGoogleMapsScriptLoaded]);
+
+  // Function to initialize Places Autocomplete
+  const initPlacesAutocomplete = () => {
+    if (!departureInputRef.current || !destinationInputRef.current) return;
+
+    try {
+      // Create autocomplete instances
+      autocompleteFromRef.current = new window.google.maps.places.Autocomplete(
+        departureInputRef.current,
+        { types: ["(cities)"] } // Restrict to cities for broader locations
+      );
+
+      autocompleteToRef.current = new window.google.maps.places.Autocomplete(
+        destinationInputRef.current,
+        { types: ["(cities)"] }
+      );
+
+      // Add place_changed event listeners
+      autocompleteFromRef.current.addListener("place_changed", () => {
+        const place = autocompleteFromRef.current.getPlace();
+        handlePlaceSelect(place, "departure");
+      });
+
+      autocompleteToRef.current.addListener("place_changed", () => {
+        const place = autocompleteToRef.current.getPlace();
+        handlePlaceSelect(place, "destination");
+      });
+
+      setPlacesApiLoaded(true);
+    } catch (err) {
+      console.error("Error initializing Places Autocomplete:", err);
+      toast.error("Couldn't initialize location search", {
+        description:
+          "Please try entering locations manually or refresh the page.",
+      });
+    }
+  };
+
+  // Handle selected place
+  const handlePlaceSelect = (place, type) => {
+    if (!place.geometry) {
+      toast.warning(`No details available for this location`, {
+        description: "Please select a location from the dropdown list",
+        duration: 3000,
+      });
+      return;
+    }
+
+    const locationName = place.formatted_address || place.name;
+    setIsFormDirty(true);
+
+    if (type === "departure") {
+      setFormData((prev) => ({
+        ...prev,
+        departureLocation: locationName,
+      }));
+      setDepartureDetails({
+        name: locationName,
+        lat: place.geometry.location.lat(),
+        lng: place.geometry.location.lng(),
+        placeId: place.place_id,
+      });
+    } else {
+      setFormData((prev) => ({
+        ...prev,
+        destinationLocation: locationName,
+      }));
+      setDestinationDetails({
+        name: locationName,
+        lat: place.geometry.location.lat(),
+        lng: place.geometry.location.lng(),
+        placeId: place.place_id,
+      });
+    }
+  };
+
   // If editing an existing trip, load it into the form
   useEffect(() => {
     if (tripId) {
       const tripToEdit = trips.find((t) => t._id === tripId);
       if (tripToEdit) {
         setFormData(tripToEdit);
+
+        // If the trip has location details, set them
+        if (tripToEdit.departureLocationDetails) {
+          setDepartureDetails({
+            name: tripToEdit.departureLocation,
+            lat: tripToEdit.departureLocationDetails.coordinates.lat,
+            lng: tripToEdit.departureLocationDetails.coordinates.lng,
+            placeId: tripToEdit.departureLocationDetails.placeId,
+          });
+        }
+
+        if (tripToEdit.destinationLocationDetails) {
+          setDestinationDetails({
+            name: tripToEdit.destinationLocation,
+            lat: tripToEdit.destinationLocationDetails.coordinates.lat,
+            lng: tripToEdit.destinationLocationDetails.coordinates.lng,
+            placeId: tripToEdit.destinationLocationDetails.placeId,
+          });
+        }
       }
     }
   }, [tripId, trips]);
@@ -114,6 +273,10 @@ const TripForm = () => {
           },
           description: "",
         });
+
+        // Reset place details
+        setDepartureDetails(null);
+        setDestinationDetails(null);
       }
     }
   }, [success, tripId, dispatch, navigate]);
@@ -220,8 +383,20 @@ const TripForm = () => {
       });
       setFormData((prev) => ({ ...prev, [name]: value }));
     } else {
-      // Normal text/number fields
-      setFormData((prev) => ({ ...prev, [name]: value }));
+      // For location fields, manually update without affecting autocomplete
+      if (name === "departureLocation" || name === "destinationLocation") {
+        setFormData((prev) => ({ ...prev, [name]: value }));
+
+        // If manually changing location, reset the corresponding location details
+        if (name === "departureLocation" && departureDetails) {
+          setDepartureDetails(null);
+        } else if (name === "destinationLocation" && destinationDetails) {
+          setDestinationDetails(null);
+        }
+      } else {
+        // Normal text/number fields
+        setFormData((prev) => ({ ...prev, [name]: value }));
+      }
     }
   };
 
@@ -230,26 +405,46 @@ const TripForm = () => {
     e.preventDefault();
     if (loading) return; // don't submit if already loading
 
+    // Prepare enhanced data with location coordinates
+    const enhancedFormData = { ...formData };
+
+    // Add location details if available
+    if (departureDetails) {
+      enhancedFormData.departureLocationDetails = {
+        name: departureDetails.name,
+        coordinates: {
+          lat: departureDetails.lat,
+          lng: departureDetails.lng,
+        },
+        placeId: departureDetails.placeId,
+      };
+    }
+
+    if (destinationDetails) {
+      enhancedFormData.destinationLocationDetails = {
+        name: destinationDetails.name,
+        coordinates: {
+          lat: destinationDetails.lat,
+          lng: destinationDetails.lng,
+        },
+        placeId: destinationDetails.placeId,
+      };
+    }
+
     try {
       let action;
       if (tripId) {
         // editing
-        action = updateTrip({ tripId, tripData: formData });
-        // Remove the toast.loading call here to avoid duplicates
+        action = updateTrip({ tripId, tripData: enhancedFormData });
       } else {
         // creating
-        action = createTrip(formData);
-        // Remove the toast.loading call here to avoid duplicates
+        action = createTrip(enhancedFormData);
       }
 
       // dispatch the thunk
       await dispatch(action).unwrap();
-
-      // The success toast will be handled by the useEffect for success
-      // Remove the duplicate toast.success calls here
     } catch (err) {
       console.error("Operation failed:", err);
-      // Keep this error toast as it's for unexpected errors not handled by the slice
     }
   };
 
@@ -265,6 +460,11 @@ const TripForm = () => {
         description: "Any booked passengers will be notified automatically.",
         id: "trip-delete",
       });
+
+      // Navigate away after successful deletion
+      setTimeout(() => {
+        navigate("/trips");
+      }, 1500);
     } catch (err) {
       console.error("Delete failed:", err);
       toast.error("Couldn't delete this trip", {
@@ -378,13 +578,15 @@ const TripForm = () => {
         },
       });
     } else {
-      navigate(destination);
+      navigate(destination);  
     }
   };
 
   return (
     <div className="min-h-screen bg-gray-50">
       <Navbar />
+     
+
       {/* Delete Confirmation Modal */}
       {showDeleteModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
@@ -418,40 +620,7 @@ const TripForm = () => {
       {/* Header with Navigation */}
       <header className="bg-white shadow-sm border-b border-gray-200 sticky top-0 z-10">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-4">
-              <button
-                onClick={() => handleNavigateAway("/")}
-                className="p-2 hover:bg-gray-100 rounded-full transition-colors flex items-center justify-center"
-                aria-label="Go back"
-              >
-                <ArrowLeft size={20} />
-              </button>
-              <h1 className="text-xl sm:text-2xl font-bold text-gray-800">
-                {tripId ? "Edit Trip" : "Create New Trip"}
-              </h1>
-            </div>
-
-            <div className="flex items-center space-x-2">
-              <button
-                onClick={() => handleNavigateAway("/trips")}
-                className="hidden sm:flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors text-gray-700 font-medium"
-              >
-                <Home size={18} /> All Trips
-              </button>
-
-              {tripId && (
-                <button
-                  onClick={() => setShowDeleteModal(true)}
-                  className="flex items-center gap-1 px-4 py-2 text-red-600 hover:bg-red-50 border border-red-200 rounded-lg transition-colors font-medium"
-                  aria-label="Delete trip"
-                >
-                  <Trash size={18} />
-                  <span className="hidden sm:inline">Delete</span>
-                </button>
-              )}
-            </div>
-          </div>
+         
         </div>
       </header>
 
@@ -468,33 +637,74 @@ const TripForm = () => {
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4">
-              {/* Location Fields */}
-              {["departureLocation", "destinationLocation"].map((field) => (
-                <div className="space-y-2" key={field}>
-                  <label className="block text-sm font-medium text-gray-700">
-                    {field === "departureLocation" ? "From" : "To"}
-                  </label>
-                  <div className="relative">
-                    <MapPin
-                      className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
-                      size={18}
-                    />
-                    <input
-                      type="text"
-                      name={field}
-                      value={formData[field]}
-                      onChange={handleChange}
-                      className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent transition-colors"
-                      placeholder={
-                        field === "departureLocation"
-                          ? "Departure location"
-                          : "Destination location"
-                      }
-                      required
-                    />
-                  </div>
+              {/* Enhanced Location Fields with Autocomplete */}
+              <div className="space-y-2">
+                <label className="block text-sm font-medium text-gray-700">
+                  From
+                </label>
+                <div className="relative">
+                  <MapPin
+                    className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
+                    size={18}
+                  />
+                  <input
+                    type="text"
+                    name="departureLocation"
+                    ref={departureInputRef}
+                    value={formData.departureLocation}
+                    onChange={handleChange}
+                    className="w-full pl-10 pr-12 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent transition-colors"
+                    placeholder="Departure location"
+                    required
+                  />
+                  <Search
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400"
+                    size={18}
+                  />
+
+                  {/* Location Details Badge */}
+                  {departureDetails && (
+                    <div className="mt-1 inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                      <CheckCircle size={12} className="mr-1" /> Location
+                      verified
+                    </div>
+                  )}
                 </div>
-              ))}
+              </div>
+
+              <div className="space-y-2">
+                <label className="block text-sm font-medium text-gray-700">
+                  To
+                </label>
+                <div className="relative">
+                  <MapPin
+                    className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
+                    size={18}
+                  />
+                  <input
+                    type="text"
+                    name="destinationLocation"
+                    ref={destinationInputRef}
+                    value={formData.destinationLocation}
+                    onChange={handleChange}
+                    className="w-full pl-10 pr-12 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent transition-colors"
+                    placeholder="Destination location"
+                    required
+                  />
+                  <Search
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400"
+                    size={18}
+                  />
+
+                  {/* Location Details Badge */}
+                  {destinationDetails && (
+                    <div className="mt-1 inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                      <CheckCircle size={12} className="mr-1" /> Location
+                      verified
+                    </div>
+                  )}
+                </div>
+              </div>
 
               {/* Date/Time Fields */}
               {["departureDate", "departureTime"].map((field) => (
@@ -568,6 +778,26 @@ const TripForm = () => {
                   required
                 />
               </div>
+            </div>
+
+            {/* Map preview of route */}
+            <div className="mt-6">
+              <RoutePreviewMap
+                originCoords={
+                  departureDetails
+                    ? { lat: departureDetails.lat, lng: departureDetails.lng }
+                    : null
+                }
+                destinationCoords={
+                  destinationDetails
+                    ? {
+                        lat: destinationDetails.lat,
+                        lng: destinationDetails.lng,
+                      }
+                    : null
+                }
+                apiKey={GOOGLE_MAPS_API_KEY}
+              />
             </div>
           </section>
 

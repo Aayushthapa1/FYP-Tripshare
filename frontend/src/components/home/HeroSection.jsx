@@ -1,5 +1,3 @@
-"use client";
-
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import {
@@ -63,7 +61,7 @@ export default function HeroSection() {
       {/* Background with optimized loading */}
       <div className="absolute inset-0 z-0">
         <div
-          className="absolute inset-0 bg-gray-900 animate-pulse"
+          className="absolute inset-0 bg-gray-900"
           style={{
             opacity: isLoaded ? 0 : 1,
             transition: "opacity 1s ease-out",
@@ -71,32 +69,36 @@ export default function HeroSection() {
         ></div>
         <img
           src="https://images.unsplash.com/photo-1529156069898-49953e39b3ac?q=80&w=1632&auto=format&fit=crop&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D"
-          alt=""
-          className="w-full h-full object-cover transform scale-105 animate-slow-zoom"
-          onLoad={() => setIsLoaded(true)}
+          alt="Background"
+          className="w-full h-full object-cover"
           style={{
             opacity: isLoaded ? 1 : 0,
             transition: "opacity 1s ease-in",
+            transform: "scale(1.05)",
           }}
-          aria-hidden="true"
+          onLoad={() => setIsLoaded(true)}
         />
         <div className="absolute inset-0 bg-gradient-to-b from-black/80 via-black/70 to-black/60" />
 
         {/* Animated dots overlay with reduced opacity for cleaner look */}
-        <div className="absolute inset-0 bg-[radial-gradient(circle,_rgba(255,255,255,0.08)_1px,_transparent_1px)] bg-[length:20px_20px] opacity-30"></div>
+        <div
+          className="absolute inset-0"
+          style={{
+            background:
+              "radial-gradient(circle, rgba(255,255,255,0.08) 1px, transparent 1px)",
+            backgroundSize: "20px 20px",
+            opacity: 0.3,
+          }}
+        ></div>
       </div>
 
       <div className="relative z-10 w-full max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-12 md:py-20">
         <motion.div
           initial="hidden"
-          animate="visible"
+          animate={isLoaded ? "visible" : "hidden"}
           variants={staggerContainer}
           className="text-center max-w-3xl mx-auto"
         >
-          {/* Animated badge */}
-          <motion.div variants={fadeInUp} className="inline-block mb-6">
-          </motion.div>
-
           {/* Main heading with animation */}
           <motion.h1
             variants={fadeInUp}
@@ -115,40 +117,11 @@ export default function HeroSection() {
             variants={fadeInUp}
             className="text-lg sm:text-xl text-gray-200 mb-8 leading-relaxed max-w-2xl mx-auto"
           >
-            Join our community of travelers  across the country. <br/>
+            Join our community of travelers across the country. <br />
             Save money, reduce emissions, and make new connections.
           </motion.p>
 
-          {/* Stats section with improved layout */}
-          <motion.div
-            variants={fadeInUp}
-            className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4 mb-10"
-          >
-            <div className="bg-white/10 backdrop-blur-sm rounded-xl p-3 md:p-4 transform transition-transform hover:scale-105 hover:bg-white/15">
-              <div className="text-2xl md:text-3xl font-bold text-white">
-                10K+
-              </div>
-              <div className="text-sm text-gray-300">Active users</div>
-            </div>
-            <div className="bg-white/10 backdrop-blur-sm rounded-xl p-3 md:p-4 transform transition-transform hover:scale-105 hover:bg-white/15">
-              <div className="text-2xl md:text-3xl font-bold text-white">
-                5K+
-              </div>
-              <div className="text-sm text-gray-300">Rides shared</div>
-            </div>
-            <div className="bg-white/10 backdrop-blur-sm rounded-xl p-3 md:p-4 transform transition-transform hover:scale-105 hover:bg-white/15">
-              <div className="text-2xl md:text-3xl font-bold text-white">
-                50+
-              </div>
-              <div className="text-sm text-gray-300">Cities</div>
-            </div>
-            <div className="bg-white/10 backdrop-blur-sm rounded-xl p-3 md:p-4 transform transition-transform hover:scale-105 hover:bg-white/15">
-              <div className="text-2xl md:text-3xl font-bold text-white">
-                30%
-              </div>
-              <div className="text-sm text-gray-300">Cost savings</div>
-            </div>
-          </motion.div>
+          {/* Stats section removed as it was empty */}
 
           {/* CTA buttons with improved styling */}
           <motion.div
@@ -157,7 +130,7 @@ export default function HeroSection() {
           >
             <button
               onClick={handleFindRide}
-              className="group relative px-6 py-3 md:px-8 md:py-4 bg-green-500 text-white rounded-lg overflow-hidden transition-all duration-300 hover:bg-green-600 shadow-lg hover:shadow-green-500/30 flex items-center justify-center"
+              className="group relative px-6 py-3 md:px-8 md:py-4 bg-green-500 text-white rounded-lg overflow-hidden transition-all duration-300 hover:bg-green-600 shadow-lg flex items-center justify-center"
             >
               <span className="relative z-10 text-base md:text-lg font-medium flex items-center">
                 Find a Ride
