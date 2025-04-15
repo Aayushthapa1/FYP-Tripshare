@@ -4,17 +4,24 @@ import fs from "fs/promises"; // Using promise-based fs
 
 dotenv.config();
 
-// Configure Cloudinary with environment variables
+// Configure Cloudinary with environment variables.
+// Make sure your .env file includes:
+// CLOUDINARY_CLOUD=yourCloudName
+// CLOUDINARY_API_KEY=1234
+// CLOUDINARY_API_SECRET=abcd
 cloudinary.config({
   cloud_name: process.env.CLOUDINARY_CLOUD,
   api_key: process.env.CLOUDINARY_API_KEY,
   api_secret: process.env.CLOUDINARY_API_SECRET,
 });
 
-
+/**
+ * Upload a file to Cloudinary using the standard approach.
+ * Returns the secure_url.
+ */
 export const uploadToCloudinary = async (filePath, options = {}) => {
   try {
-    // Check if file exists before uploading
+    // Check if file actually exists
     try {
       await fs.access(filePath);
     } catch (error) {
@@ -25,19 +32,19 @@ export const uploadToCloudinary = async (filePath, options = {}) => {
 
     // Default options
     const defaultOptions = {
-      folder: "tripshare", // Default folder
-      resource_type: "auto", // Automatically detect file type
+      folder: "tripshare", // If you want a specific folder in Cloudinary
+      resource_type: "auto", // Auto-detect file type
     };
 
-    // Merge default options with provided options
+    // Merge any custom options
     const uploadOptions = { ...defaultOptions, ...options };
 
-    // Upload the file
+    // Perform the upload
     const result = await cloudinary.uploader.upload(filePath, uploadOptions);
 
     console.log(`Successfully uploaded to Cloudinary: ${result.secure_url}`);
 
-    // Return the full result object
+    // Return just the secure_url by default
     return result.secure_url;
   } catch (error) {
     console.error("Error uploading to Cloudinary:", error);
@@ -45,7 +52,10 @@ export const uploadToCloudinary = async (filePath, options = {}) => {
   }
 };
 
-
+/**
+ * An enhanced upload function that optionally removes the local file
+ * after a successful upload. Returns more fields (mediaUrl, publicId, etc.).
+ */
 export const uploadToCloudinaryEnhanced = async (
   filePath,
   options = {},
@@ -71,13 +81,16 @@ export const uploadToCloudinaryEnhanced = async (
     // Upload the file
     const result = await cloudinary.uploader.upload(filePath, uploadOptions);
 
-    // Delete the file if requested
+    // Delete the local file if requested
     if (deleteAfterUpload) {
-      await fs.unlink(filePath).catch(err => {
+      try {
+        await fs.unlink(filePath);
+      } catch (err) {
         console.warn(`Warning: Could not delete file ${filePath}:`, err);
-      });
+      }
     }
 
+    // Return more details if needed
     return {
       mediaUrl: result.secure_url,
       publicId: result.public_id,
@@ -91,13 +104,13 @@ export const uploadToCloudinaryEnhanced = async (
       originalFilename: result.original_filename,
     };
   } catch (error) {
-    // Try to clean up the file if it exists
+    // If there's an error, optionally delete the local file if it exists
     if (deleteAfterUpload) {
       try {
         await fs.access(filePath);
         await fs.unlink(filePath).catch(() => { });
       } catch (accessError) {
-        // File doesn't exist, no need to delete
+        // File doesn't exist or already removed
       }
     }
 

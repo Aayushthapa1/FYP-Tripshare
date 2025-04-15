@@ -9,7 +9,7 @@ export const protectRoute = async (req, res, next) => {
     const token =
       req.cookies?.accessToken || req.headers.authorization?.split(" ")[1];
 
-    // console.log("protectRoute: token =", token); // Debug log
+    console.log("protectRoute: token =", token); // Debug log
 
     if (!token) {
       console.log("No token found in request");
@@ -23,7 +23,7 @@ export const protectRoute = async (req, res, next) => {
     const decoded = jwt.verify(token, jwtSecret);
 
     // For example, if token is signed with { sub: user._id }
-    // console.log("protectRoute: decoded =", decoded);
+    console.log("protectRoute: decoded =", decoded);
 
     const user = await User.findById(decoded.sub).select("-password");
     if (!user) {
@@ -33,7 +33,7 @@ export const protectRoute = async (req, res, next) => {
         .json(createResponse(404, false, ["User not found"]));
     }
 
-    // console.log("protectRoute: user found:", user._id);
+    console.log("protectRoute: user found:", user._id);
 
     req.user = user;
     next();

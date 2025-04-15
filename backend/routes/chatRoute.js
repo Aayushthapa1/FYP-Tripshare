@@ -1,13 +1,24 @@
 import express from "express";
-import { protectRoute } from "../middlewares/protectRoute.js";
-import { sendMessage, getMessages, markMessagesAsRead ,getUnreadCount,getConversations} from "../controllers/chatController.js";
+import {
+  getChatMessages,
+  sendChatMessage,
+  markMessagesAsRead,
+  getUnreadMessageCount,
+} from "../controllers/chatController.js";
 
-const chatRoute = express.Router();
+const router = express.Router();
 
-chatRoute.get("/conversations", protectRoute, getConversations);
-chatRoute.get("/messages/:id", protectRoute, getMessages);
-chatRoute.post("/sendMessage", protectRoute, sendMessage);
-chatRoute.put("/markAsRead/:contactId", protectRoute, markMessagesAsRead);
-chatRoute.get("/unread", protectRoute, getUnreadCount);
 
-export default chatRoute;
+// Get messages for a specific ride
+router.get("/ride/:rideId", getChatMessages);
+
+// Send a new message
+router.post("/send", sendChatMessage);
+
+// Mark messages as read for a specific ride
+router.put("/read/:rideId", markMessagesAsRead);
+
+// Get unread message count for current user
+router.get("/unread", getUnreadMessageCount);
+
+export default router;

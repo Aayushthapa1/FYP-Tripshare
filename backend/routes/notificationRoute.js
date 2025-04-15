@@ -1,10 +1,11 @@
 import express from "express";
 import {
     createNotification,
-    getNotifications,
+    getUserNotifications,
     markNotificationAsRead,
     markAllNotificationsAsRead,
     deleteNotification,
+    getUnreadCount,
 } from "../controllers/notificationController.js";
 import protectRoute from "../middlewares/protectRoute.js";
 
@@ -13,8 +14,11 @@ const router = express.Router();
 // CREATE
 router.post("/", protectRoute, createNotification);
 
-// READ
-router.get("/", protectRoute, getNotifications);
+// READ - get all notifications for the authenticated user
+router.get("/notifications", protectRoute, getUserNotifications);
+
+// Get unread count for the authenticated user
+router.get("/unread-count", protectRoute, getUnreadCount);
 
 // MARK single as read
 router.patch("/:notificationId/read", protectRoute, markNotificationAsRead);

@@ -1,9 +1,7 @@
-import User from "../models/UserModel.js"
+import User from "../models/userModel.js"
 import UserKYCModel from "../models/UserKYCModel.js"
 import { uploadToCloudinary } from "../config/cloudinaryConfig.js"
-
-// 1) Import the "io" from server.js (adjust path if needed)
-import { io } from "../server.js"
+// 1) Make sure to import `io` from server.js if you want to emit events
 
 /**
  * SUBMIT USER KYC (Personal Info + Photos)
@@ -77,12 +75,15 @@ export const submitUserKYC = async (req, res) => {
 
         // 6) Check if KYC already exists for this user
         let userKYC = await UserKYCModel.findOne({ userId })
+
         if (userKYC) {
-            // Update existing KYC
+            // Update existing KYC (re-submission case or normal updates)
             userKYC.gender = req.body.gender || userKYC.gender
             userKYC.citizenshipNumber = req.body.citizenshipNumber || userKYC.citizenshipNumber
             userKYC.citizenshipFront = citizenshipFrontUrl || userKYC.citizenshipFront
             userKYC.citizenshipBack = citizenshipBackUrl || userKYC.citizenshipBack
+
+            // Reset status to pending, meaning user has re-submitted
             userKYC.kycStatus = "pending"
             userKYC.kycSubmittedAt = new Date()
             userKYC.kycRejectionReason = null
@@ -113,9 +114,8 @@ export const submitUserKYC = async (req, res) => {
         }
         await user.save()
 
-        // 8) Emit a real-time event that user submitted KYC
-        //    Broadcasting to all. If you want only the user or admin, use "io.to(...).emit(...)"
-        if (io) {
+        // 8) Emit a real-time event that user submitted KYC (optional)
+        if (typeof io !== "undefined") {
             io.emit("kyc_submitted", {
                 userId: user._id,
                 kycStatus: userKYC.kycStatus,
@@ -149,8 +149,7 @@ export const submitUserKYC = async (req, res) => {
  */
 export const getPendingUserKYC = async (req, res) => {
     try {
-        const pendingList = await UserKYCModel.find({ kycStatus: "pending" })
-            .populate("userId")
+        const pendingList = await UserKYCModel.find({ kycStatus: "pending" }).populate("userId")
 
         const users = pendingList.map((kyc) => ({
             _id: kyc.userId._id,
@@ -263,7 +262,7 @@ export const updateUserKYCStatus = async (req, res) => {
         // Update status
         userKYC.kycStatus = status
 
-        // Add rejection reason if status is rejected
+        // If rejected, store rejection reason
         if (status === "rejected") {
             if (!rejectionReason) {
                 return res.status(400).json({
@@ -283,9 +282,8 @@ export const updateUserKYCStatus = async (req, res) => {
 
         await userKYC.save()
 
-        // (A) Emit a real-time event for KYC status update
-        //     If you'd prefer separate "kyc_verified" or "kyc_rejected" events, you can do that too.
-        if (io) {
+        // Emit a real-time event (optional)
+        if (typeof io !== "undefined") {
             io.emit("kyc_status_updated", {
                 userId: user._id,
                 newStatus: status,
@@ -347,8 +345,7 @@ export const getAllUsersWithKYC = async (req, res) => {
  */
 export const getVerifiedUserKYC = async (req, res) => {
     try {
-        const verifiedList = await UserKYCModel.find({ kycStatus: "verified" })
-            .populate("userId")
+        const verifiedList = await UserKYCModel.find({ kycStatus: "verified" }).populate("userId")
 
         const users = verifiedList.map((kyc) => ({
             _id: kyc.userId._id,

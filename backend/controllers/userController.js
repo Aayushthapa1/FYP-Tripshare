@@ -53,7 +53,7 @@ export const userRegister = async (req, res, next) => {
       role
     });
 
-    
+
     try {
       await sendEmail({
         to: email,
@@ -280,16 +280,34 @@ export const getUsersByRole = async (req, res, next) => {
 // For "getAllUsers"
 export const getAllUsers = async (req, res, next) => {
   try {
-    const users = await User.find().select("-password"); // an array of user docs
-    return res.status(200).json(
-      createResponse(200, true, [], {
+    const users = await User.find().select("-password");
+
+    // Add logging to debug
+    console.log(`Found ${users.length} users in database`);
+
+    if (!users || users.length === 0) {
+      console.log("No users found in database");
+    }
+
+    return res.status(200).json({
+      status: 200,
+      success: true,
+      errors: [],
+      result: {
         message: "All users fetched successfully",
         users_data: users,
-      })
-    );
+      }
+    });
   } catch (error) {
     console.error("Error fetching all users:", error);
-    next(error);
+    return res.status(500).json({
+      status: 500,
+      success: false,
+      errors: [error.message],
+      result: {
+        message: "Failed to fetch users",
+      }
+    });
   }
 };
 

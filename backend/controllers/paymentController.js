@@ -9,10 +9,6 @@ import _config from "../utils/config.js";
 import Trip from "../models/TripModel.js";
 import User from "../models/userModel.js";
 
-// 1) Import the "io" instance from server.js (CommonJS or ES Modules, adapt as needed)
-import { io } from "../server.js";
-// If you're on CommonJS, you'd do:
-// const { io } = require("../server.js");
 
 /**
  * INITIATE PAYMENT (handles eSewa, COD directly,
@@ -33,6 +29,7 @@ export const initiatePayment = async (req, res, next) => {
       paymentMethod: "khalti",
       status: "pending",
       bookingType: bookingType || "trip",
+      
     };
 
     console.log("Initial payment data:", paymentData);
@@ -40,7 +37,7 @@ export const initiatePayment = async (req, res, next) => {
     // Handle different scenarios
     if (bookingId) {
       console.log("Processing payment for booking ID:", bookingId);
-
+      
       const booking = await Booking.findById(bookingId);
       if (!booking) {
         console.warn("Booking not found:", bookingId);
@@ -51,7 +48,7 @@ export const initiatePayment = async (req, res, next) => {
       paymentData.booking = bookingId;
     } else if (tripId) {
       console.log("Processing payment for trip ID:", tripId);
-
+      
       const trip = await Trip.findById(tripId);
       if (!trip) {
         console.warn("Trip not found:", tripId);
@@ -172,9 +169,9 @@ export const initiatePayment = async (req, res, next) => {
 export const completeKhaltiPayment = async (req, res, next) => {
   try {
     console.log("Khalti callback received:", req.query);
-
+    
     const { pidx, transaction_id, amount, purchase_order_id, status } = req.query;
-
+    
     if (!pidx) {
       console.warn("Missing pidx in Khalti callback query string");
       return res.status(400).send("Missing pidx in Khalti callback query string");
@@ -182,46 +179,46 @@ export const completeKhaltiPayment = async (req, res, next) => {
 
     const khaltiBaseUrl = "https://a.khalti.com";
     const lookupUrl = `${khaltiBaseUrl}/api/v2/epayment/lookup/`.replace(/([^:]\/\/)+/g, "$1");
-
+    
     console.log("Khalti lookup URL:", lookupUrl);
-
+    
     const headers = {
       Authorization: `Key ${_config.KHALTI_SECRET_KEY}`,
       "Content-Type": "application/json",
     };
-
+    
     console.log("Fetching payment record for order ID:", purchase_order_id);
     const payment = await Payment.findById(purchase_order_id);
     if (!payment) {
       console.warn("Payment record not found for:", purchase_order_id);
       return res.status(404).send("Payment record not found");
     }
-
+    
     console.log("Sending request to Khalti lookup API...");
     const lookupResponse = await axios.post(lookupUrl, { pidx }, { headers });
     const paymentInfo = lookupResponse.data;
-
+    
     console.log("Received response from Khalti lookup API:", paymentInfo);
-
+    
     if (!paymentInfo) {
       console.warn("No payment info received from Khalti");
       payment.status = "failed";
       await payment.save();
       return res.status(400).send("No payment info from Khalti");
     }
-
+    
     const frontendUrl = "http://localhost:5173"; // Update with your actual frontend URL
-
+    
     if (paymentInfo.status === "Completed") {
       console.log("Payment completed successfully for:", payment._id);
-
+      
       payment.status = "completed";
       payment.transactionId = paymentInfo.transaction_id;
       payment.khaltiToken = pidx;
       await payment.save();
-
+      
       let booking;
-
+      
       if (payment.booking) {
         console.log("Updating booking payment status for:", payment.booking);
         booking = await Booking.findById(payment.booking);
@@ -229,18 +226,19 @@ export const completeKhaltiPayment = async (req, res, next) => {
           booking.paymentStatus = "paid";
           booking.status = "completed";
           await booking.save();
-
+          
           console.log("Initializing chat for booking");
           const user = await User.findById(booking.user);
           const trip = await Trip.findById(booking.trip);
-
+          
           if (user && trip) {
             const message = `Payment completed for booking #${booking._id.toString().substring(0, 8)}. ${user.fullName || "User"} has booked ${booking.seatsBooked} seat(s).`;
+            await initializeChat(booking.trip, booking.user, message, req);
           }
         }
       } else if (payment.tripId && payment.seats) {
         console.log("Creating new booking for trip payment");
-
+        
         booking = await Booking.create({
           trip: payment.tripId,
           user: payment.user,
@@ -258,13 +256,13 @@ export const completeKhaltiPayment = async (req, res, next) => {
           const user = await User.findById(payment.user);
           if (user) {
             const message = `Payment completed for booking #${booking._id.toString().substring(0, 8)}. ${user.fullName || "User"} has booked ${booking.seatsBooked} seat(s).`;
-            await (payment.tripId, payment.user, message, req);
+            await initializeChat(payment.tripId, payment.user, message, req);
           }
         }
         payment.booking = booking._id;
         await payment.save();
       }
-
+      
       if (io) {
         console.log("Emitting real-time payment_completed event");
         io.emit("payment_completed", {
@@ -275,7 +273,7 @@ export const completeKhaltiPayment = async (req, res, next) => {
           message: "Payment completed successfully",
         });
       }
-      return res.redirect(`${frontendUrl}/payment-success/${payment._id}`);
+      return res.redirect(`${frontendUrl}/payment-success`);
     } else if (paymentInfo.status === "User canceled") {
       console.warn("User canceled payment for:", payment._id);
       payment.status = "canceled";
@@ -316,57 +314,30 @@ export const completeKhaltiPayment = async (req, res, next) => {
 /**
  * Get details of a specific payment
  */
-// In paymentController.js
-export const getPaymentDetails = async (req, res) => {
+export const getPaymentDetails = async (req, res, next) => {
   try {
     const { paymentId } = req.params;
-
-    // Check if the ID is a valid ObjectId format
-    let query = {};
-
-    if (mongoose.Types.ObjectId.isValid(paymentId)) {
-      query._id = paymentId;
-    } else {
-      // Try to find by other identifiers
-      query = {
-        $or: [
-          { transactionId: paymentId },
-          { "khaltiDetails.pidx": paymentId },
-          { "khaltiDetails.purchase_order_id": paymentId }
-        ]
-      };
-    }
-
-    const payment = await Payment.findOne(query)
+    const payment = await Payment.findById(paymentId)
       .populate({
-        path: 'booking',
-        populate: {
-          path: 'trip',
-          populate: 'driver'
-        }
+        path: "booking",
+        populate: { path: "trip" },
       })
-      .populate('user');
+      .populate("user", "fullName email");
 
     if (!payment) {
-      return res.status(404).json({
-        success: false,
-        message: "Payment not found",
-      });
+      return res
+        .status(404)
+        .json(createResponse(404, false, [{ message: "Payment not found" }]));
     }
 
-    return res.status(200).json({
-      success: true,
-      data: {
-        payment
-      }
-    });
+    return res.status(200).json(
+      createResponse(200, true, [], {
+        payment,
+      })
+    );
   } catch (error) {
     console.error("Error fetching payment details:", error);
-    return res.status(500).json({
-      success: false,
-      message: "Error fetching payment details",
-      errors: [error.message]
-    });
+    next(error);
   }
 };
 

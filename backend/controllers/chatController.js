@@ -1,330 +1,384 @@
-import Message from "../models/chatModel.js";
-import UserModel from "../models/userModel.js";
-import { createResponse } from "../utils/responseHelper.js";
+import ChatMessage from "../models/ChatMessage.js";
+import Ride from "../models/handleRideModel.js";
+import User from "../models/userModel.js";
 import mongoose from "mongoose";
-import { activeChatUsers } from '../utils/setupSocketServer.js';
-import { io } from '../server.js';
 
-/**
- * Send a message from one user to another
- * @route POST /api/chat/sendMessage
- * @access Private
- */
+// Get chat messages for a specific ride
+export const getChatMessages = async (req, res) => {
+  try {
+    const { rideId } = req.params;
+    const userId = req.user.id; // Get from auth middleware
 
-// Send message (backup REST API method)
-export const sendMessage = async (req, res) => {
-    try {
-      const { receiverId, content, messageType = "text", receiverType } = req.body;
-      
-      if (!receiverId || !content) {
-        return res.status(400).json(
-          createResponse(400, false, [
-            { message: "Receiver ID and message content are required" }
-          ])
-        );
-      }
-  
-      if (!mongoose.Types.ObjectId.isValid(receiverId)) {
-        return res.status(400).json(
-          createResponse(400, false, [
-            { message: "Invalid receiver ID format" }
-          ])
-        );
-      }
-  
-      // Verify that the receiver exists
-      const receiver = await UserModel.findById(receiverId);
-  
-      if (!receiver) {
-        return res.status(404).json(
-          createResponse(404, false, [
-            { message: "Receiver not found" }
-          ])
-        );
-      }
-  
-      // Determine sender and receiver types
-      const senderType = req.user.role === "driver" ? "Driver" : "User";
-      const actualReceiverType = receiverType || (receiver.role === "driver" ? "Driver" : "User");
-  
-      // Create and save the new message
-      const newMessage = new Message({
-        sender: req.user._id,
-        senderType,
-        receiver: receiverId,
-        receiverType: actualReceiverType,
-        messageType,
-        content,
-        read: false
+    // Validate MongoDB ObjectId
+    if (!mongoose.Types.ObjectId.isValid(rideId)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid ride ID format",
       });
-  
-      const savedMessage = await newMessage.save();
-  
-      // Attempt to send the message in real-time if receiver is online
-      const receiverSocketId = activeChatUsers.get(receiverId)?.socketId;
-      if (receiverSocketId && req.io) {
-        req.io.to(receiverSocketId).emit("newChatMessage", {
-          messageId: savedMessage._id,
-          senderId: req.user._id,
-          senderName: req.user.fullName || req.user.name || req.user.userName,
-          content,
-          createdAt: savedMessage.createdAt,
-          messageType
+    }
+
+    // Find the ride to verify user has access
+    const ride = await Ride.findById(rideId);
+    if (!ride) {
+      return res.status(404).json({
+        success: false,
+        message: "Ride not found",
+      });
+    }
+
+    // Check if user is part of this ride (either passenger or driver)
+    const isPassenger = ride.passengerId.toString() === userId.toString();
+    const isDriver =
+      ride.driverId && ride.driverId.toString() === userId.toString();
+
+    if (!isPassenger && !isDriver) {
+      return res.status(403).json({
+        success: false,
+        message: "You don't have permission to access these messages",
+      });
+    }
+
+    // Fetch messages and sort by timestamp
+    const messages = await ChatMessage.find({ rideId })
+      .sort({ timestamp: 1 })
+      .populate("sender", "fullName userName profileImage")
+      .populate("recipient", "fullName userName profileImage");
+
+    // Mark messages as read if recipient is current user
+    const unreadMessages = messages.filter(
+      (msg) =>
+        msg.status !== "read" && msg.recipient.toString() === userId.toString()
+    );
+
+    // Update message status in background (don't wait for completion)
+    if (unreadMessages.length > 0) {
+      const updatePromise = ChatMessage.updateMany(
+        {
+          _id: { $in: unreadMessages.map((msg) => msg._id) },
+          recipient: userId,
+        },
+        { $set: { status: "read" } }
+      );
+
+      // Don't await this operation to speed up response time
+      updatePromise.catch((err) =>
+        console.error("Error updating message status:", err)
+      );
+
+      // If we have socket.io available, emit read status
+      if (global.io) {
+        const senderId = unreadMessages[0].sender.toString();
+        const senderSocketId = global.onlineUsers?.get(senderId)?.socketId;
+
+        if (senderSocketId) {
+          global.io.to(senderSocketId).emit("messages_read", {
+            rideId,
+            readerId: userId,
+            timestamp: new Date(),
+            messageIds: unreadMessages.map((msg) => msg._id),
+          });
+        }
+
+        // Also emit to the ride room
+        global.io.to(`chat:${rideId}`).emit("messages_read", {
+          rideId,
+          readerId: userId,
+          timestamp: new Date(),
+          messageIds: unreadMessages.map((msg) => msg._id),
         });
       }
-  
-      return res.status(201).json(
-        createResponse(201, true, [
-          { message: "Message sent successfully" }
-        ], savedMessage)
-      );
-    } catch (error) {
-      console.error("Error in sendMessage:", error);
-      return res.status(500).json(
-        createResponse(500, false, [
-          { message: "Failed to send message. Please try again later." }
-        ])
-      );
-    }
-  };
-
-/**
- * Get conversation history between current user and specified user
- * @route GET /api/chat/messages/:id
- * @access Private
- */
-export const getMessages = async (req, res) => {
-  try {
-    const otherUserId = req.params.id;
-    const currentUserId = req.user._id;
-    
-    if (!mongoose.Types.ObjectId.isValid(otherUserId)) {
-      return res.status(400).json(
-        createResponse(400, false, [
-          { message: "Invalid user ID format" }
-        ])
-      );
     }
 
-    // Get the other user to determine their type
-    const otherUser = await UserModel.findById(otherUserId);
-    if (!otherUser) {
-      return res.status(404).json(
-        createResponse(404, false, [
-          { message: "User not found" }
-        ])
-      );
-    }
-
-    // Determine the user types based on roles
-    const otherUserType = otherUser.role === "driver" ? "Driver" : "User";
-    const currentUserType = req.user.role === "driver" ? "Driver" : "User";
-
-    // Find messages where either:
-    // 1. Current user is sender and other user is receiver
-    // 2. Other user is sender and current user is receiver
-    const messages = await Message.find({
-      $or: [
-        {
-          sender: currentUserId,
-          senderType: currentUserType,
-          receiver: otherUserId,
-          receiverType: otherUserType
-        },
-        {
-          sender: otherUserId,
-          senderType: otherUserType,
-          receiver: currentUserId,
-          receiverType: currentUserType
-        }
-      ]
-    }).sort({ createdAt: 1 }); 
-
-    return res.status(200).json(
-      createResponse(200, true, [], {
-        messages,
-        count: messages.length
-      })
-    );
+    return res.status(200).json({
+      success: true,
+      message: "Chat messages retrieved successfully",
+      data: messages,
+    });
   } catch (error) {
-    console.error("Error in getMessages:", error);
-    return res.status(500).json(
-      createResponse(500, false, [
-        { message: "Failed to retrieve messages. Please try again later." }
-      ])
-    );
+    console.error("Error in getChatMessages:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to retrieve chat messages",
+      error: error.message,
+    });
   }
 };
 
-/**
- * Get all conversations for the current user
- * @route GET /api/chat/conversations
- * @access Private
- */
-export const getConversations = async (req, res) => {
+// Send a new chat message
+export const sendChatMessage = async (req, res) => {
   try {
-    const currentUserId = req.user._id;
-    const currentUserType = req.user.role === "driver" ? "Driver" : "User";
+    const { rideId, recipient, content } = req.body;
+    const sender = req.user.id; // From auth middleware
+    const senderUser = await User.findById(sender);
+    const senderName = senderUser?.fullName || senderUser?.userName || "User";
 
-    // Aggregate to find unique conversations
-    const conversations = await Message.aggregate([
+    // Validate required fields
+    if (!rideId || !recipient || !content) {
+      return res.status(400).json({
+        success: false,
+        message: "Missing required fields",
+      });
+    }
+
+    // Validate MongoDB ObjectIds
+    if (
+      !mongoose.Types.ObjectId.isValid(rideId) ||
+      !mongoose.Types.ObjectId.isValid(recipient) ||
+      !mongoose.Types.ObjectId.isValid(sender)
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid ID format",
+      });
+    }
+
+    // Find the ride to verify user has access
+    const ride = await Ride.findById(rideId);
+    if (!ride) {
+      return res.status(404).json({
+        success: false,
+        message: "Ride not found",
+      });
+    }
+
+    // Check if user is part of this ride (either passenger or driver)
+    const isPassenger = ride.passengerId.toString() === sender.toString();
+    const isDriver =
+      ride.driverId && ride.driverId.toString() === sender.toString();
+
+    if (!isPassenger && !isDriver) {
+      return res.status(403).json({
+        success: false,
+        message: "You don't have permission to send messages for this ride",
+      });
+    }
+
+    // Create new message
+    const newMessage = new ChatMessage({
+      rideId,
+      sender,
+      senderName,
+      recipient,
+      content,
+      timestamp: new Date(),
+      status: "sent",
+    });
+
+    // Save message to database
+    const savedMessage = await newMessage.save();
+
+    // Populate sender and recipient information
+    await savedMessage.populate([
+      { path: "sender", select: "fullName userName profileImage" },
+      { path: "recipient", select: "fullName userName profileImage" },
+    ]);
+
+    // Emit socket event if socket.io is available
+    if (global.io) {
+      const recipientSocketId = global.onlineUsers?.get(recipient)?.socketId;
+
+      // Emit to ride chat room
+      global.io.to(`chat:${rideId}`).emit("new_message", savedMessage);
+
+      // Also emit to the ride room
+      global.io.to(`ride:${rideId}`).emit("new_message", savedMessage);
+
+      // Also emit directly to recipient if online
+      if (recipientSocketId) {
+        global.io.to(recipientSocketId).emit("new_message", {
+          ...savedMessage.toObject(),
+          status: "delivered",
+        });
+
+        // Update status to delivered
+        savedMessage.status = "delivered";
+        await savedMessage.save();
+      }
+    }
+
+    // Create notification for the recipient if they're not online
+    const recipientSocketId = global.onlineUsers?.get(recipient)?.socketId;
+    if (!recipientSocketId && global.createSystemNotification) {
+      try {
+        await global.createSystemNotification(
+          recipient,
+          `New message from ${senderName}: ${
+            content.length > 30 ? content.substring(0, 30) + "..." : content
+          }`,
+          "new_message",
+          {
+            rideId,
+            senderId: sender,
+            senderName,
+            preview: content.substring(0, 100),
+          }
+        );
+      } catch (err) {
+        console.error("Error creating notification for message:", err);
+      }
+    }
+
+    return res.status(201).json({
+      success: true,
+      message: "Message sent successfully",
+      data: savedMessage,
+    });
+  } catch (error) {
+    console.error("Error in sendChatMessage:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to send message",
+      error: error.message,
+    });
+  }
+};
+
+// Mark messages as read
+export const markMessagesAsRead = async (req, res) => {
+  try {
+    const { rideId } = req.params;
+    const userId = req.user.id; // From auth middleware
+
+    // Validate MongoDB ObjectId
+    if (!mongoose.Types.ObjectId.isValid(rideId)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid ride ID format",
+      });
+    }
+
+    // Find unread messages for this ride where current user is recipient
+    const unreadMessages = await ChatMessage.find({
+      rideId,
+      recipient: userId,
+      status: { $ne: "read" },
+    });
+
+    // Update all matching messages
+    const result = await ChatMessage.updateMany(
+      {
+        rideId,
+        recipient: userId,
+        status: { $ne: "read" },
+      },
+      { $set: { status: "read" } }
+    );
+
+    // Emit socket event if socket.io is available
+    if (global.io && unreadMessages.length > 0) {
+      // Group messages by sender
+      const senderMessages = {};
+      unreadMessages.forEach((msg) => {
+        const senderId = msg.sender.toString();
+        if (!senderMessages[senderId]) {
+          senderMessages[senderId] = [];
+        }
+        senderMessages[senderId].push(msg._id);
+      });
+
+      // Notify each sender
+      Object.entries(senderMessages).forEach(([senderId, messageIds]) => {
+        const senderSocketId = global.onlineUsers?.get(senderId)?.socketId;
+
+        if (senderSocketId) {
+          global.io.to(senderSocketId).emit("messages_read", {
+            rideId,
+            readerId: userId,
+            messageIds,
+            timestamp: new Date(),
+          });
+        }
+      });
+
+      // Also broadcast to ride room
+      global.io.to(`chat:${rideId}`).emit("messages_read", {
+        rideId,
+        readerId: userId,
+        messageIds: unreadMessages.map((msg) => msg._id),
+        timestamp: new Date(),
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: "Messages marked as read",
+      data: {
+        updatedCount: result.modifiedCount,
+        messageIds: unreadMessages.map((msg) => msg._id),
+      },
+    });
+  } catch (error) {
+    console.error("Error in markMessagesAsRead:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to mark messages as read",
+      error: error.message,
+    });
+  }
+};
+
+// Get unread message count for a user
+export const getUnreadMessageCount = async (req, res) => {
+  try {
+    const userId = req.user.id; // From auth middleware
+
+    // Count unread messages across all rides
+    const unreadCount = await ChatMessage.countDocuments({
+      recipient: userId,
+      status: { $ne: "read" },
+    });
+
+    // Group by ride for detailed counts
+    const unreadByRide = await ChatMessage.aggregate([
       {
         $match: {
-          $or: [
-            { sender: new mongoose.Types.ObjectId(currentUserId), senderType: currentUserType },
-            { receiver: new mongoose.Types.ObjectId(currentUserId), receiverType: currentUserType }
-          ]
-        }
-      },
-      {
-        $sort: { createdAt: -1 }
+          recipient: mongoose.Types.ObjectId(userId),
+          status: { $ne: "read" },
+        },
       },
       {
         $group: {
-          _id: {
-            $cond: [
-              { $eq: ["$sender", new mongoose.Types.ObjectId(currentUserId)] },
-              "$receiver",
-              "$sender"
-            ]
-          },
-          lastMessage: { $first: "$$ROOT" },
-          lastMessageDate: { $first: "$createdAt" }
-        }
+          _id: "$rideId",
+          count: { $sum: 1 },
+          latestMessage: { $max: "$timestamp" },
+          latestContent: { $last: "$content" },
+        },
       },
       {
-        $sort: { lastMessageDate: -1 }
+        $sort: { latestMessage: -1 },
       },
       {
         $lookup: {
-          from: "users",
+          from: "rides", // Assuming your rides collection is named 'rides'
           localField: "_id",
           foreignField: "_id",
-          as: "userDetails"
-        }
-      },
-      {
-        $addFields: {
-          contactDetails: { $arrayElemAt: ["$userDetails", 0] }
-        }
+          as: "rideInfo",
+        },
       },
       {
         $project: {
-          _id: 0,
-          contactId: "$_id",
-          contactName: "$contactDetails.fullName",
-          contactUsername: "$contactDetails.userName",
-          contactRole: "$contactDetails.role",
-          lastMessage: "$lastMessage.content",
-          lastMessageDate: "$lastMessageDate",
-          unreadCount: { $cond: [{ $eq: ["$lastMessage.read", false] }, 1, 0] }
-        }
-      }
+          count: 1,
+          latestMessage: 1,
+          latestContent: 1,
+          rideInfo: { $arrayElemAt: ["$rideInfo", 0] },
+        },
+      },
     ]);
 
-    return res.status(200).json(
-      createResponse(200, true, [], {
-        conversations,
-        count: conversations.length
-      })
-    );
-  } catch (error) {
-    console.error("Error in getConversations:", error);
-    return res.status(500).json(
-      createResponse(500, false, [
-        { message: "Failed to retrieve conversations. Please try again later." }
-      ])
-    );
-  }
-};
-
-/**
- * Mark messages as read
- * @route PUT /api/chat/markAsRead/:contactId
- * @access Private
- */
-export const markMessagesAsRead = async (req, res) => {
-  try {
-    const { contactId } = req.params;
-    const currentUserId = req.user._id;
-    
-    if (!mongoose.Types.ObjectId.isValid(contactId)) {
-      return res.status(400).json(
-        createResponse(400, false, [
-          { message: "Invalid contact ID format" }
-        ])
-      );
-    }
-    
-    // Get the contact to determine their type
-    const contact = await UserModel.findById(contactId);
-    if (!contact) {
-      return res.status(404).json(
-        createResponse(404, false, [
-          { message: "Contact not found" }
-        ])
-      );
-    }
-    
-    const contactType = contact.role === "driver" ? "Driver" : "User";
-    const currentUserType = req.user.role === "driver" ? "Driver" : "User";
-
-    // Update all unread messages from this contact to the current user
-    const result = await Message.updateMany(
-      {
-        sender: contactId,
-        senderType: contactType,
-        receiver: currentUserId,
-        receiverType: currentUserType,
-        read: false
+    return res.status(200).json({
+      success: true,
+      message: "Unread message count retrieved",
+      data: {
+        totalUnread: unreadCount,
+        unreadByRide,
       },
-      {
-        $set: { read: true }
-      }
-    );
-
-    return res.status(200).json(
-      createResponse(200, true, [
-        { message: `${result.modifiedCount} messages marked as read` }
-      ])
-    );
-  } catch (error) {
-    console.error("Error in markMessagesAsRead:", error);
-    return res.status(500).json(
-      createResponse(500, false, [
-        { message: "Failed to mark messages as read. Please try again later." }
-      ])
-    );
-  }
-};
-
-/**
- * Get unread message count
- * @route GET /api/chat/unread
- * @access Private
- */
-export const getUnreadCount = async (req, res) => {
-  try {
-    const currentUserId = req.user._id;
-    const currentUserType = req.user.role === "driver" ? "Driver" : "User";
-    
-    const count = await Message.countDocuments({
-      receiver: currentUserId,
-      receiverType: currentUserType,
-      read: false
     });
-    
-    return res.status(200).json(
-      createResponse(200, true, [], { unreadCount: count })
-    );
   } catch (error) {
-    console.error("Error in getUnreadCount:", error);
-    return res.status(500).json(
-      createResponse(500, false, [
-        { message: "Failed to get unread message count. Please try again later." }
-      ])
-    );
+    console.error("Error in getUnreadMessageCount:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to get unread message count",
+      error: error.message,
+    });
   }
 };
-
-export default { sendMessage, getMessages, markMessagesAsRead, getConversations, getUnreadCount };

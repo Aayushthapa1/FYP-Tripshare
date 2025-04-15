@@ -1,61 +1,58 @@
-import app from "./app.js";
-import cloudinary from "./config/cloudinaryConfig.js";
-import _config from "./utils/config.js";
-import connectToDB from "./utils/connectToDB.js";
-
-
-import setupSocketServer from "./utils/setupSocketServer.js";
-import { setupChatHandlers } from "./utils/SocketChat.js";
-
-// We no longer need to import { Server } from "socket.io" here
-// because that's done inside "setupSocketServer".
 import http from "http";
+import app from "./app.js";
+import _config from "./utils/config.js";
+import connectToServices from "./startup/connectToServices.js";
+import setupSocketServer from "./utils/setupSocketServer.js";
+import setupAppRoutes from "./startup/setupAppRoutes.js";
 
-// 1) Pull out "port" from our config
 const { port } = _config;
-console.log(`Port: ${port}`);
-let io = null; 
-// 4) Test Cloudinary connection
-export const testCloudinaryConnection = async () => {
-  try {
-    const result = await cloudinary.api.ping();
-    console.log("Cloudinary connection successful:", result);
-    return true;
-  } catch (error) {
-    console.error("Cloudinary connection failed:", error);
-    return false;
-  }
-};
 
-// 5) Start the server
+// Create HTTP server
+const server = http.createServer(app);
+
 const startServer = async () => {
   try {
-    // A) Connect to DB and verify Cloudinary
-    await connectToDB();
-    await testCloudinaryConnection();
+    // Connect to database and other external services
+    await connectToServices(); // DB + Cloudinary
 
-    const server = http.createServer(app);
+    // Initialize socket server and store returned reference
+    const { io, cleanup } = setupSocketServer(server);
 
-    io = setupSocketServer(server);
+    // Store io instance globally for use in controllers
+    global.io = io;
 
-    app.use((req, res, next) => {
-      req.io = io;
-      next();
-    });
+    // Make createSystemNotification available to socket handlers
+    if (global.notificationController) {
+      global.createSystemNotification =
+        global.notificationController.createSystemNotification;
+    }
 
+    // Setup all API routes after socket initialization
+    setupAppRoutes(app);
 
-    // F) Finally, listen on the specified port
+    // Start the server
     server.listen(port, () => {
       console.log(`🚀 Server running on port ${port}...`);
+      console.log(`📱 Socket.IO server active and handling real-time events`);
+    });
+
+    // Setup graceful shutdown
+    process.on("SIGTERM", () => {
+      console.log("SIGTERM signal received: closing HTTP server");
+      // Run socket cleanup
+      if (cleanup) cleanup();
+      // Close server
+      server.close(() => {
+        console.log("HTTP server closed");
+        process.exit(0);
+      });
     });
   } catch (error) {
-    console.error("❌ Error starting the server:", error);
+    console.error("❌ Server failed to start:", error);
+    console.error(error.stack);
     process.exit(1);
   }
 };
 
-// 6) Execute our startServer function
+// Start the server
 startServer();
-
-// 7) Export "io" if you want your controllers to import it directly
-export { io };

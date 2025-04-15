@@ -4,46 +4,45 @@ const UserKYCSchema = new mongoose.Schema({
   userId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
-    required: [true, 'User ID is required']
+    required: [true, 'User ID is required'],
   },
   gender: {
     type: String,
     enum: ['male', 'female', 'other'],
-    required: [true, 'Gender is required']
+    required: [true, 'Gender is required'],
   },
-  
   citizenshipNumber: {
     type: String,
     required: [true, 'Citizenship number is required'],
-    unique: true
+    unique: true,
   },
   citizenshipFront: {
     type: String,
-    required: [true, 'Front photo of citizenship is required']
+    required: [true, 'Front photo of citizenship is required'],
   },
   citizenshipBack: {
     type: String,
-    required: [true, 'Back photo of citizenship is required']
+    required: [true, 'Back photo of citizenship is required'],
   },
   kycStatus: {
     type: String,
-    enum: ['not_submitted', 'pending', 'verified', 'rejected, needs_resubmission'],
-    default: 'pending'
+    enum: ['not_submitted', 'pending', 'verified', 'rejected', 'needs_resubmission'],
+    default: 'pending',
   },
   kycSubmittedAt: {
     type: Date,
-    default: Date.now
+    default: Date.now,
   },
   kycVerifiedAt: {
-    type: Date
+    type: Date,
   },
   kycRejectionReason: {
-    type: String
+    type: String,
   },
   createdAt: {
     type: Date,
-    default: Date.now
-  }
+    default: Date.now,
+  },
 });
 
 // Check if model exists before creating a new one
