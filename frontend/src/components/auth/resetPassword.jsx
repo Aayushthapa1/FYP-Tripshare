@@ -1,35 +1,63 @@
-"use client";
-
 import { useState, useEffect } from "react";
-import { KeyRound, Lock } from "lucide-react";
+import { KeyRound, Lock, Eye, EyeOff } from "lucide-react";
 import { Toaster, toast } from "sonner";
-import { resetPassword, clearError } from "../Slices/authSlice";
+import {
+  resetPassword,
+  clearError,
+  clearPasswordResetStatus,
+} from "../Slices/authSlice";
 import { useDispatch, useSelector } from "react-redux";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useParams } from "react-router-dom";
 
 const ResetPassword = () => {
+  const { token } = useParams(); // Get token from URL if you're using route like /reset-password/:token
+
   const [formData, setFormData] = useState({
-    otp: "",
+    token: token || "", // Use token from URL params if available
     newPassword: "",
     confirmPassword: "",
   });
+
   const [passwordError, setPasswordError] = useState("");
-  const [successMessage, setSuccessMessage] = useState("");
-  const [loading, setLoading] = useState(false);
   const [showNewPassword, setShowNewPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [passwordStrength, setPasswordStrength] = useState({
+    score: 0,
+    message: "",
+    color: "",
+  });
 
   const dispatch = useDispatch();
   const navigate = useNavigate();
-  const { isLoading, error } = useSelector((state) => state.auth);
+  const { isLoading, error, passwordResetStatus, passwordResetMessage } =
+    useSelector((state) => state.auth);
 
   useEffect(() => {
-    // Clear any previous errors when component mounts
+    // Clear any previous errors and reset status when component mounts
     dispatch(clearError());
+    dispatch(clearPasswordResetStatus());
 
-    // Clear success message when component unmounts
-    return () => setSuccessMessage("");
+    return () => {
+      // Clean up on unmount
+      dispatch(clearPasswordResetStatus());
+    };
   }, [dispatch]);
+
+  // Handle status changes from Redux
+  useEffect(() => {
+    if (passwordResetStatus === "success" && passwordResetMessage) {
+      toast.success(passwordResetMessage);
+      setFormData({ token: "", newPassword: "", confirmPassword: "" });
+
+      // Redirect to login page after 3 seconds
+      toast.info("Redirecting to login page...");
+      setTimeout(() => {
+        navigate("/login");
+      }, 3000);
+    } else if (passwordResetStatus === "failed" && error) {
+      toast.error(error);
+    }
+  }, [passwordResetStatus, passwordResetMessage, error, navigate]);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -39,60 +67,87 @@ const ResetPassword = () => {
     if (name === "newPassword" || name === "confirmPassword") {
       setPasswordError("");
     }
+
+    // Check password strength if newPassword field is being updated
+    if (name === "newPassword") {
+      checkPasswordStrength(value);
+    }
   };
 
-  const toggleNewPasswordVisibility = () => {
-    setShowNewPassword(!showNewPassword);
+  const checkPasswordStrength = (password) => {
+    // Password strength criteria
+    const hasLowerCase = /[a-z]/.test(password);
+    const hasUpperCase = /[A-Z]/.test(password);
+    const hasNumber = /\d/.test(password);
+    const hasSpecialChar = /[!@#$%^&*(),.?":{}|<>]/.test(password);
+    const isLongEnough = password.length >= 8;
+
+    // Calculate score (0-4)
+    let score = 0;
+    if (hasLowerCase) score++;
+    if (hasUpperCase) score++;
+    if (hasNumber) score++;
+    if (hasSpecialChar) score++;
+    if (isLongEnough) score++;
+
+    // Set message and color based on score
+    let message = "";
+    let color = "";
+
+    if (password.length === 0) {
+      message = "";
+      color = "";
+    } else if (score < 2) {
+      message = "Weak password";
+      color = "red";
+    } else if (score < 4) {
+      message = "Moderate password";
+      color = "orange";
+    } else {
+      message = "Strong password";
+      color = "green";
+    }
+
+    setPasswordStrength({ score, message, color });
   };
 
-  const toggleConfirmPasswordVisibility = () => {
-    setShowConfirmPassword(!showConfirmPassword);
-  };
-
-  const handleSubmit = async (e) => {
+  const handleSubmit = (e) => {
     e.preventDefault();
-    setLoading(true);
-    setSuccessMessage("");
 
     // Validate passwords match
     if (formData.newPassword !== formData.confirmPassword) {
       setPasswordError("Passwords do not match");
       toast.error("Passwords do not match");
-      setLoading(false);
       return;
     }
 
-    try {
-      const resultAction = await dispatch(resetPassword(formData));
+    // Validate password strength
+    if (passwordStrength.score < 3) {
+      setPasswordError("Please create a stronger password");
+      toast.error("Please create a stronger password");
+      return;
+    }
 
-      if (resetPassword.fulfilled.match(resultAction)) {
-        setFormData({ otp: "", newPassword: "", confirmPassword: "" });
-        const successMsg = "Password reset successful!";
-        setSuccessMessage(successMsg);
-        toast.success(successMsg);
+    dispatch(resetPassword(formData));
+  };
 
-        // Redirect to login page after 3 seconds
-        toast.info("Redirecting to login page...");
-        setTimeout(() => {
-          navigate("/login");
-        }, 3000);
-      } else if (resetPassword.rejected.match(resultAction)) {
-        const errorMessage =
-          resultAction.payload?.message ||
-          "Failed to reset password. Please try again.";
-        toast.error(errorMessage);
-      }
-    } catch (error) {
-      console.error("Reset password error:", error);
-      toast.error("An unexpected error occurred. Please try again.");
-    } finally {
-      setLoading(false);
+  // Get background color for password strength meter
+  const getStrengthColor = () => {
+    switch (passwordStrength.color) {
+      case "red":
+        return "bg-red-500";
+      case "orange":
+        return "bg-orange-500";
+      case "green":
+        return "bg-green-500";
+      default:
+        return "bg-gray-200";
     }
   };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-green-50 via-emerald-50 to-teal-50 flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-md w-full bg-white rounded-2xl shadow-[0_10px_40px_rgba(8,_112,_84,_0.12)] overflow-hidden">
+      <div className="max-w-md w-full bg-white rounded-2xl shadow-[0_10px_40px_rgba(8,_112,_84,_0.12)] overflow-hidden transition-all duration-300 hover:shadow-[0_15px_50px_rgba(8,_112,_84,_0.18)]">
         <div className="bg-gradient-to-r from-green-500 to-green-600 p-6">
           <div className="flex items-center justify-center">
             <div className="bg-white/10 p-3 rounded-full">
@@ -116,46 +171,66 @@ const ResetPassword = () => {
             Reset Password
           </h2>
           <p className="mt-2 text-center text-sm text-green-100">
-            Enter the OTP sent to your email and create a new password.
+            Create a new secure password for your account
           </p>
         </div>
 
         <div className="p-6 md:p-8">
-          <Toaster position="top-right" />
+          <Toaster position="top-right" richColors closeButton />
 
-          {successMessage && (
+          {passwordResetStatus === "success" && (
             <div
-              className="mb-6 bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-lg relative"
+              className="mb-6 bg-green-50 border-l-4 border-green-500 text-green-700 px-4 py-3 rounded-lg relative"
               role="alert"
             >
-              <span className="block sm:inline">{successMessage}</span>
-              <p className="text-sm mt-1">Redirecting to login page...</p>
+              <div className="flex items-start">
+                <div className="mr-3 mt-0.5">
+                  <svg
+                    className="h-5 w-5 text-green-500"
+                    fill="currentColor"
+                    viewBox="0 0 20 20"
+                  >
+                    <path
+                      fillRule="evenodd"
+                      d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
+                      clipRule="evenodd"
+                    />
+                  </svg>
+                </div>
+                <div>
+                  <p className="font-medium">Password Reset Successful!</p>
+                  <p className="text-sm">Redirecting to login page...</p>
+                </div>
+              </div>
             </div>
           )}
 
           <div className="w-full relative">
-            {(loading || isLoading) && (
+            {isLoading && (
               <div className="absolute inset-0 flex items-center justify-center bg-white bg-opacity-70 rounded-xl z-10">
                 <div className="h-10 w-10 border-4 border-t-transparent border-green-500 rounded-full animate-spin"></div>
               </div>
             )}
 
             <form className="space-y-5" onSubmit={handleSubmit}>
-              <div className="relative">
-                <div className="absolute left-3 top-1/2 -translate-y-1/2 text-green-600">
-                  <KeyRound size={18} />
+              {!token && (
+                <div className="relative">
+                  <div className="absolute left-3 top-1/2 -translate-y-1/2 text-green-600">
+                    <KeyRound size={18} />
+                  </div>
+                  <input
+                    id="token"
+                    name="token"
+                    type="text"
+                    value={formData.token}
+                    onChange={handleChange}
+                    className="w-full px-10 py-3 bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-all duration-200 text-gray-800 placeholder-gray-400"
+                    placeholder="Enter reset token from email"
+                    required
+                    disabled={isLoading}
+                  />
                 </div>
-                <input
-                  id="otp"
-                  name="otp"
-                  type="text"
-                  value={formData.otp}
-                  onChange={handleChange}
-                  className="w-full px-10 py-3 bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-green-500 focus:border-green-500 transition-all duration-200 text-gray-800 placeholder-gray-400"
-                  placeholder="Enter OTP sent to your email"
-                  required
-                />
-              </div>
+              )}
 
               <div className="relative">
                 <div className="absolute left-3 top-1/2 -translate-y-1/2 text-green-600">
@@ -167,46 +242,89 @@ const ResetPassword = () => {
                   type={showNewPassword ? "text" : "password"}
                   value={formData.newPassword}
                   onChange={handleChange}
-                  className="w-full px-10 py-3 bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-green-500 focus:border-green-500 transition-all duration-200 text-gray-800 placeholder-gray-400"
+                  className="w-full px-10 py-3 bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-all duration-200 text-gray-800 placeholder-gray-400"
                   placeholder="Enter new password"
                   required
+                  disabled={isLoading}
                 />
                 <button
                   type="button"
-                  onClick={toggleNewPasswordVisibility}
+                  onClick={() => setShowNewPassword(!showNewPassword)}
                   className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 focus:outline-none"
+                  tabIndex="-1"
                 >
-                  {showNewPassword ? (
-                    <svg
-                      xmlns="http://www.w3.org/2000/svg"
-                      className="h-5 w-5"
-                      viewBox="0 0 20 20"
-                      fill="currentColor"
-                    >
-                      <path d="M10 12a2 2 0 100-4 2 2 0 000 4z" />
-                      <path
-                        fillRule="evenodd"
-                        d="M.458 10C1.732 5.943 5.522 3 10 3s8.268 2.943 9.542 7c-1.274 4.057-5.064 7-9.542 7S1.732 14.057.458 10zM14 10a4 4 0 11-8 0 4 4 0 018 0z"
-                        clipRule="evenodd"
-                      />
-                    </svg>
-                  ) : (
-                    <svg
-                      xmlns="http://www.w3.org/2000/svg"
-                      className="h-5 w-5"
-                      viewBox="0 0 20 20"
-                      fill="currentColor"
-                    >
-                      <path
-                        fillRule="evenodd"
-                        d="M3.707 2.293a1 1 0 00-1.414 1.414l14 14a1 1 0 001.414-1.414l-1.473-1.473A10.014 10.014 0 0019.542 10C18.268 5.943 14.478 3 10 3a9.958 9.958 0 00-4.512 1.074l-1.78-1.781zm4.261 4.26l1.514 1.515a2.003 2.003 0 012.45 2.45l1.514 1.514a4 4 0 00-5.478-5.478z"
-                        clipRule="evenodd"
-                      />
-                      <path d="M12.454 16.697L9.75 13.992a4 4 0 01-3.742-3.741L2.335 6.578A9.98 9.98 0 00.458 10c1.274 4.057 5.065 7 9.542 7 .847 0 1.669-.105 2.454-.303z" />
-                    </svg>
-                  )}
+                  {showNewPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                 </button>
               </div>
+
+              {/* Password strength meter */}
+              {formData.newPassword && (
+                <div className="space-y-1">
+                  <div className="w-full h-2 bg-gray-200 rounded-full overflow-hidden">
+                    <div
+                      className={`h-full ${getStrengthColor()}`}
+                      style={{
+                        width: `${(passwordStrength.score / 5) * 100}%`,
+                      }}
+                    ></div>
+                  </div>
+                  <p
+                    className={`text-xs font-medium text-${passwordStrength.color}-600`}
+                  >
+                    {passwordStrength.message}
+                  </p>
+                  <div className="text-xs text-gray-500 space-y-1">
+                    <p>Password must contain:</p>
+                    <ul className="list-disc pl-5 space-y-0.5">
+                      <li
+                        className={
+                          formData.newPassword.length >= 8
+                            ? "text-green-600"
+                            : ""
+                        }
+                      >
+                        At least 8 characters
+                      </li>
+                      <li
+                        className={
+                          /[A-Z]/.test(formData.newPassword)
+                            ? "text-green-600"
+                            : ""
+                        }
+                      >
+                        One uppercase letter
+                      </li>
+                      <li
+                        className={
+                          /[a-z]/.test(formData.newPassword)
+                            ? "text-green-600"
+                            : ""
+                        }
+                      >
+                        One lowercase letter
+                      </li>
+                      <li
+                        className={
+                          /\d/.test(formData.newPassword)
+                            ? "text-green-600"
+                            : ""
+                        }
+                      >
+                        One number
+                      </li>
+                      <li
+                        className={
+                          /[!@#$%^&*(),.?":{}|<>]/.test(formData.newPassword)
+                            ? "text-green-600"
+                            : ""
+                        }
+                      >
+                        One special character
+                      </li>
+                    </ul>
+                  </div>
+                </div>
+              )}
 
               <div className="relative">
                 <div className="absolute left-3 top-1/2 -translate-y-1/2 text-green-600">
@@ -218,43 +336,21 @@ const ResetPassword = () => {
                   type={showConfirmPassword ? "text" : "password"}
                   value={formData.confirmPassword}
                   onChange={handleChange}
-                  className="w-full px-10 py-3 bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-green-500 focus:border-green-500 transition-all duration-200 text-gray-800 placeholder-gray-400"
+                  className="w-full px-10 py-3 bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-all duration-200 text-gray-800 placeholder-gray-400"
                   placeholder="Confirm new password"
                   required
+                  disabled={isLoading}
                 />
                 <button
                   type="button"
-                  onClick={toggleConfirmPasswordVisibility}
+                  onClick={() => setShowConfirmPassword(!showConfirmPassword)}
                   className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 focus:outline-none"
+                  tabIndex="-1"
                 >
                   {showConfirmPassword ? (
-                    <svg
-                      xmlns="http://www.w3.org/2000/svg"
-                      className="h-5 w-5"
-                      viewBox="0 0 20 20"
-                      fill="currentColor"
-                    >
-                      <path d="M10 12a2 2 0 100-4 2 2 0 000 4z" />
-                      <path
-                        fillRule="evenodd"
-                        d="M.458 10C1.732 5.943 5.522 3 10 3s8.268 2.943 9.542 7c-1.274 4.057-5.064 7-9.542 7S1.732 14.057.458 10zM14 10a4 4 0 11-8 0 4 4 0 018 0z"
-                        clipRule="evenodd"
-                      />
-                    </svg>
+                    <EyeOff size={18} />
                   ) : (
-                    <svg
-                      xmlns="http://www.w3.org/2000/svg"
-                      className="h-5 w-5"
-                      viewBox="0 0 20 20"
-                      fill="currentColor"
-                    >
-                      <path
-                        fillRule="evenodd"
-                        d="M3.707 2.293a1 1 0 00-1.414 1.414l14 14a1 1 0 001.414-1.414l-1.473-1.473A10.014 10.014 0 0019.542 10C18.268 5.943 14.478 3 10 3a9.958 9.958 0 00-4.512 1.074l-1.78-1.781zm4.261 4.26l1.514 1.515a2.003 2.003 0 012.45 2.45l1.514 1.514a4 4 0 00-5.478-5.478z"
-                        clipRule="evenodd"
-                      />
-                      <path d="M12.454 16.697L9.75 13.992a4 4 0 01-3.742-3.741L2.335 6.578A9.98 9.98 0 00.458 10c1.274 4.057 5.065 7 9.542 7 .847 0 1.669-.105 2.454-.303z" />
-                    </svg>
+                    <Eye size={18} />
                   )}
                 </button>
               </div>
@@ -266,10 +362,10 @@ const ResetPassword = () => {
               <div className="pt-2">
                 <button
                   type="submit"
-                  className="w-full py-3 px-4 bg-green-600 text-white font-medium rounded-lg hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 transform transition-all duration-200 hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
-                  disabled={loading || isLoading}
+                  className="w-full py-3 px-4 bg-green-600 text-white font-medium rounded-lg hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 transform transition-all duration-200 hover:shadow-lg hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
+                  disabled={isLoading}
                 >
-                  {loading || isLoading ? (
+                  {isLoading ? (
                     <div className="flex items-center justify-center space-x-2">
                       <div className="w-4 h-4 border-2 border-t-transparent border-white rounded-full animate-spin"></div>
                       <span>Resetting...</span>

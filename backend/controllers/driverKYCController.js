@@ -2,15 +2,7 @@ import mongoose from "mongoose";
 import DriverModel from "../models/driverKYCModel.js";
 import { uploadToCloudinary } from "../config/cloudinaryConfig.js";
 
-/**
- * Create a new driver KYC submission
- * @route POST /api/drivers/create
- * @access Private (Driver)
- *
- * NOTE: A driver can only create one record. 
- * If they need to re-submit after "rejected" or "needs_resubmission",
- * they must use the update route.
- */
+
 export const createDriver = async (req, res) => {
   const session = await mongoose.startSession();
   session.startTransaction();

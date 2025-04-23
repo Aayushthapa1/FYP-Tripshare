@@ -4,8 +4,6 @@ import {
   getUserProfile,
   updateUserProfile,
   getUsersByRole,
-  forgotPassword,
-  resetPassword,
   getAllUsers
 } from "../controllers/userController.js";
 
@@ -16,7 +14,4 @@ router.put("/:id", protectRoute, updateUserProfile);
 router.get("/getUsersByRole/:role", protectRoute, getUsersByRole);
 router.get("/all",  getAllUsers);
 
-
-
-  
 export default router;

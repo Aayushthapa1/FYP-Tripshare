@@ -1,5 +1,9 @@
-import nodemailer from "nodemailer"
-import { registrationEmailTemplate } from "./emailTemplate.js"
+import nodemailer from "nodemailer";
+import {
+    registrationEmailTemplate,
+    resetPasswordEmailTemplate,
+    passwordResetSuccessTemplate
+} from "./emailTemplate.js";
 
 /**
  * Sends an email using Nodemailer.
@@ -7,7 +11,7 @@ import { registrationEmailTemplate } from "./emailTemplate.js"
  * @param {Object} options
  * @param {string} options.to - The recipient's email address.
  * @param {string} options.subject - The subject of the email.
- * @param {string} options.template - The name of the email template to use ("registration" in this case).
+ * @param {string} options.template - The name of the email template to use.
  * @param {Object} options.context - Context data to render the template (e.g. { name: 'John Doe' }).
  * @returns {Promise<Object>} Nodemailer's info object.
  */
@@ -29,6 +33,12 @@ export async function sendEmail({ to, subject, template, context }) {
         case "registration":
             html = registrationEmailTemplate(context);
             break;
+        case "resetPassword":
+            html = resetPasswordEmailTemplate(context);
+            break;
+        case "passwordResetSuccess":
+            html = passwordResetSuccessTemplate(context);
+            break;
         // Add more cases for other templates if needed
         default:
             html = `<p>No template found for ${template}</p>`;
@@ -45,4 +55,3 @@ export async function sendEmail({ to, subject, template, context }) {
     console.log("Message sent: %s", info.messageId);
     return info;
 }
-

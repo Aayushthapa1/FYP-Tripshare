@@ -1,35 +1,60 @@
-import React from "react";
 import { Link } from "react-router-dom";
+import { ShieldX, Home, LogIn } from "lucide-react";
 
 const UnauthPage = () => {
   return (
     <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 text-gray-800 px-6">
-      <div className="max-w-lg text-center">
-        <img
-          src="https://via.placeholder.com/400x300" // Replace with a professional 403/unauthorized image
-          alt="Unauthorized Access"
-          className="w-full h-auto mb-8"
-        />
-        <h1 className="text-4xl font-bold mb-4 text-red-600">Access Denied</h1>
-        <p className="text-lg mb-6">
-          You do not have permission to access this page. If you believe this is
-          a mistake, please contact your administrator.
-        </p>
-        <div className="flex justify-center gap-4">
-          <Link
-            to="/"
-            className="px-6 py-2 text-white bg-blue-600 rounded-lg shadow-md hover:bg-blue-700 transition"
-          >
-            Go to Home
-          </Link>
-          <Link
-            to="/login"
-            className="px-6 py-2 text-blue-600 border border-blue-600 rounded-lg hover:bg-blue-100 transition"
-          >
-            Login Again
-          </Link>
+      <div className="max-w-md w-full bg-white rounded-xl shadow-lg overflow-hidden">
+        {/* Green header section */}
+        <div className="bg-green-600 h-2 w-full"></div>
+
+        <div className="p-8 sm:p-10">
+          {/* Icon */}
+          <div className="mx-auto w-20 h-20 rounded-full bg-green-50 flex items-center justify-center mb-8">
+            <ShieldX className="h-10 w-10 text-green-600" strokeWidth={1.5} />
+          </div>
+
+          {/* Content */}
+          <h1 className="text-2xl sm:text-3xl font-bold mb-3 text-gray-800 text-center">
+            Access Denied
+          </h1>
+
+          <p className="text-gray-600 mb-8 text-center">
+            You don't have permission to access this page. Please verify your
+            credentials or contact an administrator for assistance.
+          </p>
+
+          {/* Buttons */}
+          <div className="flex flex-col sm:flex-row justify-center gap-4">
+            <Link
+              to="/login"
+              className="flex items-center justify-center gap-2 px-6 py-2.5 text-white bg-green-600 rounded-md font-medium hover:bg-green-700 transition-colors shadow-sm"
+            >
+              <LogIn className="h-4 w-4" />
+              Login Again
+            </Link>
+
+            <Link
+              to="/"
+              className="flex items-center justify-center gap-2 px-6 py-2.5 text-green-700 bg-green-50 border border-green-200 rounded-md font-medium hover:bg-green-100 transition-colors"
+            >
+              <Home className="h-4 w-4" />
+              Return Home
+            </Link>
+          </div>
         </div>
       </div>
+
+      {/* Optional subtle branding or additional info */}
+      <p className="mt-8 text-sm text-gray-500">
+        If you need help, please contact{" "}
+        <a
+          href="mailto:support@example.com"
+          className="text-green-600 hover:underline"
+        >
+          support@example.com
+        </a>
+      </p>
     </div>
   );
 };

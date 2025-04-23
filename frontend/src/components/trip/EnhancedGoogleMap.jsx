@@ -1,5 +1,3 @@
-"use client";
-
 import { useEffect, useState, useRef } from "react";
 import { MapPin, Navigation } from "lucide-react";
 

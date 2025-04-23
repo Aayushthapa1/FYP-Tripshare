@@ -1,181 +1,212 @@
-import { createAsyncThunk } from "@reduxjs/toolkit";
+// paymentService.js
 import axiosInstance from "../utils/axiosInstance";
+import formatError from "../utils/errorUtils";
+import { Base_Backend_Url } from "../../constant";
 
-// Initiate payment (maps to initiatePayment controller)
-export const initiatePayment = createAsyncThunk(
-  "payment/initiate",
-  async (paymentData, { rejectWithValue }) => {
-    try {
-      const response = await axiosInstance.post("/payments/initiate", paymentData);
+/**
+ * INITIATE a payment (with Khalti)
+ * POST /api/payments/initiate
+ */
+const initiatePayment = async (paymentData) => {
+  try {
+    console.log("Initiating payment with data:", paymentData);
 
-      if (!response.data.success) {
-        return rejectWithValue({
-          message: response.data.message || "Payment initiation failed",
-          errors: response.data.errors || []
-        });
-      }
+    const response = await axiosInstance.post(
+      `${Base_Backend_Url}/api/payments/initiate`,
+      paymentData,
+      { withCredentials: true }
+    );
 
-      return response.data.data;
-    } catch (error) {
-      return rejectWithValue({
-        message: error.response?.data?.message || "Failed to initiate payment",
-        errors: error.response?.data?.errors || []
-      });
-    }
+    return response.data;
+  } catch (error) {
+    console.error("initiatePayment error:", error);
+    const formattedError = formatError(error);
+    throw formattedError;
   }
-);
+};
 
-// Check Khalti payment status after redirect (maps to completeKhaltiPayment controller)
-export const checkKhaltiPaymentStatus = createAsyncThunk(
-  "payment/checkKhaltiStatus",
-  async (queryParams, { rejectWithValue }) => {
-    try {
-      // Build query string from params
-      const params = new URLSearchParams(queryParams).toString();
-      const response = await axiosInstance.get(`/payments/completeKhaltiPayment?${params}`);
+/**
+ * GET payment details by ID
+ * GET /api/payments/:paymentId
+ */
+const getPaymentDetails = async (paymentId) => {
+  try {
+    console.log("Fetching payment details for ID:", paymentId);
 
-      // This is a redirect endpoint, so we might not get a direct response
-      // But we can check the payment status afterward
-      return { redirected: true };
-    } catch (error) {
-      return rejectWithValue({
-        message: "Failed to complete Khalti payment",
-        errors: [error.message]
-      });
-    }
+    const response = await axiosInstance.get(
+      `${Base_Backend_Url}/api/payments/${paymentId}`,
+      { withCredentials: true }
+    );
+
+    return response.data;
+  } catch (error) {
+    console.error("getPaymentDetails error:", error);
+    const formattedError = formatError(error);
+    throw formattedError;
   }
-);
+};
 
-// Get payment details (maps to getPaymentDetails controller)
-export const getPaymentDetails = createAsyncThunk(
-  "payment/getDetails",
-  async (paymentId, { rejectWithValue }) => {
-    try {
-      const response = await axiosInstance.get(`/payments/details/${paymentId}`);
+/**
+ * CHECK payment status by booking ID
+ * GET /api/payments/booking/:bookingId
+ */
+const getPaymentStatusByBooking = async (bookingId) => {
+  try {
+    console.log("Checking payment status for booking ID:", bookingId);
 
-      if (!response.data.success) {
-        return rejectWithValue({
-          message: response.data.message || "Failed to get payment details",
-          errors: response.data.errors || []
-        });
-      }
+    const response = await axiosInstance.get(
+      `${Base_Backend_Url}/api/payments/booking/${bookingId}`,
+      { withCredentials: true }
+    );
 
-      return response.data.data; // This returns the data object containing payment
-    } catch (error) {
-      return rejectWithValue({
-        message: error.response?.data?.message || "Failed to get payment details",
-        errors: error.response?.data?.errors || []
-      });
-    }
+    return response.data;
+  } catch (error) {
+    console.error("getPaymentStatusByBooking error:", error);
+    const formattedError = formatError(error);
+    throw formattedError;
   }
-);
+};
 
-// Get all payments (maps to getAllPayments controller)
-export const getAllPayments = createAsyncThunk(
-  "payment/getAll",
-  async (filters = {}, { rejectWithValue }) => {
-    try {
-      // Convert filters object to query string
-      const queryParams = new URLSearchParams();
-      Object.entries(filters).forEach(([key, value]) => {
-        if (value) queryParams.append(key, value);
-      });
+/**
+ * GET all user payments
+ * GET /api/payments/user
+ */
+const getUserPayments = async (filters = {}) => {
+  try {
+    console.log("Fetching user payments with filters:", filters);
 
-      const queryString = queryParams.toString();
-      // Updated to match the backend route
-      const url = queryString ? `/payments/all?${queryString}` : "/payments/all";
+    // Convert filters to query string
+    const queryParams = new URLSearchParams();
+    Object.entries(filters).forEach(([key, value]) => {
+      if (value) queryParams.append(key, value);
+    });
 
-      const response = await axiosInstance.get(url);
+    const queryString = queryParams.toString();
+    const url = queryString
+      ? `${Base_Backend_Url}/api/payments/user?${queryString}`
+      : `${Base_Backend_Url}/api/payments/user`;
 
-      if (!response.data.success) {
-        return rejectWithValue({
-          message: response.data.message || "Failed to get payments",
-          errors: response.data.errors || []
-        });
-      }
-
-      return response.data.data;
-    } catch (error) {
-      return rejectWithValue({
-        message: error.response?.data?.message || "Failed to get payments",
-        errors: error.response?.data?.errors || []
-      });
-    }
+    const response = await axiosInstance.get(url, { withCredentials: true });
+    return response.data;
+  } catch (error) {
+    console.error("getUserPayments error:", error);
+    const formattedError = formatError(error);
+    throw formattedError;
   }
-);
+};
 
+/**
+ * GET driver payments
+ * GET /api/payments/driver
+ */
+const getDriverPayments = async (filters = {}) => {
+  try {
+    console.log("Fetching driver payments with filters:", filters);
 
-export const getUserPayments = createAsyncThunk(
-  "payment/getUserPayments",
-  async (filters = {}, { rejectWithValue }) => {
-      try {
-          const response = await PaymentService.getUserPayments(filters);
-          
-          if (!response.success) {
-              return rejectWithValue({
-                  message: response.message || "Failed to get user payments",
-                  errors: response.errors || []
-              });
-          }
+    // Convert filters to query string
+    const queryParams = new URLSearchParams();
+    Object.entries(filters).forEach(([key, value]) => {
+      if (value) queryParams.append(key, value);
+    });
 
-          return response.data;
-      } catch (error) {
-          return rejectWithValue({
-              message: error.message || "Failed to get user payments",
-              errors: error.errors || []
-          });
-      }
+    const queryString = queryParams.toString();
+    const url = queryString
+      ? `${Base_Backend_Url}/api/payments/driver?${queryString}`
+      : `${Base_Backend_Url}/api/payments/driver`;
+
+    const response = await axiosInstance.get(url, { withCredentials: true });
+    return response.data;
+  } catch (error) {
+    console.error("getDriverPayments error:", error);
+    const formattedError = formatError(error);
+    throw formattedError;
   }
-);
+};
 
-export const getDriverPayments = createAsyncThunk(
-  "payment/getDriverPayments",
-  async (filters = {}, { rejectWithValue }) => {
-      try {
-          const response = await PaymentService.getDriverPayments(filters);
-          
-          if (!response.success) {
-              return rejectWithValue({
-                  message: response.message || "Failed to get driver payments",
-                  errors: response.errors || []
-              });
-          }
+/**
+ * GET all payments (Admin only)
+ * GET /api/payments/admin/all
+ */
+const getAllPayments = async (filters = {}) => {
+  try {
+    console.log("Fetching all payments with filters (admin):", filters);
 
-          return response.data;
-      } catch (error) {
-          return rejectWithValue({
-              message: error.message || "Failed to get driver payments",
-              errors: error.errors || []
-          });
-      }
+    // Convert filters to query string
+    const queryParams = new URLSearchParams();
+    Object.entries(filters).forEach(([key, value]) => {
+      if (value) queryParams.append(key, value);
+    });
+
+    const queryString = queryParams.toString();
+    const url = queryString
+      ? `${Base_Backend_Url}/api/payments/admin/all?${queryString}`
+      : `${Base_Backend_Url}/api/payments/admin/all`;
+
+    const response = await axiosInstance.get(url, { withCredentials: true });
+    return response.data;
+  } catch (error) {
+    console.error("getAllPayments error:", error);
+    const formattedError = formatError(error);
+    throw formattedError;
   }
-);
+};
 
-// Get admin payment stats
-export const getAdminPaymentStats = createAsyncThunk(
-  "payment/getAdminStats",
-  async (filters = {}, { rejectWithValue }) => {
-      try {
-          const response = await PaymentService.getAdminPaymentStats(filters);
-          
-          if (!response.success) {
-              return rejectWithValue({
-                  message: response.message || "Failed to get admin payment stats",
-                  errors: response.errors || []
-              });
-          }
+/**
+ * GET admin payment stats
+ * GET /api/payments/admin/stats
+ */
+const getAdminPaymentStats = async (filters = {}) => {
+  try {
+    console.log("Fetching admin payment stats with filters:", filters);
 
-          return response.data;
-      } catch (error) {
-          return rejectWithValue({
-              message: error.message || "Failed to get admin payment stats",
-              errors: error.errors || []
-          });
-      }
+    // Convert filters to query string
+    const queryParams = new URLSearchParams();
+    Object.entries(filters).forEach(([key, value]) => {
+      if (value) queryParams.append(key, value);
+    });
+
+    const queryString = queryParams.toString();
+    const url = queryString
+      ? `${Base_Backend_Url}/api/payments/admin/stats?${queryString}`
+      : `${Base_Backend_Url}/api/payments/admin/stats`;
+
+    const response = await axiosInstance.get(url, { withCredentials: true });
+    return response.data;
+  } catch (error) {
+    console.error("getAdminPaymentStats error:", error);
+    const formattedError = formatError(error);
+    throw formattedError;
   }
-);
-// Helper function to handle Khalti redirect
-export const handleKhaltiRedirect = (paymentUrl) => {
+};
+
+/**
+ * VALIDATE Khalti payment after redirect
+ * This simulates checking the callback parameters
+ */
+const checkKhaltiPaymentStatus = async (queryParams) => {
+  try {
+    console.log("Checking Khalti payment status with params:", queryParams);
+
+    // Convert params to query string
+    const params = new URLSearchParams(queryParams).toString();
+
+    // This is a simulation since the actual endpoint redirects to frontend
+    // In a real scenario, we'd check the payment status separately after redirect
+    const response = await axiosInstance.get(
+      `${Base_Backend_Url}/api/payments/check-status?${params}`,
+      { withCredentials: true }
+    );
+
+    return response.data;
+  } catch (error) {
+    console.error("checkKhaltiPaymentStatus error:", error);
+    const formattedError = formatError(error);
+    throw formattedError;
+  }
+};
+
+// Helper functions
+const handleKhaltiRedirect = (paymentUrl) => {
   if (paymentUrl) {
     window.location.href = paymentUrl;
     return true;
@@ -183,8 +214,7 @@ export const handleKhaltiRedirect = (paymentUrl) => {
   return false;
 };
 
-// Helper function to extract Khalti callback parameters from URL
-export const extractKhaltiCallbackParams = () => {
+const extractKhaltiCallbackParams = () => {
   const urlParams = new URLSearchParams(window.location.search);
   const pidx = urlParams.get('pidx');
   const transaction_id = urlParams.get('transaction_id');
@@ -201,26 +231,18 @@ export const extractKhaltiCallbackParams = () => {
   };
 };
 
-// New function to check payment status by booking ID
-export const getPaymentStatusByBooking = createAsyncThunk(
-  "payment/getStatusByBooking",
-  async (bookingId, { rejectWithValue }) => {
-    try {
-      const response = await axiosInstance.get(`/payments/booking/${bookingId}`);
+// Combine all methods into a single service object
+const paymentService = {
+  initiatePayment,
+  getPaymentDetails,
+  getPaymentStatusByBooking,
+  getUserPayments,
+  getDriverPayments,
+  getAllPayments,
+  getAdminPaymentStats,
+  checkKhaltiPaymentStatus,
+  handleKhaltiRedirect,
+  extractKhaltiCallbackParams
+};
 
-      if (!response.data.success) {
-        return rejectWithValue({
-          message: response.data.message || "Failed to get payment status",
-          errors: response.data.errors || []
-        });
-      }
-
-      return response.data.data;
-    } catch (error) {
-      return rejectWithValue({
-        message: error.response?.data?.message || "Failed to get payment status",
-        errors: error.response?.data?.errors || []
-      });
-    }
-  }
-);
+export default paymentService;

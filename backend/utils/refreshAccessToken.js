@@ -26,11 +26,12 @@ const refreshAccessToken = async (req, res) => {
       maxAge: 30 * 60 * 1000, // 30 minutes
     });
 
-    return res
-      .status(200)
-      .json(
-        createResponse(200, true, [], "Access token refreshed successfully")
-      );
+    return res.status(200).json(
+      createResponse(200, true, [], {
+        message: "Access token refreshed successfully",
+        accessToken: newAccessToken // Include the token in the response
+      })
+    );
   } catch (error) {
     console.error("Error during refresh:", error);
     return res

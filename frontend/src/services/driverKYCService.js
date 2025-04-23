@@ -80,7 +80,7 @@ export const updateDriverKYC = async (id, data) => {
  */
 export const updateKYCStatus = async (id, statusData) => {
     try {
-        const response = await axiosInstance.patch(
+        const response = await axiosInstance.put(
             `/api/drivers/${id}/status`,
             statusData
         );

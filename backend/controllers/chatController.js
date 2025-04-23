@@ -1,4 +1,4 @@
-import ChatMessage from "../models/ChatMessage.js";
+import ChatMessage from "../models/ChatMessageModel.js";
 import Ride from "../models/handleRideModel.js";
 import User from "../models/userModel.js";
 import mongoose from "mongoose";

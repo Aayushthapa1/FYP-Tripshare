@@ -1,6 +1,6 @@
 
 
-import ChatMessage from "../models/ChatMessage.js";
+import ChatMessage from "../models/ChatMessageModel.js";
 
 // Store IO instance for use in other modules
 let io = null;

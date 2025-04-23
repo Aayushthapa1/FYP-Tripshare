@@ -32,6 +32,7 @@ import {
   LogOut,
   PenSquare,
   Image as ImageIcon,
+  X,
 } from "lucide-react";
 import socketService from "../socket/socketService";
 import { useSocket } from "../../components/socket/SocketProvider";
@@ -40,7 +41,9 @@ import Navbar from "../layout/Navbar";
 // Import Map components
 import MapContainer from "./MapContainer";
 import EnhancedMapSection from "./MapSection";
-import FixedChatComponent from "../chat/FixedChatComponent";
+import FixedChatComponent from "../chat/ChatComponent";
+// Import RatingModal component
+import RatingModal from "../rating/RatingModal";
 
 const RideStatus = () => {
   const dispatch = useDispatch();
@@ -52,6 +55,8 @@ const RideStatus = () => {
   const { user } = useSelector((state) => state.auth) || {};
 
   // Local state for UI
+  const [showRatingModal, setShowRatingModal] = useState(false);
+  const [completedRideData, setCompletedRideData] = useState(null);
   const [socketConnected, setSocketConnected] = useState(false);
   const [driverLocation, setDriverLocation] = useState(null);
   const [estimatedArrival, setEstimatedArrival] = useState(null);
@@ -70,12 +75,75 @@ const RideStatus = () => {
   const [showChat, setShowChat] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [manualRefreshing, setManualRefreshing] = useState(false);
+  const [completedShown, setCompletedShown] = useState(false);
 
   // Refs
   const timerRef = useRef(null);
   const mapRef = useRef(null);
   const chatContainerRef = useRef(null);
   const refreshTimerRef = useRef(null);
+
+  const handleRideStatusUpdated = (data) => {
+    console.log("Ride status updated:", data);
+
+    // Update ride status
+    setRideStatus(data.newStatus);
+
+    // Update UI based on new status
+    if (data.newStatus === "picked up") {
+      toast.success("Your driver has arrived at your pickup location!");
+      setActiveStep(3); // Move to Picked Up step
+
+      // Start ride timer
+      if (timerRef.current) clearInterval(timerRef.current);
+      setRideTimer(0);
+      timerRef.current = setInterval(() => {
+        setRideTimer((prev) => prev + 1);
+      }, 1000);
+    } else if (data.newStatus === "completed") {
+      toast.success("Your ride has been completed!");
+      setActiveStep(4); // Move to Completed step
+      setCompletedShown(true);
+
+      // Store completed ride data for rating
+      setCompletedRideData({
+        referenceId: activeRide._id,
+        referenceType: "Ride",
+        driverName:
+          typeof activeRide.driverId === "object"
+            ? activeRide.driverId.fullName || "Driver"
+            : driverInfo?.name || "Driver",
+        driverImage:
+          typeof activeRide.driverId === "object"
+            ? activeRide.driverId.profileImage || null
+            : null,
+      });
+
+      // Show rating modal
+      setShowRatingModal(true);
+
+      // Stop ride timer
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+        timerRef.current = null;
+      }
+    } else if (data.newStatus === "canceled") {
+      toast.error(
+        `Ride canceled: ${data.cancelReason || "No reason provided"}`
+      );
+
+      // Stop timer if running
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+        timerRef.current = null;
+      }
+    }
+
+    // Refresh ride data
+    if (user && user._id) {
+      dispatch(getActiveRide({ userId: user._id, userType: "passenger" }));
+    }
+  };
 
   // Effect to sync socket connection state
   useEffect(() => {
@@ -163,6 +231,24 @@ const RideStatus = () => {
       } else if (data.newStatus === "completed") {
         toast.success("Your ride has been completed!");
         setActiveStep(4); // Move to Completed step
+        setCompletedShown(true);
+
+        // Store completed ride data for rating
+        setCompletedRideData({
+          referenceId: activeRide._id,
+          referenceType: "Ride",
+          driverName:
+            typeof activeRide.driverId === "object"
+              ? activeRide.driverId.fullName || "Driver"
+              : driverInfo?.name || "Driver",
+          driverImage:
+            typeof activeRide.driverId === "object"
+              ? activeRide.driverId.profileImage || null
+              : null,
+        });
+
+        // Show rating modal
+        setShowRatingModal(true);
 
         // Stop ride timer
         if (timerRef.current) {
@@ -282,90 +368,115 @@ const RideStatus = () => {
   useEffect(() => {
     if (!activeRide) return;
 
-    // Override even if socket hasn't updated yet
-    if (activeRide.driverId && activeRide.status === "requested") {
-      // If we have a driver but state says requested, override to accepted
-      setIsRideAccepted(true);
-      setRideStatus("accepted");
-      setActiveStep(2);
-      setDriverOnRoute(true);
-    } else {
-      // Update ride status from backend
-      setRideStatus(activeRide.status);
+    try {
+      // Override even if socket hasn't updated yet
+      if (activeRide.driverId && activeRide.status === "requested") {
+        // If we have a driver but state says requested, override to accepted
+        setIsRideAccepted(true);
+        setRideStatus("accepted");
+        setActiveStep(2);
+        setDriverOnRoute(true);
+      } else {
+        // Update ride status from backend
+        setRideStatus(activeRide.status);
 
-      // Update active step and other UI flags
-      switch (activeRide.status) {
-        case "requested":
-          setActiveStep(1);
-          setIsRideAccepted(false);
-          break;
-        case "accepted":
-          setActiveStep(2);
-          setDriverOnRoute(true);
-          setIsRideAccepted(true);
-          break;
-        case "picked up":
-          setActiveStep(3);
-          setIsRideAccepted(true);
-          break;
-        case "completed":
-          setActiveStep(4);
-          setIsRideAccepted(true);
-          break;
-        default:
-          setActiveStep(1);
-          setIsRideAccepted(false);
+        // Update active step and other UI flags
+        switch (activeRide.status) {
+          case "requested":
+            setActiveStep(1);
+            setIsRideAccepted(false);
+            break;
+          case "accepted":
+            setActiveStep(2);
+            setDriverOnRoute(true);
+            setIsRideAccepted(true);
+            break;
+          case "picked up":
+            setActiveStep(3);
+            setIsRideAccepted(true);
+            break;
+          case "completed":
+            setActiveStep(4);
+            setIsRideAccepted(true);
+            setCompletedShown(true);
+
+            // Set completed ride data for rating if not already set
+            if (!completedRideData) {
+              setCompletedRideData({
+                referenceId: activeRide._id,
+                referenceType: "Ride",
+                driverName:
+                  typeof activeRide.driverId === "object"
+                    ? activeRide.driverId.fullName || "Driver"
+                    : driverInfo?.name || "Driver",
+                driverImage:
+                  typeof activeRide.driverId === "object"
+                    ? activeRide.driverId.profileImage || null
+                    : null,
+              });
+              setShowRatingModal(true);
+            }
+            break;
+          default:
+            setActiveStep(1);
+            setIsRideAccepted(false);
+        }
       }
-    }
 
-    // Set driver info from backend if available
-    if (activeRide.driverId) {
-      const driverData =
-        typeof activeRide.driverId === "object"
-          ? activeRide.driverId
-          : { _id: activeRide.driverId };
-
-      // Extract driver info from active ride
-      setDriverInfo({
-        id:
+      // Set driver info from backend if available
+      if (activeRide.driverId) {
+        // Handle both object and string IDs
+        const driverData =
           typeof activeRide.driverId === "object"
-            ? activeRide.driverId._id
-            : activeRide.driverId,
-        name: driverData.fullName || driverData.username || "Driver",
-        phone: driverData.phone || driverData.phoneNumber,
-        vehicleType: driverData.vehicleType || activeRide.vehicleType || "Car",
-        licensePlate: driverData.numberPlate || "",
-        rating: driverData.rating || 4.5,
-      });
+            ? activeRide.driverId
+            : { _id: activeRide.driverId };
 
-      // Set pickup and dropoff locations for map
-      if (activeRide.pickupLocation) {
-        const pickupLoc = {
-          lat: Number.parseFloat(activeRide.pickupLocation.latitude),
-          lng: Number.parseFloat(activeRide.pickupLocation.longitude),
-        };
+        // Extract driver info from active ride
+        setDriverInfo({
+          id:
+            typeof activeRide.driverId === "object"
+              ? activeRide.driverId._id
+              : activeRide.driverId,
+          name: driverData.fullName || driverData.username || "Driver",
+          phone: driverData.phone || driverData.phoneNumber,
+          vehicleType:
+            driverData.vehicleType || activeRide.vehicleType || "Car",
+          licensePlate: driverData.numberPlate || "",
+          rating: driverData.rating || 4.5,
+        });
 
-        // If no driver location yet, center map on pickup
-        if (!driverLocation) {
-          setMapCenter(pickupLoc);
+        // Set pickup and dropoff locations for map
+        if (activeRide.pickupLocation) {
+          const pickupLoc = {
+            lat: Number.parseFloat(activeRide.pickupLocation.latitude),
+            lng: Number.parseFloat(activeRide.pickupLocation.longitude),
+          };
+
+          // If no driver location yet, center map on pickup
+          if (!driverLocation) {
+            setMapCenter(pickupLoc);
+          }
+        }
+
+        // Set driver location if available from backend
+        if (driverData.currentLocation) {
+          const driverLoc = {
+            lat: Number.parseFloat(driverData.currentLocation.latitude),
+            lng: Number.parseFloat(driverData.currentLocation.longitude),
+          };
+          setDriverLocation(driverLoc);
+
+          // Center on driver location if in accepted status
+          if (activeRide.status === "accepted" || rideStatus === "accepted") {
+            setMapCenter(driverLoc);
+          }
         }
       }
-
-      // Set driver location if available from backend
-      if (driverData.currentLocation) {
-        const driverLoc = {
-          lat: Number.parseFloat(driverData.currentLocation.latitude),
-          lng: Number.parseFloat(driverData.currentLocation.longitude),
-        };
-        setDriverLocation(driverLoc);
-
-        // Center on driver location if in accepted status
-        if (activeRide.status === "accepted" || rideStatus === "accepted") {
-          setMapCenter(driverLoc);
-        }
-      }
+    } catch (error) {
+      console.error("Error processing ride data:", error);
+      // Handle the error gracefully without breaking the UI
     }
-  }, [activeRide, driverLocation]);
+  }, [activeRide, driverLocation, completedRideData, driverInfo]);
 
   // Calculate and fetch directions when pickup/dropoff locations change
   useEffect(() => {
@@ -600,6 +711,14 @@ const RideStatus = () => {
     setShowChat(!showChat);
   };
 
+  // Determine if chat should be enabled
+  const isChatEnabled = () => {
+    // Enable chat when ride is accepted or picked up
+    return (
+      isRideAccepted || rideStatus === "accepted" || rideStatus === "picked up"
+    );
+  };
+
   // Render map with driver location
   const renderMap = () => {
     if (!activeRide) return null;
@@ -751,58 +870,96 @@ const RideStatus = () => {
   };
 
   // Chat component rendering
+  // Modified renderChatInterface function for RideStatus component
+  // Updated renderChatInterface function with better navigation
   const renderChatInterface = () => {
     if (!showChat || !activeRide) return null;
 
     return (
-      <div
-        className="fixed inset-0 z-40 bg-white flex flex-col"
-        ref={chatContainerRef}
-      >
-        <div className="bg-gradient-to-r from-blue-600 to-blue-500 text-white p-4 flex items-center">
-          <button
-            onClick={toggleChat}
-            className="mr-3 hover:bg-white hover:bg-opacity-10 p-2 rounded-full transition-colors"
-          >
-            <ArrowLeft className="w-6 h-6" />
-          </button>
-          <div className="flex-1">
-            <h2 className="font-semibold">
-              {typeof activeRide.driverId === "object"
-                ? activeRide.driverId.fullName || "Driver"
-                : driverInfo?.name || "Driver"}
-            </h2>
-            <p className="text-xs text-blue-100">
-              {activeRide.vehicleType || "Car"} •{" "}
-              {typeof activeRide.driverId === "object"
-                ? activeRide.driverId.numberPlate || ""
-                : driverInfo?.licensePlate || ""}
-            </p>
-          </div>
-          {typeof activeRide.driverId === "object" &&
-            (activeRide.driverId.phone || activeRide.driverId.phoneNumber) && (
-              <a
-                href={`tel:${
-                  activeRide.driverId.phone || activeRide.driverId.phoneNumber
-                }`}
-                className="bg-white bg-opacity-20 p-2 rounded-full hover:bg-opacity-30 transition-colors"
-              >
-                <Phone className="w-5 h-5 text-white" />
-              </a>
-            )}
-        </div>
+      <div className="fixed inset-0 z-40 bg-black bg-opacity-20 flex justify-end">
+        {/* Close overlay by clicking outside */}
+        <div className="flex-grow" onClick={toggleChat}></div>
 
-        <div className="flex-1 overflow-y-auto bg-gray-50">
-          <FixedChatComponent
-            rideId={activeRide._id}
-            recipientId={
-              typeof activeRide.driverId === "object"
-                ? activeRide.driverId._id
-                : activeRide.driverId
-            }
-            userId={user?._id}
-            userName={user?.fullName || "Passenger"}
-          />
+        {/* Chat modal */}
+        <div className="w-full md:w-1/2 lg:w-1/3 bg-white h-full shadow-xl flex flex-col animate-in slide-in-from-right">
+          <div className="bg-gradient-to-r from-blue-600 to-blue-500 text-white p-4 flex items-center">
+            <button
+              onClick={toggleChat}
+              className="mr-3 hover:bg-white hover:bg-opacity-10 p-2 rounded-full transition-colors"
+              aria-label="Go back"
+            >
+              <ArrowLeft className="w-6 h-6" />
+            </button>
+            <div className="flex-1">
+              <h2 className="font-semibold">
+                {typeof activeRide.driverId === "object"
+                  ? activeRide.driverId.fullName || "Driver"
+                  : driverInfo?.name || "Driver"}
+              </h2>
+              <p className="text-xs text-blue-100">
+                {activeRide.vehicleType || "Car"} •{" "}
+                {typeof activeRide.driverId === "object"
+                  ? activeRide.driverId.numberPlate || ""
+                  : driverInfo?.licensePlate || ""}
+              </p>
+            </div>
+
+            <div className="flex items-center gap-2">
+              {typeof activeRide.driverId === "object" &&
+                (activeRide.driverId.phone ||
+                  activeRide.driverId.phoneNumber) && (
+                  <a
+                    href={`tel:${
+                      activeRide.driverId.phone ||
+                      activeRide.driverId.phoneNumber
+                    }`}
+                    className="bg-white bg-opacity-20 p-2 rounded-full hover:bg-opacity-30 transition-colors"
+                    aria-label="Call driver"
+                  >
+                    <Phone className="w-5 h-5 text-white" />
+                  </a>
+                )}
+
+              <button
+                onClick={toggleChat}
+                className="bg-white bg-opacity-20 p-2 rounded-full hover:bg-opacity-30 transition-colors"
+                aria-label="Close chat"
+              >
+                <X className="w-5 h-5 text-white" />
+              </button>
+            </div>
+          </div>
+
+          {/* Navigation bar with close button for small screens */}
+          <div className="md:hidden bg-white border-b border-gray-200 px-4 py-2 flex items-center justify-between">
+            <button
+              onClick={toggleChat}
+              className="flex items-center text-blue-600"
+            >
+              <ArrowLeft className="w-4 h-4 mr-1" />
+              <span>Back to ride</span>
+            </button>
+            <button
+              onClick={toggleChat}
+              className="text-gray-500 hover:text-gray-700"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+
+          <div className="flex-1 overflow-hidden bg-gray-50">
+            <FixedChatComponent
+              rideId={activeRide._id}
+              recipientId={
+                typeof activeRide.driverId === "object"
+                  ? activeRide.driverId._id
+                  : activeRide.driverId
+              }
+              userId={user?._id}
+              userName={user?.fullName || "Passenger"}
+              isModal={true}
+            />
+          </div>
         </div>
       </div>
     );
@@ -857,6 +1014,21 @@ const RideStatus = () => {
           onClick={() => setIsMobileMenuOpen(false)}
         ></div>
       </div>
+    );
+  };
+
+  // Chat button component
+  const ChatButton = () => {
+    if (!isChatEnabled()) return null;
+
+    return (
+      <button
+        onClick={toggleChat}
+        className="flex items-center justify-center py-3 bg-white rounded-xl border border-gray-200 hover:bg-blue-500 hover:text-white hover:border-blue-500 transition-all shadow-sm w-full"
+      >
+        <MessageSquare className="w-5 h-5 mr-2" />
+        <span className="font-medium">Message Driver</span>
+      </button>
     );
   };
 
@@ -1156,12 +1328,11 @@ const RideStatus = () => {
 
                       <div className="flex items-center mb-6">
                         <div className="w-20 h-20 bg-white rounded-full flex items-center justify-center border-2 border-blue-200 shadow-md">
-                          {activeRide.driverId.profileImage ? (
+                          {activeRide.driverId &&
+                          typeof activeRide.driverId === "object" &&
+                          activeRide.driverId.profileImage ? (
                             <img
-                              src={
-                                activeRide.driverId.profileImage ||
-                                "/placeholder.svg"
-                              }
+                              src={activeRide.driverId.profileImage}
                               alt="Driver"
                               className="w-20 h-20 rounded-full object-cover"
                             />
@@ -1201,7 +1372,7 @@ const RideStatus = () => {
                         </div>
                       </div>
 
-                      <div className="grid grid-cols-2 gap-4">
+                      <div className="grid grid-cols-1 gap-4">
                         {/* Phone */}
                         {(typeof activeRide.driverId === "object"
                           ? activeRide.driverId.phone ||
@@ -1221,14 +1392,8 @@ const RideStatus = () => {
                           </a>
                         )}
 
-                        {/* Message */}
-                        <button
-                          onClick={toggleChat}
-                          className="flex items-center justify-center py-3 bg-white rounded-xl border border-gray-200 hover:bg-blue-500 hover:text-white hover:border-blue-500 transition-all shadow-sm"
-                        >
-                          <MessageSquare className="w-5 h-5 mr-2" />
-                          <span className="font-medium">Message</span>
-                        </button>
+                        {/* Chat button - now shown as soon as driver accepts */}
+                        <ChatButton />
                       </div>
 
                       {/* Vehicle Details */}
@@ -1373,6 +1538,18 @@ const RideStatus = () => {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Rating Modal - Now outside of the cancel confirm modal */}
+      {completedRideData && showRatingModal && (
+        <RatingModal
+          isOpen={showRatingModal}
+          onClose={() => setShowRatingModal(false)}
+          referenceType={completedRideData.referenceType}
+          referenceId={completedRideData.referenceId}
+          driverName={completedRideData.driverName}
+          driverImage={completedRideData.driverImage}
+        />
       )}
     </div>
   );

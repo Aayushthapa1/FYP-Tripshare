@@ -1,5 +1,19 @@
-import React, { useEffect, useState } from "react";
-import { Menu, Bell, Search, ChevronDown, User, LogOut } from "lucide-react";
+"use client";
+
+import { useEffect, useState, useRef } from "react";
+import {
+  Menu,
+  Bell,
+  Search,
+  ChevronDown,
+  User,
+  LogOut,
+  Settings,
+  Sun,
+  Moon,
+  X,
+  Check,
+} from "lucide-react";
 import { useSelector, useDispatch } from "react-redux";
 import { getUserProfile } from "../../Slices/userSlice";
 import { logoutUser } from "../../Slices/authSlice";
@@ -13,67 +27,51 @@ const ThemeSwitcher = () => {
   useEffect(() => {
     document.documentElement.setAttribute("data-theme", theme);
     localStorage.setItem("theme", theme);
+
+    // Also set dark mode class on html element for tailwind dark mode
+    if (theme === "synthwave" || theme === "dark") {
+      document.documentElement.classList.add("dark");
+    } else {
+      document.documentElement.classList.remove("dark");
+    }
   }, [theme]);
 
   const toggleTheme = () => {
     const newTheme = theme === "light" ? "synthwave" : "light";
     setTheme(newTheme);
-    setTimeout(() => {
-      document.documentElement.setAttribute("data-theme", newTheme);
-    }, 100); // Small delay to ensure UI update
   };
 
   return (
-    <label className="flex cursor-pointer gap-2">
-      {/* Sun Icon */}
-      <svg
-        xmlns="http://www.w3.org/2000/svg"
-        width="20"
-        height="20"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      >
-        <circle cx="12" cy="12" r="5" />
-        <path d="M12 1v2M12 21v2M4.2 4.2l1.4 1.4M18.4 18.4l1.4 1.4M1 12h2M21 12h2M4.2 19.8l1.4-1.4M18.4 5.6l1.4-1.4" />
-      </svg>
-
-      {/* Toggle Button */}
-      <input
-        type="checkbox"
-        className="toggle theme-controller"
-        checked={theme === "synthwave"}
-        onChange={toggleTheme}
-      />
-
-      {/* Moon Icon */}
-      <svg
-        xmlns="http://www.w3.org/2000/svg"
-        width="20"
-        height="20"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      >
-        <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
-      </svg>
-    </label>
+    <button
+      onClick={toggleTheme}
+      className="p-2 rounded-full bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 dark:focus:ring-offset-gray-800"
+      aria-label="Toggle theme"
+    >
+      {theme === "light" ? (
+        <Moon className="h-5 w-5" />
+      ) : (
+        <Sun className="h-5 w-5" />
+      )}
+    </button>
   );
 };
 
-function AdminNavbar({ onToggleSidebar, pageTitle = "Dashboard" }) {
+function AdminNavbar({
+  onToggleSidebar,
+  pageTitle = "Dashboard",
+  sidebarCollapsed,
+}) {
   const dispatch = useDispatch();
   const navigate = useNavigate();
   const adminId = useSelector((state) => state.auth.user?._id);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [profileMenuOpen, setProfileMenuOpen] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
+
+  const notificationsRef = useRef(null);
+  const profileMenuRef = useRef(null);
+  const searchRef = useRef(null);
 
   useEffect(() => {
     if (adminId) {
@@ -101,15 +99,17 @@ function AdminNavbar({ onToggleSidebar, pageTitle = "Dashboard" }) {
     setShowLogoutConfirm(true);
     toast.custom(
       (t) => (
-        <div className="bg-white rounded-lg shadow-lg p-4 max-w-md w-full border border-gray-200">
-          <h3 className="text-lg font-medium text-gray-900 mb-2">
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl p-5 max-w-md w-full border border-gray-100 dark:border-gray-700">
+          <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
             Confirm Logout
           </h3>
-          <p className="text-gray-600 mb-4">Are you sure you want to logout?</p>
-          <div className="flex justify-end space-x-2">
+          <p className="text-gray-600 dark:text-gray-300 mb-5">
+            Are you sure you want to logout?
+          </p>
+          <div className="flex justify-end space-x-3">
             <button
               onClick={() => toast.dismiss(t.id)}
-              className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200 transition-colors"
+              className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 rounded-md hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors focus:outline-none focus:ring-2 focus:ring-gray-300 dark:focus:ring-gray-600"
             >
               Cancel
             </button>
@@ -118,7 +118,7 @@ function AdminNavbar({ onToggleSidebar, pageTitle = "Dashboard" }) {
                 toast.dismiss(t.id);
                 handleLogout();
               }}
-              className="px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-md hover:bg-red-700 transition-colors"
+              className="px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-md hover:bg-red-700 transition-colors focus:outline-none focus:ring-2 focus:ring-red-500"
             >
               Yes, Logout
             </button>
@@ -157,169 +157,267 @@ function AdminNavbar({ onToggleSidebar, pageTitle = "Dashboard" }) {
 
   // Close menus when clicking outside
   useEffect(() => {
-    const closeMenus = () => {
-      setNotificationsOpen(false);
-      setProfileMenuOpen(false);
+    const handleClickOutside = (event) => {
+      if (
+        notificationsRef.current &&
+        !notificationsRef.current.contains(event.target)
+      ) {
+        setNotificationsOpen(false);
+      }
+      if (
+        profileMenuRef.current &&
+        !profileMenuRef.current.contains(event.target)
+      ) {
+        setProfileMenuOpen(false);
+      }
+      if (searchRef.current && !searchRef.current.contains(event.target)) {
+        setSearchOpen(false);
+      }
     };
-    document.addEventListener("click", closeMenus);
-    return () => document.removeEventListener("click", closeMenus);
+
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
+
+  // Mark notification as read
+  const markAsRead = (id, e) => {
+    e.stopPropagation();
+    // In a real app, you would update the notification status in your state/backend
+    console.log(`Marking notification ${id} as read`);
+  };
+
+  // Get user initials for avatar
+  const getInitials = () => {
+    if (adminProfile?.fullName) {
+      const nameParts = adminProfile.fullName.split(" ");
+      if (nameParts.length >= 2) {
+        return `${nameParts[0].charAt(0)}${nameParts[1].charAt(
+          0
+        )}`.toUpperCase();
+      }
+      return adminProfile.fullName.charAt(0).toUpperCase();
+    }
+    return "A";
+  };
 
   return (
     <>
       <Toaster position="top-center" />
-      <nav className="bg-white shadow-sm border-b border-gray-200 sticky top-0 z-20">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6">
+      <nav className="bg-white dark:bg-gray-800 shadow-sm border-b border-gray-200 dark:border-gray-700 sticky top-0 z-20">
+        <div className="max-w-full mx-auto px-4 sm:px-6">
           <div className="flex justify-between h-16">
             {/* Left section */}
             <div className="flex items-center">
               <button
-                className="md:hidden p-2 rounded-md text-gray-600 hover:text-gray-900 hover:bg-gray-100 focus:outline-none"
+                className="p-2 rounded-md text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 dark:focus:ring-offset-gray-800"
                 onClick={onToggleSidebar}
+                aria-label="Toggle sidebar"
               >
                 <Menu className="w-6 h-6" />
               </button>
-              <div className="hidden md:block">
-                <h1 className="text-xl font-semibold text-gray-800">
+              <div className="ml-4">
+                <h1 className="text-xl font-semibold text-gray-800 dark:text-white">
                   {pageTitle}
                 </h1>
               </div>
             </div>
 
-            {/* Mobile title (centered) */}
-            <div className="flex md:hidden items-center">
-              <h1 className="text-lg font-semibold text-gray-800">TripShare</h1>
-            </div>
-
             {/* Right section */}
             <div className="flex items-center space-x-4">
-              {/* Search */}
-              <div className="hidden sm:block relative">
+              {/* Search - Desktop */}
+              <div className="hidden md:block relative">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                   <Search className="h-5 w-5 text-gray-400" />
                 </div>
                 <input
-                  className="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full pl-10 p-2.5"
+                  className="bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-gray-100 text-sm rounded-lg focus:ring-green-500 focus:border-green-500 block w-full pl-10 p-2.5 transition-colors"
                   type="search"
                   placeholder="Search..."
                 />
               </div>
 
-              {/* Theme Switcher */}
-              <div className="hidden sm:block">
-                <ThemeSwitcher />
+              {/* Search - Mobile */}
+              <div className="md:hidden" ref={searchRef}>
+                <button
+                  onClick={() => setSearchOpen(!searchOpen)}
+                  className="p-2 rounded-md text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-700 focus:outline-none"
+                >
+                  <Search className="h-5 w-5" />
+                </button>
+
+                {searchOpen && (
+                  <div className="absolute top-16 left-0 right-0 bg-white dark:bg-gray-800 p-4 shadow-lg border-b border-gray-200 dark:border-gray-700 z-30">
+                    <div className="relative">
+                      <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                        <Search className="h-5 w-5 text-gray-400" />
+                      </div>
+                      <input
+                        className="bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-gray-100 text-sm rounded-lg focus:ring-green-500 focus:border-green-500 block w-full pl-10 p-2.5"
+                        type="search"
+                        placeholder="Search..."
+                        autoFocus
+                      />
+                      <button
+                        className="absolute inset-y-0 right-0 pr-3 flex items-center"
+                        onClick={() => setSearchOpen(false)}
+                      >
+                        <X className="h-5 w-5 text-gray-400" />
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
 
+              {/* Theme Switcher */}
+              <ThemeSwitcher />
+
               {/* Notifications */}
-              <div
-                className="relative"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setNotificationsOpen(!notificationsOpen);
-                  setProfileMenuOpen(false);
-                }}
-              >
-                <button className="relative p-1 rounded-full text-gray-600 hover:text-gray-900 hover:bg-gray-100 focus:outline-none">
+              <div className="relative" ref={notificationsRef}>
+                <button
+                  className="relative p-2 rounded-full text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 dark:focus:ring-offset-gray-800"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setNotificationsOpen(!notificationsOpen);
+                    setProfileMenuOpen(false);
+                  }}
+                  aria-label="Notifications"
+                >
                   <Bell className="h-6 w-6" />
-                  <span className="absolute top-0 right-0 block h-2.5 w-2.5 rounded-full bg-red-500 ring-2 ring-white"></span>
+                  {notifications.some((n) => !n.read) && (
+                    <span className="absolute top-0 right-0 block h-2.5 w-2.5 rounded-full bg-red-500 ring-2 ring-white dark:ring-gray-800"></span>
+                  )}
                 </button>
 
                 {/* Notifications dropdown */}
                 {notificationsOpen && (
-                  <div className="origin-top-right absolute right-0 mt-2 w-80 rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5">
-                    <div className="py-2 px-4 border-b border-gray-100">
-                      <h3 className="text-sm font-semibold">Notifications</h3>
+                  <div className="origin-top-right absolute right-0 mt-2 w-80 rounded-lg shadow-lg bg-white dark:bg-gray-800 ring-1 ring-black ring-opacity-5 border border-gray-200 dark:border-gray-700 z-30">
+                    <div className="py-3 px-4 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center">
+                      <h3 className="text-sm font-semibold text-gray-900 dark:text-white">
+                        Notifications
+                      </h3>
+                      <button className="text-xs text-green-600 dark:text-green-400 hover:text-green-800 dark:hover:text-green-300">
+                        Mark all as read
+                      </button>
                     </div>
                     <div className="max-h-80 overflow-y-auto">
-                      {notifications.map((notification) => (
-                        <div
-                          key={notification.id}
-                          className={`px-4 py-3 hover:bg-gray-50 ${
-                            !notification.read ? "bg-blue-50" : ""
-                          }`}
-                        >
-                          <p className="text-sm text-gray-800">
-                            {notification.text}
-                          </p>
-                          <p className="text-xs text-gray-500 mt-1">
-                            {notification.time}
+                      {notifications.length > 0 ? (
+                        notifications.map((notification) => (
+                          <div
+                            key={notification.id}
+                            className={`px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-700 border-b border-gray-100 dark:border-gray-700 last:border-0 ${
+                              !notification.read
+                                ? "bg-blue-50 dark:bg-blue-900/20"
+                                : ""
+                            }`}
+                          >
+                            <div className="flex justify-between items-start">
+                              <div>
+                                <p className="text-sm text-gray-800 dark:text-gray-200">
+                                  {notification.text}
+                                </p>
+                                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                                  {notification.time}
+                                </p>
+                              </div>
+                              {!notification.read && (
+                                <button
+                                  onClick={(e) =>
+                                    markAsRead(notification.id, e)
+                                  }
+                                  className="p-1 rounded-full bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600"
+                                  title="Mark as read"
+                                >
+                                  <Check className="h-3 w-3" />
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        ))
+                      ) : (
+                        <div className="py-6 text-center">
+                          <p className="text-sm text-gray-500 dark:text-gray-400">
+                            No notifications
                           </p>
                         </div>
-                      ))}
+                      )}
                     </div>
-                    <div className="py-2 px-4 border-t border-gray-100 text-center">
-                      <a
-                        href="#"
-                        className="text-sm text-blue-600 hover:text-blue-800"
+                    <div className="py-2 px-4 border-t border-gray-200 dark:border-gray-700 text-center">
+                      <Link
+                        to="/admin/notifications"
+                        className="text-sm text-green-600 dark:text-green-400 hover:text-green-800 dark:hover:text-green-300 font-medium"
                       >
                         View all notifications
-                      </a>
+                      </Link>
                     </div>
                   </div>
                 )}
               </div>
 
               {/* Profile menu */}
-              <div
-                className="relative"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setProfileMenuOpen(!profileMenuOpen);
-                  setNotificationsOpen(false);
-                }}
-              >
-                <button className="flex items-center text-sm rounded-full focus:outline-none">
-                  <div className="h-8 w-8 rounded-full bg-gray-300 overflow-hidden flex-shrink-0">
+              <div className="relative" ref={profileMenuRef}>
+                <button
+                  className="flex items-center text-sm rounded-full focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 dark:focus:ring-offset-gray-800"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setProfileMenuOpen(!profileMenuOpen);
+                    setNotificationsOpen(false);
+                  }}
+                  aria-label="User menu"
+                >
+                  <div className="h-9 w-9 rounded-full bg-green-600 overflow-hidden flex-shrink-0 flex items-center justify-center text-white">
                     {adminProfile?.profilePicture ? (
                       <img
-                        src={adminProfile.profilePicture}
+                        src={adminProfile.profilePicture || "/placeholder.svg"}
                         alt="Admin Avatar"
                         className="object-cover h-full w-full"
                       />
                     ) : (
-                      <span className="flex items-center justify-center h-full w-full text-white bg-gray-500">
-                        {adminProfile?.fullName
-                          ? adminProfile.fullName.charAt(0).toUpperCase()
-                          : "A"}
+                      <span className="font-medium text-sm">
+                        {getInitials()}
                       </span>
                     )}
                   </div>
                   <span className="hidden md:flex md:items-center ml-2">
-                    <span className="text-sm font-medium text-gray-700 mr-1">
+                    <span className="text-sm font-medium text-gray-700 dark:text-gray-300 mr-1">
                       {adminProfile?.fullName || "Admin"}
                     </span>
-                    <ChevronDown className="w-4 h-4 text-gray-500" />
+                    <ChevronDown className="w-4 h-4 text-gray-500 dark:text-gray-400" />
                   </span>
                 </button>
 
                 {/* Profile dropdown */}
                 {profileMenuOpen && (
-                  <div className="origin-top-right absolute right-0 mt-2 w-48 rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5">
+                  <div className="origin-top-right absolute right-0 mt-2 w-56 rounded-lg shadow-lg bg-white dark:bg-gray-800 ring-1 ring-black ring-opacity-5 border border-gray-200 dark:border-gray-700 z-30">
+                    <div className="py-3 px-4 border-b border-gray-200 dark:border-gray-700">
+                      <p className="text-sm font-medium text-gray-900 dark:text-white">
+                        {adminProfile?.fullName || "Admin User"}
+                      </p>
+                      <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                        {adminProfile?.email || "admin@example.com"}
+                      </p>
+                    </div>
                     <div className="py-1">
                       <Link
                         to="/admin/profile"
-                        className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                        className="flex items-center px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
                       >
-                        <div className="flex items-center">
-                          <User className="h-4 w-4 mr-2 text-gray-500" />
-                          Profile
-                        </div>
+                        <User className="h-4 w-4 mr-3 text-gray-500 dark:text-gray-400" />
+                        Profile
                       </Link>
                       <Link
                         to="/admin/settings"
-                        className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                        className="flex items-center px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
                       >
+                        <Settings className="h-4 w-4 mr-3 text-gray-500 dark:text-gray-400" />
                         Settings
                       </Link>
-                      <hr className="my-1" />
+                      <hr className="my-1 border-gray-200 dark:border-gray-700" />
                       <button
                         onClick={confirmLogout}
-                        className="w-full text-left block px-4 py-2 text-sm text-red-600 hover:bg-gray-100"
+                        className="w-full text-left flex items-center px-4 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-gray-100 dark:hover:bg-gray-700"
                       >
-                        <div className="flex items-center">
-                          <LogOut className="h-4 w-4 mr-2 text-red-500" />
-                          Log Out
-                        </div>
+                        <LogOut className="h-4 w-4 mr-3 text-red-500 dark:text-red-400" />
+                        Log Out
                       </button>
                     </div>
                   </div>

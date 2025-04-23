@@ -408,7 +408,7 @@ export default function Navbar() {
         isScrolled ? "shadow-md" : "border-b border-gray-100"
       }`}
     >
-      <div className="max-w-7xl mx-auto px-4 lg:px-6">
+      <div className="max-w-7xl mx-auto px-3 sm:px-4 lg:px-6">
         <div className="flex items-center justify-between h-16">
           {/* Left: Logo */}
           <div
@@ -429,7 +429,7 @@ export default function Navbar() {
           </div>
 
           {/* Right: Search, Rides, Notifications, User Menu */}
-          <div className="flex items-center space-x-4">
+          <div className="flex items-center space-x-2 sm:space-x-4">
             {/* Search Bar (hidden on mobile) */}
             <div className="hidden md:block">
               <SearchBar />
@@ -507,7 +507,7 @@ export default function Navbar() {
                 </button>
 
                 {isUserMenuOpen && (
-                  <div className="absolute right-0 mt-2 w-56 bg-white rounded-lg shadow-xl py-1 border border-gray-100 transform origin-top-right transition-all duration-200 ease-out ring-1 ring-black ring-opacity-5">
+                  <div className="absolute right-0 mt-2 w-56 bg-white rounded-lg shadow-xl py-1 border border-gray-100 transform origin-top-right transition-all duration-200 ease-out ring-1 ring-black ring-opacity-5 z-50">
                     {/* Header: Signed in as */}
                     <div className="px-4 py-2 border-b border-gray-100">
                       <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
@@ -600,16 +600,7 @@ export default function Navbar() {
                         </>
                       )}
 
-                      <button
-                        onClick={() => {
-                          setIsUserMenuOpen(false);
-                          handleNavigate("/bookings");
-                        }}
-                        className="flex w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 hover:text-green-600 text-left transition-colors items-center"
-                      >
-                        <CreditCard className="h-4 w-4 mr-2.5 text-gray-400" />
-                        <span>My Bookings</span>
-                      </button>
+  
                     </div>
 
                     {/* Divider */}

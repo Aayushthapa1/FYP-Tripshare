@@ -1,7 +1,29 @@
 import React, { useEffect, useState, useRef, useCallback } from "react";
 import { MapPin, Map, AlertCircle, Navigation } from "lucide-react";
 
-const RoutePreviewMap = ({ originCoords, destinationCoords }) => {
+// Function to load Google Maps API
+const loadGoogleMapsAPI = (apiKey) => {
+  return new Promise((resolve, reject) => {
+    // Skip if already loaded
+    if (window.google && window.google.maps) {
+      resolve();
+      return;
+    }
+
+    // Create script element
+    const script = document.createElement("script");
+    script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places`;
+    script.async = true;
+    script.defer = true;
+
+    script.onload = () => resolve();
+    script.onerror = () => reject(new Error("Google Maps failed to load"));
+
+    document.head.appendChild(script);
+  });
+};
+
+const RoutePreviewMap = ({ apiKey, originCoords, destinationCoords }) => {
   const mapRef = useRef(null);
   const [mapLoaded, setMapLoaded] = useState(false);
   const [mapInstance, setMapInstance] = useState(null);
@@ -11,12 +33,36 @@ const RoutePreviewMap = ({ originCoords, destinationCoords }) => {
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(true);
   const [userLocation, setUserLocation] = useState(null);
+  const [apiLoading, setApiLoading] = useState(false);
+
+  // Load Google Maps API
+  useEffect(() => {
+    if (!apiKey) {
+      setError("Google Maps API key is required");
+      setLoading(false);
+      return;
+    }
+
+    setApiLoading(true);
+    loadGoogleMapsAPI(apiKey)
+      .then(() => {
+        console.log("Google Maps API loaded successfully");
+        setApiLoading(false);
+      })
+      .catch((err) => {
+        console.error("Failed to load Google Maps API:", err);
+        setError("Failed to load Google Maps API");
+        setLoading(false);
+        setApiLoading(false);
+      });
+  }, [apiKey]);
 
   // Get user's current location
   useEffect(() => {
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
         (position) => {
+          console.log("Got user location:", position.coords);
           setUserLocation({
             lat: position.coords.latitude,
             lng: position.coords.longitude,
@@ -25,10 +71,13 @@ const RoutePreviewMap = ({ originCoords, destinationCoords }) => {
         (err) => {
           console.warn("Error getting user location:", err.message);
           // Fall back to a default location if geolocation fails
-          setUserLocation({ lat: 0, lng: 0 });
+          setUserLocation({ lat: 40.7128, lng: -74.006 }); // New York as default
         },
         { timeout: 10000, enableHighAccuracy: true }
       );
+    } else {
+      // Geolocation not supported, use a default
+      setUserLocation({ lat: 40.7128, lng: -74.006 });
     }
   }, []);
 
@@ -41,8 +90,10 @@ const RoutePreviewMap = ({ originCoords, destinationCoords }) => {
     }
 
     try {
+      console.log("Initializing map with user location:", userLocation);
+
       // Center map on user location if available, or use a default world center
-      const center = userLocation || { lat: 0, lng: 0 };
+      const center = userLocation || { lat: 40.7128, lng: -74.006 };
       const zoom = userLocation ? 12 : 2; // Zoom in if we have user location
 
       // Create map instance
@@ -84,62 +135,55 @@ const RoutePreviewMap = ({ originCoords, destinationCoords }) => {
         },
       });
 
+      console.log("Map initialized successfully");
       setMapInstance(map);
       setDirectionsRenderer(renderer);
       setMapLoaded(true);
       setLoading(false);
     } catch (err) {
       console.error("Error initializing map:", err);
-      setError("Failed to initialize map");
+      setError("Failed to initialize map: " + err.message);
       setLoading(false);
     }
   }, [userLocation]);
 
-  // Initialize map when component mounts and userLocation is available
+  // Initialize map when API is loaded and userLocation is available
   useEffect(() => {
-    // We need both mapRef and userLocation (even if null, after the geolocation attempt)
-    if (!mapRef.current || userLocation === null) return;
+    // Skip if map ref isn't ready or API is still loading
+    if (!mapRef.current || apiLoading) return;
 
-    // If Google Maps is already loaded
-    if (window.google && window.google.maps) {
-      initializeMap();
-    } else {
-      // Check for Google Maps API loading status
-      const checkGoogleMapsLoaded = setInterval(() => {
-        if (window.google && window.google.maps) {
-          clearInterval(checkGoogleMapsLoaded);
-          initializeMap();
-        }
-      }, 500);
+    // Skip if userLocation isn't set yet
+    if (userLocation === null) return;
 
-      // Set a timeout to stop checking after a reasonable time
-      const timeoutId = setTimeout(() => {
-        clearInterval(checkGoogleMapsLoaded);
-        if (!mapLoaded) {
-          setError("Google Maps failed to load");
-          setLoading(false);
-        }
-      }, 10000);
-
-      // Cleanup
-      return () => {
-        clearInterval(checkGoogleMapsLoaded);
-        clearTimeout(timeoutId);
-      };
+    // Skip if Google Maps isn't loaded yet
+    if (!window.google || !window.google.maps) {
+      console.log("Waiting for Google Maps API to load...");
+      return;
     }
-  }, [initializeMap, userLocation, mapLoaded]);
+
+    console.log("Ready to initialize map");
+    initializeMap();
+  }, [initializeMap, userLocation, apiLoading]);
 
   // Update directions when coordinates or map changes
   useEffect(() => {
     // Skip if required values are not ready
-    if (!mapLoaded || !directionsRenderer || !mapInstance) return;
+    if (!mapLoaded || !directionsRenderer || !mapInstance) {
+      console.log("Map not ready for directions yet");
+      return;
+    }
 
     // Skip if coordinates are not available
     if (!originCoords || !destinationCoords) {
+      console.log("Missing coordinates, can't calculate route");
       setDistance(null);
       setDuration(null);
       return;
     }
+
+    // Log coordinate values for debugging
+    console.log("Origin coords:", originCoords);
+    console.log("Destination coords:", destinationCoords);
 
     // Validate coordinates
     const isValidCoords = (coords) => {
@@ -153,7 +197,12 @@ const RoutePreviewMap = ({ originCoords, destinationCoords }) => {
     };
 
     if (!isValidCoords(originCoords) || !isValidCoords(destinationCoords)) {
+      console.error("Invalid coordinates provided", {
+        originCoords,
+        destinationCoords,
+      });
       setError("Invalid coordinates provided");
+      setLoading(false);
       return;
     }
 
@@ -161,6 +210,7 @@ const RoutePreviewMap = ({ originCoords, destinationCoords }) => {
     setError(null);
 
     try {
+      console.log("Calculating route...");
       const directionsService = new window.google.maps.DirectionsService();
 
       directionsService.route(
@@ -181,6 +231,7 @@ const RoutePreviewMap = ({ originCoords, destinationCoords }) => {
           setLoading(false);
 
           if (status === "OK" && response) {
+            console.log("Route calculated successfully:", response);
             directionsRenderer.setDirections(response);
 
             // Extract distance and duration information
@@ -228,7 +279,7 @@ const RoutePreviewMap = ({ originCoords, destinationCoords }) => {
       );
     } catch (err) {
       console.error("Error requesting directions:", err);
-      setError("Failed to get directions");
+      setError("Failed to get directions: " + err.message);
       setLoading(false);
     }
   }, [
@@ -280,6 +331,18 @@ const RoutePreviewMap = ({ originCoords, destinationCoords }) => {
           <div className="flex items-center">
             <div className="w-5 h-5 border-2 border-blue-500 border-t-transparent rounded-full animate-spin mr-2"></div>
             <span className="text-sm text-gray-600">Loading route...</span>
+          </div>
+        </div>
+      )}
+
+      {/* API loading indicator */}
+      {apiLoading && (
+        <div className="absolute inset-0 bg-white bg-opacity-70 z-10 flex items-center justify-center">
+          <div className="flex items-center">
+            <div className="w-5 h-5 border-2 border-blue-500 border-t-transparent rounded-full animate-spin mr-2"></div>
+            <span className="text-sm text-gray-600">
+              Loading Google Maps...
+            </span>
           </div>
         </div>
       )}

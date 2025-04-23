@@ -1,5 +1,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+import { useDispatch } from "react-redux";
+import { searchTrips } from "../Slices/tripSlice"; // Update this path as needed
 import {
   ArrowRight,
   Users,
@@ -13,6 +15,7 @@ import { motion } from "framer-motion";
 
 export default function HeroSection() {
   const navigate = useNavigate();
+  const dispatch = useDispatch();
   const [isLoaded, setIsLoaded] = useState(false);
   const [searchInput, setSearchInput] = useState("");
 
@@ -29,7 +32,16 @@ export default function HeroSection() {
   const handleSearch = (e) => {
     e.preventDefault();
     if (searchInput.trim()) {
-      navigate(`/search?q=${encodeURIComponent(searchInput)}`);
+      // Dispatch the search action with the appropriate search parameters
+      dispatch(
+        searchTrips({
+          departureLocation: searchInput,
+          destinationLocation: searchInput,
+        })
+      );
+
+      // Navigate to trips page with search query
+      navigate(`/trips?search=${encodeURIComponent(searchInput)}`);
     }
   };
 
@@ -120,8 +132,6 @@ export default function HeroSection() {
             Join our community of travelers across the country. <br />
             Save money, reduce emissions, and make new connections.
           </motion.p>
-
-          {/* Stats section removed as it was empty */}
 
           {/* CTA buttons with improved styling */}
           <motion.div

@@ -29,7 +29,8 @@ router.put("/update/:id", driverUpload, updateDriver);
 // Admin routes
 router.get("/all", getDrivers); // fetch all KYC
 router.get("/:id", getDriverById);
-router.patch("/:id/status", updateDriverStatus);
+router.put("/:id/status", updateDriverStatus);
 router.delete("/delete/:id", deleteDriver);
 
 export default router;
+  

@@ -10,7 +10,7 @@ const RideSchema = new mongoose.Schema(
     passengerId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
-      required:"false",
+      required: true,
     },
     pickupLocation: {
       type: {
@@ -93,6 +93,7 @@ const RideSchema = new mongoose.Schema(
       type: String,
       trim: true
     },
+    // Enhanced rating fields
     rating: {
       type: Number,
       min: 1,
@@ -101,6 +102,34 @@ const RideSchema = new mongoose.Schema(
     feedback: {
       type: String,
       trim: true
+    },
+    // Added detailed rating information
+    ratingDetails: {
+      ratingId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "Rating"
+      },
+      ratedAt: Date,
+      ratingStatus: {
+        type: String,
+        enum: ["pending", "completed"],
+        default: "pending"
+      },
+      reminderSent: {
+        type: Boolean,
+        default: false
+      },
+      trafficCondition: {
+        type: String,
+        enum: ["light", "moderate", "heavy"],
+        default: "light",
+      },
+    },
+    // Completion details
+    completionDetails: {
+      completedAt: Date,
+      actualTravelTime: Number, // in minutes
+      notes: String
     }
   },
   {
@@ -133,9 +162,68 @@ RideSchema.pre('save', function (next) {
         this.vehicleType === 'Car' ? 30 : 25;
       this.fare = Math.round(baseFare + this.distance * ratePerKm);
     }
+
+    // Set completion details if not already set
+    if (!this.completionDetails) {
+      this.completionDetails = {
+        completedAt: new Date(),
+        actualTravelTime: this.estimatedTime // Default to estimated time
+      };
+    }
+
+    // Initialize rating details if not already set
+    if (!this.ratingDetails) {
+      this.ratingDetails = {
+        ratingStatus: "pending",
+        reminderSent: false
+      };
+    }
+
+    // Add this ride to the passenger's pending ratings
+    try {
+      const User = mongoose.model("User");
+      User.findById(this.passengerId).then(passenger => {
+        if (passenger) {
+          passenger.addPendingRating("Ride", this._id, this.driverId);
+        }
+      }).catch(err => console.error("Error adding pending rating:", err));
+    } catch (error) {
+      console.error("Error in pre-save hook:", error);
+    }
   }
   next();
 });
+
+// Method to mark ride as rated
+RideSchema.methods.markAsRated = async function (rating, feedback, ratingId) {
+  this.rating = rating;
+  this.feedback = feedback;
+
+  this.ratingDetails = {
+    ...this.ratingDetails,
+    ratingId,
+    ratedAt: new Date(),
+    ratingStatus: "completed"
+  };
+
+  return this.save();
+};
+
+// Static method to find rides that need rating reminders
+RideSchema.statics.findRidesNeedingRatingReminders = async function (daysThreshold = 3) {
+  const thresholdDate = new Date();
+  thresholdDate.setDate(thresholdDate.getDate() - daysThreshold);
+
+  return this.find({
+    status: "completed",
+    "ratingDetails.ratingStatus": "pending",
+    "ratingDetails.reminderSent": false,
+    "completionDetails.completedAt": { $lt: thresholdDate }
+  })
+    .populate('passengerId', 'email fullName')
+    .populate('driverId', 'fullName')
+    .lean();
+};
 
 const Ride = mongoose.models.Ride || mongoose.model("Ride", RideSchema);
 export default Ride;

@@ -1,4 +1,3 @@
-// userSlice.js - Updated
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 import { fetchUserProfile, updateUserProfile, getAllUsersService } from '../../services/userService.js';
 
@@ -28,16 +27,10 @@ export const updateUserProfileAction = createAsyncThunk(
 
 export const fetchAllUsers = createAsyncThunk(
   "user/fetchAllUsers",
-  async (_, { rejectWithValue }) => {
+  async (params = {}, { rejectWithValue }) => {
     try {
-      const data = await getAllUsersService();
-      console.log("Data from service:", data); // For debugging
-
-      // Ensure we have an array, even if the service returns something else
-      if (!Array.isArray(data)) {
-        console.warn("Service didn't return an array, converting:", data);
-        return data ? (Array.isArray(data) ? data : []) : [];
-      }
+      const data = await getAllUsersService(params);
+      console.log("Data from service:", data);
 
       return data;
     } catch (error) {
@@ -52,13 +45,16 @@ const userSlice = createSlice({
   initialState: {
     users: [],
     userData: null,
+    userStats: null,
+    pagination: null,
     loading: false,
     error: null,
   },
   reducers: {
-    // Add any synchronous reducers here if needed
     clearUsers: (state) => {
       state.users = [];
+      state.userStats = null;
+      state.pagination = null;
     }
   },
   extraReducers: (builder) => {
@@ -93,8 +89,19 @@ const userSlice = createSlice({
       })
       .addCase(fetchAllUsers.fulfilled, (state, action) => {
         state.loading = false;
-        state.users = action.payload || []; // Ensure we always have an array
-        console.log("Users saved to state:", state.users); // For debugging
+
+        // Handle the new response structure
+        if (action.payload && action.payload.users_data) {
+          state.users = action.payload.users_data || [];
+          state.userStats = action.payload.stats || null;
+          state.pagination = action.payload.pagination || null;
+        } else {
+          // Fallback if we don't get the expected structure
+          state.users = Array.isArray(action.payload) ? action.payload : [];
+        }
+
+        console.log("Users saved to state:", state.users);
+        console.log("User stats saved:", state.userStats);
       })
       .addCase(fetchAllUsers.rejected, (state, action) => {
         state.loading = false;

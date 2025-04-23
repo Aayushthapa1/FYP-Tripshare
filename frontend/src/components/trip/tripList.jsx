@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import {
   deleteTrip,
@@ -9,11 +9,9 @@ import {
   getTripById,
   searchTrips,
 } from "../Slices/tripSlice";
-import { fetchMyBookings, createBooking } from "../Slices/bookingSlice";
+import { fetchMyBookings } from "../Slices/bookingSlice";
 import { useNavigate } from "react-router-dom";
 import { Toaster, toast } from "sonner";
-import { initiatePayment } from "../Slices/paymentSlice";
-// import { completePayment } from "../Slices/paymentSlice";
 import {
   MapPin,
   Calendar,
@@ -44,8 +42,6 @@ import Pagination from "../../utils/Pagination.jsx";
 import { useSearchParams } from "react-router-dom";
 import EnhancedGoogleMap from "./EnhancedGoogleMap";
 
-// Import your existing Pagination component
-
 const TripList = () => {
   const dispatch = useDispatch();
   const navigate = useNavigate();
@@ -61,9 +57,6 @@ const TripList = () => {
   const [selectedTrip, setSelectedTrip] = useState(null);
   const [editingTrip, setEditingTrip] = useState(null);
   const [editFormData, setEditFormData] = useState(null);
-  const [paymentModalTrip, setPaymentModalTrip] = useState(null);
-  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState("COD");
-  const [isProcessingPayment, setIsProcessingPayment] = useState(false);
 
   // For filtering and search
   const [statusFilter, setStatusFilter] = useState("all");
@@ -77,41 +70,6 @@ const TripList = () => {
   // For mobile view
   const [isMobileView, setIsMobileView] = useState(window.innerWidth < 768);
   const [showFilters, setShowFilters] = useState(false);
-
-  useEffect(() => {
-    const handlePaymentCompletion = async () => {
-      try {
-        const pidx = searchParams.get("pidx");
-        const transaction_id = searchParams.get("transaction_id");
-        const amount = searchParams.get("amount");
-        const purchase_order_id = searchParams.get("purchase_order_id");
-
-        if (pidx && transaction_id && amount && purchase_order_id) {
-          const result = await dispatch(
-            completePayment({ pidx, transaction_id, amount, purchase_order_id })
-          ).unwrap();
-
-          if (result.IsSuccess) {
-            toast.success("Payment Successful", {
-              description: "Your payment has been completed successfully.",
-            });
-            navigate("/payment-success", {
-              state: { transactionDetails: result },
-            });
-          } else {
-            throw new Error("Payment verification failed.");
-          }
-        }
-      } catch (error) {
-        toast.error("Payment Failed", {
-          description: error.message || "Payment verification failed.",
-        });
-        navigate("/payment-failed");
-      }
-    };
-
-    handlePaymentCompletion();
-  }, [searchParams, dispatch, navigate]);
 
   useEffect(() => {
     dispatch(getTrips());
@@ -217,74 +175,9 @@ const TripList = () => {
     });
   };
 
-  // Booking function to show payment options
+  // Redirect to booking page with trip data
   const handleBooking = (trip) => {
-    setPaymentModalTrip(trip);
-  };
-
-  // Function to close payment modal
-  const closePaymentModal = () => {
-    setPaymentModalTrip(null);
-    setSelectedPaymentMethod("COD");
-    setIsProcessingPayment(false);
-  };
-
-  // Function to process the actual booking with payment method
-  const processBooking = async () => {
-    try {
-      setIsProcessingPayment(true);
-
-      if (selectedPaymentMethod === "online") {
-        try {
-          // For online payments, initiate payment directly
-          const paymentResponse = await dispatch(
-            initiatePayment({
-              userId: user._id,
-              tripId: paymentModalTrip._id,
-              seats: 1, // Assuming 1 seat by default
-              amount: paymentModalTrip.price,
-              bookingType: "trip",
-            })
-          ).unwrap();
-          console.log("The payment response is", paymentResponse);
-
-          if (paymentResponse?.Result?.payment_url) {
-            window.location.href = paymentResponse.Result.payment_url;
-          } else {
-            throw new Error("No payment URL received");
-          }
-        } catch (err) {
-          console.error("Payment initiation error:", err);
-          toast.error("Payment Failed", {
-            description: err?.message || "Failed to initiate payment",
-          });
-        }
-      } else {
-        // For COD, create the booking immediately
-        const bookingData = {
-          tripId: paymentModalTrip._id,
-          seats: 1,
-          paymentMethod: "COD",
-        };
-
-        const result = await dispatch(createBooking(bookingData)).unwrap();
-        toast.success("Booking Confirmed", {
-          description: "Your trip has been booked with Cash on Delivery!",
-        });
-
-        // Refresh trips to update availability
-        dispatch(getTrips());
-        dispatch(getMyBookings());
-        closePaymentModal();
-      }
-    } catch (err) {
-      console.error("Booking error:", err);
-      toast.error("Booking Failed", {
-        description: err?.message || "Failed to book trip",
-      });
-    } finally {
-      setIsProcessingPayment(false);
-    }
+    navigate(`/booking/${trip._id}`);
   };
 
   const handleSearch = () => {
@@ -605,8 +498,6 @@ const TripList = () => {
                         </span>
                       </div>
                     </div>
-
-                    
 
                     {/* Driver Info & Actions */}
                     <div className="mt-4 flex items-center justify-between">
@@ -1177,138 +1068,6 @@ const TripList = () => {
               onClick={closeEditModal}
               className="absolute top-4 right-4 text-white hover:text-green-100 transition-colors"
               aria-label="Close modal"
-            >
-              <X size={20} />
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* Payment Method Selection Modal */}
-      {paymentModalTrip && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black bg-opacity-50 backdrop-blur-sm"
-          onClick={closePaymentModal}
-        >
-          <div
-            className="bg-white rounded-xl shadow-xl max-w-md w-full relative animate-fade-in"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="bg-green-600 text-white p-6 rounded-t-xl">
-              <h2 className="text-xl font-bold">Choose Payment Method</h2>
-              <p className="text-green-100 mt-1 flex items-center">
-                <MapPin size={16} className="mr-1.5" />
-                {paymentModalTrip.departureLocation} →{" "}
-                {paymentModalTrip.destinationLocation}
-              </p>
-            </div>
-            <div className="p-6">
-              <div className="mb-6">
-                <p className="text-gray-700 mb-2">Trip Cost:</p>
-                <p className="text-2xl font-bold text-gray-900">
-                  Rs{paymentModalTrip.price}
-                </p>
-              </div>
-
-              <div className="space-y-4 mb-6">
-                <p className="font-medium text-gray-700">
-                  Select payment method:
-                </p>
-
-                {/* COD Option */}
-                <div
-                  className={`flex items-center p-4 border rounded-lg cursor-pointer transition-colors ${
-                    selectedPaymentMethod === "COD"
-                      ? "border-green-500 bg-green-50"
-                      : "border-gray-200 hover:bg-gray-50"
-                  }`}
-                  onClick={() => setSelectedPaymentMethod("COD")}
-                >
-                  <div className="mr-3">
-                    <div
-                      className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${
-                        selectedPaymentMethod === "COD"
-                          ? "border-green-500"
-                          : "border-gray-400"
-                      }`}
-                    >
-                      {selectedPaymentMethod === "COD" && (
-                        <div className="w-3 h-3 bg-green-500 rounded-full"></div>
-                      )}
-                    </div>
-                  </div>
-                  <div>
-                    <p className="font-medium">Cash on Delivery</p>
-                    <p className="text-sm text-gray-500">
-                      Pay directly to the driver
-                    </p>
-                  </div>
-                </div>
-
-                {/* Online Payment Option */}
-                <div
-                  className={`flex items-center p-4 border rounded-lg cursor-pointer transition-colors ${
-                    selectedPaymentMethod === "online"
-                      ? "border-green-500 bg-green-50"
-                      : "border-gray-200 hover:bg-gray-50"
-                  }`}
-                  onClick={() => setSelectedPaymentMethod("online")}
-                >
-                  <div className="mr-3">
-                    <div
-                      className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${
-                        selectedPaymentMethod === "online"
-                          ? "border-green-500"
-                          : "border-gray-400"
-                      }`}
-                    >
-                      {selectedPaymentMethod === "online" && (
-                        <div className="w-3 h-3 bg-green-500 rounded-full"></div>
-                      )}
-                    </div>
-                  </div>
-                  <div>
-                    <p className="font-medium">Online Payment</p>
-                    <p className="text-sm text-gray-500">
-                      Pay via Khalti, eSewa, or other methods
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              <div className="flex justify-end gap-3 border-t border-gray-100 pt-4">
-                <button
-                  onClick={closePaymentModal}
-                  className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors flex items-center"
-                  disabled={isProcessingPayment}
-                >
-                  <X size={16} className="mr-1.5" /> Cancel
-                </button>
-                <button
-                  onClick={() => {
-                    processBooking();
-                  }}
-                  className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center"
-                  disabled={isProcessingPayment}
-                >
-                  {isProcessingPayment ? (
-                    <>
-                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2"></div>
-                      Processing...
-                    </>
-                  ) : (
-                    <>
-                      <Check size={16} className="mr-1.5" /> Confirm Booking
-                    </>
-                  )}
-                </button>
-              </div>
-            </div>
-            <button
-              onClick={closePaymentModal}
-              className="absolute top-4 right-4 text-white hover:text-green-100 transition-colors"
-              aria-label="Close modal"
-              disabled={isProcessingPayment}
             >
               <X size={20} />
             </button>

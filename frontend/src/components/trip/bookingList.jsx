@@ -469,7 +469,6 @@ const BookingList = () => {
           </div>
         </div>
       )}
-
       <Footer />
     </>
   );

@@ -1,11 +1,14 @@
 import bcrypt from "bcryptjs";
 import cookie from "cookie";
 import User from "../models/userModel.js";
+import jwt from "jsonwebtoken";
 import {
   registerUserSchema,
   loginUserSchema,
+  resetPasswordSchema // Make sure this is imported
 } from "../middlewares/validationSchema.js";
 import { sendEmail } from "../utils/sendEmail.js";
+import rateLimit from "express-rate-limit";
 
 import {
   generateAccessToken,
@@ -13,9 +16,14 @@ import {
 } from "../utils/generateAuthToken.js";
 import { createResponse } from "../utils/responseHelper.js";
 
-
-// Utility function to generate OTP
-const generateOTP = () => Math.floor(100000 + Math.random() * 900000).toString();
+// Rate limiter for password reset requests
+export const forgotPasswordLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 5, // limit each IP to 5 requests per windowMs
+  message: "Too many password reset attempts, please try again later",
+  standardHeaders: true,
+  legacyHeaders: false,
+});
 
 export const userRegister = async (req, res, next) => {
   try {
@@ -53,12 +61,11 @@ export const userRegister = async (req, res, next) => {
       role
     });
 
-
     try {
       await sendEmail({
         to: email,
-        subject: "Welcome to Our Service",
-        template: "registration",  // Changed from "registrationEmailTemplate"
+        subject: "Welcome to TripShare",
+        template: "registration",
         context: { name: fullName }
       });
       console.log(`Registration email sent to ${email}`);
@@ -86,7 +93,6 @@ export const userRegister = async (req, res, next) => {
     next(error);
   }
 };
-
 
 export const userLogin = async (req, res, next) => {
   try {
@@ -174,8 +180,6 @@ export const userLogout = async (req, res, next) => {
   }
 };
 
-
-
 export const getUserProfile = async (req, res, next) => {
   try {
     const user = await User.findById(req.user._id).select("-password");
@@ -210,7 +214,6 @@ export const updateUserProfile = async (req, res, next) => {
         createResponse(404, false, [{ message: "User not found" }])
       );
     }
-
 
     // Phone number check
     if (phoneNumber && phoneNumber !== user.phoneNumber) {
@@ -250,9 +253,6 @@ export const updateUserProfile = async (req, res, next) => {
   }
 };
 
-
-
-// Add this new function to get users by role
 export const getUsersByRole = async (req, res, next) => {
   try {
     const { role } = req.params;
@@ -277,33 +277,64 @@ export const getUsersByRole = async (req, res, next) => {
   }
 };
 
-// For "getAllUsers"
 export const getAllUsers = async (req, res, next) => {
   try {
-    const users = await User.find().select("-password");
+    // Get query parameters for filtering
+    const { role, sortBy, limit = 10, page = 1 } = req.query;
+    const skip = (parseInt(page) - 1) * parseInt(limit);
 
-    // Add logging to debug
-    console.log(`Found ${users.length} users in database`);
-
-    if (!users || users.length === 0) {
-      console.log("No users found in database");
+    // Build filter object
+    const filter = {};
+    if (role && ["user", "driver", "Admin"].includes(role)) {
+      filter.role = role;
     }
+
+    // Count documents by role for dashboard stats
+    const userCount = await User.countDocuments({ role: "user" });
+    const driverCount = await User.countDocuments({ role: "driver" });
+    const adminCount = await User.countDocuments({ role: "Admin" });
+    const totalUsers = userCount + driverCount + adminCount;
+
+    // Fetch paginated users with filters
+    const users = await User.find(filter)
+      .select("-password -resetPasswordOTP -resetPasswordOTPExpires")
+      .sort(sortBy ? { [sortBy]: 1 } : { createdAt: -1 })
+      .skip(skip)
+      .limit(parseInt(limit));
+
+    // Get total count for pagination info
+    const totalCount = await User.countDocuments(filter);
+    const totalPages = Math.ceil(totalCount / parseInt(limit));
+
+    console.log(`Found ${users.length} users matching criteria (page ${page}/${totalPages})`);
 
     return res.status(200).json({
       status: 200,
       success: true,
       errors: [],
       result: {
-        message: "All users fetched successfully",
+        message: "Users fetched successfully",
+        stats: {
+          totalUsers,
+          userCount,
+          driverCount,
+          adminCount
+        },
+        pagination: {
+          totalCount,
+          totalPages,
+          currentPage: parseInt(page),
+          limit: parseInt(limit)
+        },
         users_data: users,
       }
     });
   } catch (error) {
-    console.error("Error fetching all users:", error);
+    console.error("Error fetching users:", error);
     return res.status(500).json({
       status: 500,
       success: false,
-      errors: [error.message],
+      errors: [{ message: error.message }],
       result: {
         message: "Failed to fetch users",
       }
@@ -311,9 +342,11 @@ export const getAllUsers = async (req, res, next) => {
   }
 };
 
-// Send Email OTP
+// Enhanced forgot password function
 export const forgotPassword = async (req, res, next) => {
   try {
+    console.log("Received request body for forgot password:", req.body);
+
     const { email } = req.body;
 
     // Check if email is provided
@@ -326,74 +359,145 @@ export const forgotPassword = async (req, res, next) => {
     // Normalize email: trim whitespace and convert to lowercase
     const normalizedEmail = email.trim().toLowerCase();
 
-    console.log("Searching for user with email:", normalizedEmail); // Debugging log
+    console.log("Searching for user with email:", normalizedEmail);
 
     const user = await User.findOne({ email: normalizedEmail });
 
     if (!user) {
-      console.log("User not found in database"); // Debugging log
+      console.log("User not found in database");
       return res.status(404).json(
         createResponse(404, false, [{ message: "No user found with this email" }])
       );
     }
 
-    const resetOTP = generateOTP();
-    user.resetPasswordOTP = resetOTP;
+    // Create a JWT token for password reset
+    const resetToken = jwt.sign(
+      { userId: user._id },
+      process.env.JWT_RESET_SECRET || "reset-token-secret",
+      { expiresIn: "10m" } // 10 minutes expiration
+    );
+
+    // Store hashed token in database
+    const salt = await bcrypt.genSalt(10);
+    const hashedToken = await bcrypt.hash(resetToken, salt);
+
+    user.resetPasswordOTP = hashedToken;
     user.resetPasswordOTPExpires = Date.now() + 600000; // 10 minutes
     await user.save();
 
-    console.log("Sending OTP to email:", normalizedEmail); // Debugging log
+    // Create a reset URL
+    const resetUrl = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/resetpassword/${resetToken}`;
 
-    await transporter.sendEmail({
-      from: process.env.SMTP_FROM,
+    console.log("Sending reset link to email:", normalizedEmail);
+    console.log("Reset URL:", resetUrl);
+
+    await sendEmail({
       to: normalizedEmail,
-      subject: "Password Reset OTP",
-      text: `Your OTP for password reset is: ${resetOTP}. Valid for 10 minutes.`,
+      subject: "Password Reset",
+      template: "resetPassword",
+      context: {
+        name: user.fullName,
+        resetUrl: resetUrl,
+        expiresIn: "10 minutes"
+      }
     });
 
     return res.status(200).json(
       createResponse(200, true, [], {
-        message: "Password reset OTP sent to email"
+        message: "Password reset link sent to email"
       })
     );
   } catch (error) {
-    console.error("Error in forgotPassword:", error); // Debugging log
+    console.error("Error in forgotPassword:", error);
     next(error);
   }
 };
 
+// Enhanced reset password function
 export const resetPassword = async (req, res, next) => {
   try {
-    const { otp, newPassword, confirmPassword } = req.body;
+    console.log("Received reset password request:", req.body);
 
-    if (!otp || !newPassword || !confirmPassword) {
+    const { token, newPassword, confirmPassword } = req.body;
+
+    // Validate basic required fields before schema validation
+    if (!token || !newPassword || !confirmPassword) {
       return res.status(400).json(
         createResponse(400, false, [{ message: "All fields are required" }])
       );
     }
 
+    // Validate with Joi schema
+    try {
+      await resetPasswordSchema.validateAsync(req.body);
+    } catch (validationError) {
+      return res.status(400).json(
+        createResponse(400, false, [{ message: validationError.details[0].message }])
+      );
+    }
+
+    // Check if passwords match
     if (newPassword !== confirmPassword) {
       return res.status(400).json(
         createResponse(400, false, [{ message: "Passwords do not match" }])
       );
     }
 
+    // Verify JWT token
+    let decoded;
+    try {
+      decoded = jwt.verify(token, process.env.JWT_RESET_SECRET || "reset-token-secret");
+    } catch (jwtError) {
+      console.error("JWT verification error:", jwtError);
+      return res.status(400).json(
+        createResponse(400, false, [{ message: "Invalid or expired reset token" }])
+      );
+    }
+
+    console.log("Token decoded successfully:", decoded);
+
+    // Find user by ID from token
     const user = await User.findOne({
-      resetPasswordOTP: otp,
+      _id: decoded.userId,
       resetPasswordOTPExpires: { $gt: Date.now() }
     });
 
     if (!user) {
+      console.log("User not found or token expired");
       return res.status(400).json(
-        createResponse(400, false, [{ message: "Invalid or expired OTP" }])
+        createResponse(400, false, [{ message: "Invalid or expired reset token" }])
       );
     }
 
+    console.log("User found for password reset:", user._id);
+
+    // Hash new password
     const salt = await bcrypt.genSalt(10);
     user.password = await bcrypt.hash(newPassword, salt);
+
+    // Clear reset fields
     user.resetPasswordOTP = undefined;
     user.resetPasswordOTPExpires = undefined;
     await user.save();
+
+    console.log("Password updated successfully for user:", user._id);
+
+    // Send confirmation email
+    try {
+      await sendEmail({
+        to: user.email,
+        subject: "Password Reset Successful",
+        template: "passwordResetSuccess",
+        context: {
+          name: user.fullName,
+          loginUrl: `${process.env.FRONTEND_URL || 'http://localhost:5173'}/login`
+        }
+      });
+      console.log("Password reset confirmation email sent");
+    } catch (emailError) {
+      console.error("Failed to send password reset confirmation email:", emailError);
+      // Continue with the response even if the email fails
+    }
 
     return res.status(200).json(
       createResponse(200, true, [], {
@@ -401,6 +505,7 @@ export const resetPassword = async (req, res, next) => {
       })
     );
   } catch (error) {
+    console.error("Unhandled error in resetPassword:", error);
     next(error);
   }
 };

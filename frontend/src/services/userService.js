@@ -1,4 +1,3 @@
-// userService.js - Updated
 import axiosInstance from '../utils/axiosInstance';
 
 export const fetchUserProfile = async (userId) => {
@@ -21,33 +20,32 @@ export const updateUserProfile = async (userId, userData) => {
   }
 };
 
-export const getAllUsersService = async () => {
+export const getAllUsersService = async (params = {}) => {
   try {
-    // Changed from "/api/users/all" to "/api/user/all" to match your API
-    const response = await axiosInstance.get("/api/users/all");
+    // Build query string from params (for pagination, filtering, etc.)
+    const queryParams = new URLSearchParams();
+    Object.entries(params).forEach(([key, value]) => {
+      if (value !== undefined && value !== null) {
+        queryParams.append(key, value);
+      }
+    });
+
+    const queryString = queryParams.toString() ? `?${queryParams.toString()}` : '';
+    const response = await axiosInstance.get(`/api/users/all${queryString}`);
+
     console.log("API Response:", response.data);
 
-    // Check for different possible response structures
-    if (response.data && response.data.Result && response.data.Result.users_data) {
-      console.log("Found users in Result.users_data:", response.data.Result.users_data);
-      return response.data.Result.users_data;
-    }
-    else if (response.data && response.data.result && response.data.result.users_data) {
-      console.log("Found users in result.users_data:", response.data.result.users_data);
-      return response.data.result.users_data;
-    }
-    else if (response.data && response.data.Result) {
-      console.log("Result object contains:", response.data.Result);
-      // If Result exists but doesn't have users_data property
+    // Handle the specific structure from our updated controller
+    if (response.data && response.data.result) {
+      // Return the complete result object with stats, pagination and users_data
+      return response.data.result;
+    } else if (response.data && response.data.Result) {
+      // Alternative property name format
       return response.data.Result;
-    }
-    else if (response.data && Array.isArray(response.data)) {
-      // If the response is directly an array
+    } else {
+      console.warn("Unexpected response format:", response.data);
+      // Fallback to return whatever we got
       return response.data;
-    }
-    else {
-      console.error("Unable to find users data in response:", response.data);
-      return [];
     }
   } catch (error) {
     console.error("Service error:", error);
@@ -57,6 +55,10 @@ export const getAllUsersService = async () => {
 
 const formatError = (error) => {
   if (error.response) {
+    // Try to get the specific error message from our API response format
+    if (error.response.data && error.response.data.errors && error.response.data.errors.length) {
+      return error.response.data.errors[0].message || 'An error occurred';
+    }
     return error.response.data.message || 'An error occurred';
   } else if (error.request) {
     return 'No response from server';
@@ -66,7 +68,7 @@ const formatError = (error) => {
 };
 
 const userService = {
-  fetchUserProfile,
+  fetchUserProfile, 
   updateUserProfile,
   getAllUsersService,
 };

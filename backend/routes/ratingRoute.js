@@ -1,27 +1,30 @@
-// routes/ratingRoute.js
-
-import express from 'express';
-import { createRating, getDriverRatings, getRideRatings } from '../controllers/ratingController.js';
-import { verifyToken } from '../middleware/auth.js';
+import express from "express";
+import {
+  submitRating,
+  getDriverRatings,
+  getUserRatings,
+  getRatingById,
+  updateRating,
+  deleteRating,
+  moderateRating,
+  getDriverRatingSummary
+} from "../controllers/ratingController.js";
+import protectRoute from "../middlewares/protectRoute.js";
 
 const router = express.Router();
 
-/**
- * @route POST /ratings/:rideId
- * @desc Create a rating for a completed ride
- */
-router.post('/:rideId', verifyToken, createRating);
+// Public routes
+router.get("/driver/:driverId", getDriverRatings);
+router.get("/driver/:driverId/summary", getDriverRatingSummary);
+router.get("/:ratingId", getRatingById);
 
-/**
- * @route GET /ratings/driver/:driverId
- * @desc Get all ratings for a specific driver + average rating
- */
-router.get('/driver/:driverId', verifyToken, getDriverRatings);
+// Protected routes (require authentication)
+router.post("/submit", protectRoute, submitRating);
+router.get("/user/me", protectRoute, getUserRatings);
+router.put("/update/:ratingId", protectRoute, updateRating);
+router.delete("/delete/:ratingId", protectRoute, deleteRating);
 
-/**
- * @route GET /ratings/ride/:rideId
- * @desc Get rating(s) for a specific ride
- */
-router.get('/ride/:rideId', verifyToken, getRideRatings);
+// Admin routes
+router.patch("/moderate/:ratingId", protectRoute,  moderateRating);
 
 export default router;

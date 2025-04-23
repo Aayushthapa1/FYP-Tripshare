@@ -1,148 +1,220 @@
+// paymentSlice.js
 import { createSlice, createAsyncThunk } from "@reduxjs/toolkit";
-import axiosInstance from "../../utils/axiosInstance";
+import paymentService from "../../services/paymentService";
 
-// Initiate payment
+// Initiate payment (maps to initiatePayment controller)
 export const initiatePayment = createAsyncThunk(
     "payment/initiate",
     async (paymentData, { rejectWithValue }) => {
         try {
-            const response = await axiosInstance.post("/api/payments/initiate", paymentData);
-            console.log("The response is", response);
+            console.log("Initiating payment with data:", paymentData);
 
-            if (!response.data.IsSuccess) {
+            // Validate required fields
+            if (!paymentData.amount || paymentData.amount <= 0) {
+                throw new Error("Valid payment amount is required");
+            }
+
+            if (!paymentData.bookingId && !paymentData.tripId) {
+                throw new Error("Either bookingId or tripId must be provided");
+            }
+
+            if (paymentData.tripId && (!paymentData.seats || paymentData.seats < 1)) {
+                throw new Error("Valid seat count is required for trip payments");
+            }
+
+            const result = await paymentService.initiatePayment(paymentData);
+
+            if (!result.success) {
                 return rejectWithValue({
-                    message: response.data.message || "Payment initiation failed",
-                    errors: response.data.errors || []
+                    message: result.message || "Payment initiation failed",
+                    errors: result.errors || []
                 });
             }
 
-            return response?.data;
+            return result.data;
         } catch (error) {
-            console.log("The error is", error);
+            console.error("Payment initiation error:", error);
             return rejectWithValue({
-                message: error.response?.data?.message || "Failed to initiate payment",
-                errors: error.response?.data?.errors || []
+                message: error.message || "Failed to initiate payment",
+                errors: error.errors || []
             });
         }
     }
 );
 
-// Get payment details
+// Check Khalti payment status after redirect
+export const checkKhaltiPaymentStatus = createAsyncThunk(
+    "payment/checkKhaltiStatus",
+    async (queryParams, { rejectWithValue }) => {
+        try {
+            // If no query params provided, extract from URL
+            if (!queryParams) {
+                queryParams = paymentService.extractKhaltiCallbackParams();
+            }
+
+            // Validate required params
+            if (!queryParams.pidx) {
+                throw new Error("Missing pidx parameter");
+            }
+
+            const result = await paymentService.checkKhaltiPaymentStatus(queryParams);
+
+            if (!result.success) {
+                return rejectWithValue({
+                    message: result.message || "Failed to check payment status",
+                    errors: result.errors || []
+                });
+            }
+
+            return result.data;
+        } catch (error) {
+            console.error("Payment status check error:", error);
+            return rejectWithValue({
+                message: error.message || "Failed to check payment status",
+                errors: error.errors || []
+            });
+        }
+    }
+);
+
+// Get payment details by ID
 export const getPaymentDetails = createAsyncThunk(
     "payment/getDetails",
     async (paymentId, { rejectWithValue }) => {
         try {
-            const response = await axiosInstance.get(`/api/payments/${paymentId}`);
-            console.log("The response is", response);
+            console.log("Fetching payment details for ID:", paymentId);
 
-            if (!response.data.success) {
+            if (!paymentId) {
+                throw new Error("Payment ID is required");
+            }
+
+            const result = await paymentService.getPaymentDetails(paymentId);
+
+            if (!result.success) {
                 return rejectWithValue({
-                    message: response.data.message || "Failed to get payment details",
-                    errors: response.data.errors || []
+                    message: result.message || "Failed to get payment details",
+                    errors: result.errors || []
                 });
             }
 
-            return response.data.data;
+            return result.data;
         } catch (error) {
+            console.error("Get payment details error:", error);
             return rejectWithValue({
-                message: error.response?.data?.message || "Failed to get payment details",
-                errors: error.response?.data?.errors || []
+                message: error.message || "Failed to get payment details",
+                errors: error.errors || []
             });
         }
     }
 );
 
-// Get all payments (admin)
+// Get payment status by booking ID
+export const getPaymentStatusByBooking = createAsyncThunk(
+    "payment/getStatusByBooking",
+    async (bookingId, { rejectWithValue }) => {
+        try {
+            console.log("Checking payment status for booking ID:", bookingId);
+
+            if (!bookingId) {
+                throw new Error("Booking ID is required");
+            }
+
+            const result = await paymentService.getPaymentStatusByBooking(bookingId);
+
+            if (!result.success) {
+                return rejectWithValue({
+                    message: result.message || "Failed to get payment status",
+                    errors: result.errors || []
+                });
+            }
+
+            return result.data;
+        } catch (error) {
+            console.error("Get payment status error:", error);
+            return rejectWithValue({
+                message: error.message || "Failed to get payment status",
+                errors: error.errors || []
+            });
+        }
+    }
+);
+
+// Get all payments (admin only)
 export const getAllPayments = createAsyncThunk(
     "payment/getAll",
     async (filters = {}, { rejectWithValue }) => {
         try {
-            const queryParams = new URLSearchParams();
-            Object.entries(filters).forEach(([key, value]) => {
-                if (value) queryParams.append(key, value);
-            });
+            console.log("Fetching all payments with filters:", filters);
 
-            const queryString = queryParams.toString();
-            const url = queryString ? `/api/payments/admin/all?${queryString}` : "/api/payments/admin/all";
+            const result = await paymentService.getAllPayments(filters);
 
-            const response = await axiosInstance.get(url);
-
-            if (!response.data.success) {
+            if (!result.success) {
                 return rejectWithValue({
-                    message: response.data.message || "Failed to get payments",
-                    errors: response.data.errors || []
+                    message: result.message || "Failed to get payments",
+                    errors: result.errors || []
                 });
             }
 
-            return response.data.data;
+            return result.data;
         } catch (error) {
+            console.error("Get all payments error:", error);
             return rejectWithValue({
-                message: error.response?.data?.message || "Failed to get payments",
-                errors: error.response?.data?.errors || []
+                message: error.message || "Failed to get payments",
+                errors: error.errors || []
             });
         }
     }
 );
 
-// Get user payments (for user dashboard)
+// Get user payments
 export const getUserPayments = createAsyncThunk(
     "payment/getUserPayments",
     async (filters = {}, { rejectWithValue }) => {
         try {
-            const queryParams = new URLSearchParams();
-            Object.entries(filters).forEach(([key, value]) => {
-                if (value) queryParams.append(key, value);
-            });
+            console.log("Fetching user payments with filters:", filters);
 
-            const queryString = queryParams.toString();
-            const url = queryString ? `/api/payments/user?${queryString}` : "/api/payments/user";
+            const result = await paymentService.getUserPayments(filters);
 
-            const response = await axiosInstance.get(url);
-
-            if (!response.data.success) {
+            if (!result.success) {
                 return rejectWithValue({
-                    message: response.data.message || "Failed to get user payments",
-                    errors: response.data.errors || []
+                    message: result.message || "Failed to get user payments",
+                    errors: result.errors || []
                 });
             }
 
-            return response.data.data;
+            return result.data;
         } catch (error) {
+            console.error("Get user payments error:", error);
             return rejectWithValue({
-                message: error.response?.data?.message || "Failed to get user payments",
-                errors: error.response?.data?.errors || []
+                message: error.message || "Failed to get user payments",
+                errors: error.errors || []
             });
         }
     }
 );
 
-// Get driver payments (for driver dashboard)
+// Get driver payments
 export const getDriverPayments = createAsyncThunk(
     "payment/getDriverPayments",
     async (filters = {}, { rejectWithValue }) => {
         try {
-            const queryParams = new URLSearchParams();
-            Object.entries(filters).forEach(([key, value]) => {
-                if (value) queryParams.append(key, value);
-            });
+            console.log("Fetching driver payments with filters:", filters);
 
-            const queryString = queryParams.toString();
-            const url = queryString ? `/api/payments/driver?${queryString}` : "/api/payments/driver";
+            const result = await paymentService.getDriverPayments(filters);
 
-            const response = await axiosInstance.get(url);
-
-            if (!response.data.success) {
+            if (!result.success) {
                 return rejectWithValue({
-                    message: response.data.message || "Failed to get driver payments",
-                    errors: response.data.errors || []
+                    message: result.message || "Failed to get driver payments",
+                    errors: result.errors || []
                 });
             }
 
-            return response.data.data;
+            return result.data;
         } catch (error) {
+            console.error("Get driver payments error:", error);
             return rejectWithValue({
-                message: error.response?.data?.message || "Failed to get driver payments",
-                errors: error.response?.data?.errors || []
+                message: error.message || "Failed to get driver payments",
+                errors: error.errors || []
             });
         }
     }
@@ -153,63 +225,46 @@ export const getAdminPaymentStats = createAsyncThunk(
     "payment/getAdminStats",
     async (filters = {}, { rejectWithValue }) => {
         try {
-            const queryParams = new URLSearchParams();
-            Object.entries(filters).forEach(([key, value]) => {
-                if (value) queryParams.append(key, value);
-            });
+            console.log("Fetching admin payment stats with filters:", filters);
 
-            const queryString = queryParams.toString();
-            const url = queryString ? `/api/payments/admin/stats?${queryString}` : "/api/payments/admin/stats";
+            const result = await paymentService.getAdminPaymentStats(filters);
 
-            const response = await axiosInstance.get(url);
-
-            if (!response.data.success) {
+            if (!result.success) {
                 return rejectWithValue({
-                    message: response.data.message || "Failed to get admin payment stats",
-                    errors: response.data.errors || []
+                    message: result.message || "Failed to get admin payment stats",
+                    errors: result.errors || []
                 });
             }
 
-            return response.data.data;
+            return result.data;
         } catch (error) {
+            console.error("Get admin payment stats error:", error);
             return rejectWithValue({
-                message: error.response?.data?.message || "Failed to get admin payment stats",
-                errors: error.response?.data?.errors || []
+                message: error.message || "Failed to get admin payment stats",
+                errors: error.errors || []
             });
         }
     }
 );
 
-// Helper function to extract Khalti callback parameters from URL
-export const extractKhaltiCallbackParams = () => {
-    const urlParams = new URLSearchParams(window.location.search);
-    const pidx = urlParams.get('pidx');
-    const transaction_id = urlParams.get('transaction_id');
-    const amount = urlParams.get('amount');
-    const purchase_order_id = urlParams.get('purchase_order_id');
-    const status = urlParams.get('status');
-
-    return {
-        pidx,
-        transaction_id,
-        amount,
-        purchase_order_id,
-        status
-    };
-};
-
+// Define initial state
 const initialState = {
     // Payment data
     payments: [],
     currentPayment: null,
     paymentUrl: null,
     userPayments: [],
+    userPaymentStats: null,
     driverPayments: [],
+    driverPaymentStats: null,
     adminStats: null,
+    recentPayments: [],
+    paymentsByBooking: {},
 
     // UI states
     loading: false,
     statsLoading: false,
+    lastAction: null,
 
     // Error handling
     error: null,
@@ -217,23 +272,33 @@ const initialState = {
 
     // Success states
     success: false,
+    actionSuccess: false,
     successMessage: ""
 };
 
+// Create payment slice
 const paymentSlice = createSlice({
     name: "payment",
     initialState,
     reducers: {
-        clearPaymentState: (state) => {
+        clearPaymentError: (state) => {
             state.error = null;
             state.errorDetails = [];
+        },
+
+        clearPaymentSuccess: (state) => {
             state.success = false;
+            state.actionSuccess = false;
             state.successMessage = "";
-            state.paymentUrl = null;
         },
 
         resetPaymentState: (state) => {
             return initialState;
+        },
+
+        clearCurrentPayment: (state) => {
+            state.currentPayment = null;
+            state.paymentUrl = null;
         }
     },
     extraReducers: (builder) => {
@@ -244,14 +309,20 @@ const paymentSlice = createSlice({
                 state.error = null;
                 state.errorDetails = [];
                 state.success = false;
+                state.actionSuccess = false;
+                state.paymentUrl = null;
             })
             .addCase(initiatePayment.fulfilled, (state, action) => {
                 state.loading = false;
                 state.success = true;
+                state.actionSuccess = true;
                 state.successMessage = "Payment initiated successfully";
-                state.currentPayment = action.payload.payment;
+                state.lastAction = Date.now();
 
-                // If Khalti or eSewa payment, store the payment URL
+                // Store current payment
+                state.currentPayment = action.payload.payment || action.payload;
+
+                // For Khalti, store payment URL for redirect
                 if (action.payload.payment_url) {
                     state.paymentUrl = action.payload.payment_url;
                 }
@@ -259,6 +330,37 @@ const paymentSlice = createSlice({
             .addCase(initiatePayment.rejected, (state, action) => {
                 state.loading = false;
                 state.error = action.payload?.message || "Payment initiation failed";
+                state.errorDetails = action.payload?.errors || [];
+                state.success = false;
+                state.actionSuccess = false;
+            })
+
+            // Check Khalti Payment Status
+            .addCase(checkKhaltiPaymentStatus.pending, (state) => {
+                state.loading = true;
+                state.error = null;
+                state.errorDetails = [];
+            })
+            .addCase(checkKhaltiPaymentStatus.fulfilled, (state, action) => {
+                state.loading = false;
+
+                // If payment status is returned
+                if (action.payload?.payment) {
+                    state.currentPayment = action.payload.payment;
+
+                    // Set success based on payment status
+                    if (state.currentPayment.status === "completed") {
+                        state.success = true;
+                        state.actionSuccess = true;
+                        state.successMessage = "Payment completed successfully";
+                    }
+                }
+
+                state.lastAction = Date.now();
+            })
+            .addCase(checkKhaltiPaymentStatus.rejected, (state, action) => {
+                state.loading = false;
+                state.error = action.payload?.message || "Failed to check payment status";
                 state.errorDetails = action.payload?.errors || [];
             })
 
@@ -270,17 +372,41 @@ const paymentSlice = createSlice({
             })
             .addCase(getPaymentDetails.fulfilled, (state, action) => {
                 state.loading = false;
-                state.currentPayment = action.payload.payment; // Access payment from the payload
+                state.currentPayment = action.payload.payment;
 
                 // Set success based on payment status
-                if (state.currentPayment && state.currentPayment.status === "completed") {
-                    state.success = true;
+                if (state.currentPayment?.status === "completed") {
                     state.successMessage = "Payment completed successfully";
                 }
+
+                state.lastAction = Date.now();
             })
             .addCase(getPaymentDetails.rejected, (state, action) => {
                 state.loading = false;
                 state.error = action.payload?.message || "Failed to get payment details";
+                state.errorDetails = action.payload?.errors || [];
+            })
+
+            // Get Payment Status By Booking
+            .addCase(getPaymentStatusByBooking.pending, (state) => {
+                state.loading = true;
+                state.error = null;
+                state.errorDetails = [];
+            })
+            .addCase(getPaymentStatusByBooking.fulfilled, (state, action) => {
+                state.loading = false;
+
+                // Store payment in lookup object
+                if (action.payload.payment) {
+                    const bookingId = action.payload.payment.booking;
+                    state.paymentsByBooking[bookingId] = action.payload.payment;
+                }
+
+                state.lastAction = Date.now();
+            })
+            .addCase(getPaymentStatusByBooking.rejected, (state, action) => {
+                state.loading = false;
+                state.error = action.payload?.message || "Failed to get payment status";
                 state.errorDetails = action.payload?.errors || [];
             })
 
@@ -293,6 +419,13 @@ const paymentSlice = createSlice({
             .addCase(getAllPayments.fulfilled, (state, action) => {
                 state.loading = false;
                 state.payments = action.payload.payments || [];
+
+                // Store pagination if provided
+                if (action.payload.pagination) {
+                    state.pagination = action.payload.pagination;
+                }
+
+                state.lastAction = Date.now();
             })
             .addCase(getAllPayments.rejected, (state, action) => {
                 state.loading = false;
@@ -310,6 +443,13 @@ const paymentSlice = createSlice({
                 state.loading = false;
                 state.userPayments = action.payload.payments || [];
                 state.userPaymentStats = action.payload.stats || null;
+
+                // Store pagination if provided
+                if (action.payload.pagination) {
+                    state.userPagination = action.payload.pagination;
+                }
+
+                state.lastAction = Date.now();
             })
             .addCase(getUserPayments.rejected, (state, action) => {
                 state.loading = false;
@@ -327,6 +467,13 @@ const paymentSlice = createSlice({
                 state.loading = false;
                 state.driverPayments = action.payload.payments || [];
                 state.driverPaymentStats = action.payload.stats || null;
+
+                // Store pagination if provided
+                if (action.payload.pagination) {
+                    state.driverPagination = action.payload.pagination;
+                }
+
+                state.lastAction = Date.now();
             })
             .addCase(getDriverPayments.rejected, (state, action) => {
                 state.loading = false;
@@ -344,6 +491,7 @@ const paymentSlice = createSlice({
                 state.statsLoading = false;
                 state.adminStats = action.payload.stats || null;
                 state.recentPayments = action.payload.recentPayments || [];
+                state.lastAction = Date.now();
             })
             .addCase(getAdminPaymentStats.rejected, (state, action) => {
                 state.statsLoading = false;
@@ -353,5 +501,16 @@ const paymentSlice = createSlice({
     },
 });
 
-export const { clearPaymentState, resetPaymentState } = paymentSlice.actions;
+// Export actions
+export const {
+    clearPaymentError,
+    clearPaymentSuccess,
+    resetPaymentState,
+    clearCurrentPayment
+} = paymentSlice.actions;
+
+// Export helper functions from service
+export const { handleKhaltiRedirect, extractKhaltiCallbackParams } = paymentService;
+
+// Export reducer
 export default paymentSlice.reducer;

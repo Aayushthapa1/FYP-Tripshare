@@ -7,7 +7,7 @@ import {
   getActiveRide,
   updatePaymentStatus,
   searchDrivers,
-  rateRide,
+ 
   getPendingRides
 } from "../controllers/handleRideController.js";
 
@@ -21,7 +21,6 @@ router.get("/ridehistory", getRideHistory);
 router.get("/activeride", getActiveRide);
 router.put("/paymentstatus", updatePaymentStatus);
 router.get("/searchdrivers", searchDrivers);
-router.post("/rateride", rateRide);
 router.get("/pending", getPendingRides);
 
 export default router;

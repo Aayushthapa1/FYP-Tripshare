@@ -2,14 +2,15 @@ import Ride from "../models/handleRideModel.js";
 import User from "../models/userModel.js";
 import mongoose from "mongoose";
 
-import { getIO } from "../utils/socketUtil.js";
+import { getIO } from "../utils/SocketUtils.js";
 const io = getIO();
 
 const isValidObjectId = (id) => {
   return mongoose.Types.ObjectId.isValid(id);
 };
 
-const calculateFare = (distance, vehicleType) => {
+// Updated calculateFare function with traffic-based dynamic pricing
+const calculateFare = (distance, vehicleType, trafficCondition) => {
   // Validate distance
   if (typeof distance !== "number" || distance < 0) {
     throw new Error("Invalid distance value");
@@ -36,7 +37,24 @@ const calculateFare = (distance, vehicleType) => {
       throw new Error(`Invalid vehicle type: ${vehicleType}`);
   }
 
-  return Math.round(baseFare + distance * ratePerKm);
+  // Apply traffic multiplier (default to normal if not specified)
+  let trafficMultiplier = 1.0;
+
+  switch (trafficCondition) {
+    case "heavy":
+      trafficMultiplier = 1.5; // 50% increase for heavy traffic
+      break;
+    case "moderate":
+      trafficMultiplier = 1.2; // 20% increase for moderate traffic
+      break;
+    case "light":
+    default:
+      trafficMultiplier = 1.0; // No increase for light/normal traffic
+      break;
+  }
+
+  // Calculate fare with traffic multiplier
+  return Math.round((baseFare + distance * ratePerKm) * trafficMultiplier);
 };
 
 /**
@@ -137,6 +155,9 @@ export const postRide = async (req, res) => {
 /**
  * REQUEST A RIDE (Passenger requests a ride)
  */
+/**
+ * REQUEST A RIDE (Passenger requests a ride)
+ */
 export const requestRide = async (req, res) => {
   try {
     const {
@@ -148,6 +169,7 @@ export const requestRide = async (req, res) => {
       vehicleType,
       distance,
       estimatedTime,
+      trafficCondition, // New parameter for traffic condition
       paymentMethod = "cash",
     } = req.body;
 
@@ -194,6 +216,11 @@ export const requestRide = async (req, res) => {
         ? estimatedTime
         : 15; // Default to 15 mins
 
+    // Validate traffic condition with default
+    const validTrafficCondition = ["light", "moderate", "heavy"].includes(trafficCondition)
+      ? trafficCondition
+      : "light"; // Default to light traffic if not provided or invalid
+
     // Use provided location names or defaults
     const validPickupLocationName = pickupLocationName || "Unknown location";
     const validDropoffLocationName =
@@ -229,10 +256,10 @@ export const requestRide = async (req, res) => {
       });
     }
 
-    // Calculate fare
+    // Calculate fare with traffic conditions
     let fare;
     try {
-      fare = calculateFare(validDistance, validVehicleType);
+      fare = calculateFare(validDistance, validVehicleType, validTrafficCondition);
     } catch (error) {
       return res.status(400).json({
         success: false,
@@ -250,6 +277,7 @@ export const requestRide = async (req, res) => {
       vehicleType: validVehicleType,
       distance: validDistance,
       estimatedTime: validEstimatedTime,
+      trafficCondition: validTrafficCondition, // Store traffic condition
       fare,
       paymentMethod,
       status: "requested",
@@ -282,6 +310,7 @@ export const requestRide = async (req, res) => {
         vehicleType: validVehicleType,
         distance: validDistance,
         estimatedTime: validEstimatedTime,
+        trafficCondition: validTrafficCondition,
         fare,
         paymentMethod,
         timestamp: new Date(),
@@ -485,13 +514,13 @@ export const updateRideStatus = async (req, res) => {
         const driverData =
           updatedRide.driverId && typeof updatedRide.driverId === "object"
             ? {
-                driverName:
-                  updatedRide.driverId.fullName ||
-                  updatedRide.driverId.username ||
-                  "Driver",
-                vehicleType: updatedRide.driverId.vehicleType || "Vehicle",
-                licensePlate: updatedRide.driverId.numberPlate || "",
-              }
+              driverName:
+                updatedRide.driverId.fullName ||
+                updatedRide.driverId.username ||
+                "Driver",
+              vehicleType: updatedRide.driverId.vehicleType || "Vehicle",
+              licensePlate: updatedRide.driverId.numberPlate || "",
+            }
             : { driverName: "Driver" };
 
         io.emit("ride_accepted", {
@@ -853,102 +882,6 @@ export const searchDrivers = async (req, res) => {
   }
 };
 
-/**
- * RATE RIDE
- */
-export const rateRide = async (req, res) => {
-  try {
-    const { rideId, rating, feedback } = req.body;
-
-    // Validate required fields
-    if (!rideId || rating === undefined) {
-      return res.status(400).json({
-        success: false,
-        message: "Ride ID and rating are required",
-      });
-    }
-
-    // Validate ObjectId
-    if (!isValidObjectId(rideId)) {
-      return res.status(400).json({
-        success: false,
-        message: "Invalid ride ID format",
-      });
-    }
-
-    // Validate rating
-    if (typeof rating !== "number" || rating < 1 || rating > 5) {
-      return res.status(400).json({
-        success: false,
-        message: "Rating must be a number between 1 and 5",
-      });
-    }
-
-    const ride = await Ride.findById(rideId)
-      .populate("passengerId", "fullName username")
-      .populate("driverId", "fullName username");
-
-    if (!ride) {
-      return res.status(404).json({
-        success: false,
-        message: "Ride not found",
-      });
-    }
-
-    // Only allow rating completed rides
-    if (ride.status !== "completed") {
-      return res.status(400).json({
-        success: false,
-        message: "Can only rate completed rides",
-      });
-    }
-
-    // Update ride with rating and feedback
-    ride.rating = rating;
-    if (feedback) {
-      ride.feedback = feedback;
-    }
-
-    await ride.save();
-
-    // Get user names for the notification
-    const passengerName =
-      ride.passengerId?.fullName || ride.passengerId?.username || "Passenger";
-    const driverName =
-      ride.driverId?.fullName || ride.driverId?.username || "Driver";
-
-    // Emit event with proper names
-    if (io) {
-      io.emit("ride_rated", {
-        rideId,
-        rating,
-        feedback: feedback || "",
-        passengerId:
-          typeof ride.passengerId === "object"
-            ? ride.passengerId._id
-            : ride.passengerId,
-        driverId:
-          typeof ride.driverId === "object" ? ride.driverId._id : ride.driverId,
-        passengerName,
-        driverName,
-        message: `${passengerName} rated the ride ${rating} stars`,
-        timestamp: new Date(),
-      });
-    }
-
-    return res.status(200).json({
-      success: true,
-      data: ride,
-    });
-  } catch (error) {
-    console.error("Rate ride error:", error);
-    return res.status(500).json({
-      success: false,
-      message: "Failed to rate ride",
-      error: error.message,
-    });
-  }
-};
 
 /**
  * GET PENDING RIDES

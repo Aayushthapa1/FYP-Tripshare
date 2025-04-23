@@ -12,12 +12,22 @@ import {
   Zap, // For Electric vehicle icon
   RotateCw, // For refresh icon
   Locate, // For current location
+  AlertTriangle, // For traffic warning
+  Clock, // For time indicator
 } from "lucide-react";
 import Navbar from "../layout/Navbar";
 import Footer from "../layout/Footer";
 import MapContainer from "./MapContainer";
 import MapSection from "./MapSection";
 import socketService from "../socket/socketService";
+// Import traffic utilities
+import {
+  getTrafficCondition,
+  calculateFareWithTraffic,
+  getTrafficDescription,
+  getTrafficColorClass,
+  getTrafficBgClass,
+} from "../../utils/mapUtills";
 
 // Fix: removing dependency on process.env which causes the error
 // Using constants instead
@@ -94,6 +104,13 @@ const RideBooking = () => {
   const [estimatedTime, setEstimatedTime] = useState(0);
   const [fare, setFare] = useState(0);
   const [directions, setDirections] = useState(null);
+
+  // Traffic and dynamic pricing states
+  const [trafficCondition, setTrafficCondition] = useState("light");
+  const [baseFare, setBaseFare] = useState(0);
+  const [trafficMultiplier, setTrafficMultiplier] = useState(1.0);
+  const [normalFare, setNormalFare] = useState(0);
+  const [isCheckingTraffic, setIsCheckingTraffic] = useState(false);
 
   // Form
   const [formErrors, setFormErrors] = useState({});
@@ -217,34 +234,42 @@ const RideBooking = () => {
     };
   }, [navigate, vehicleType, pickupLocation, user]);
 
-  // Calculate fare - memoized
-  const calculateFare = useCallback((distKm, type) => {
-    let baseFare = 0;
-    let ratePerKm = 0;
-    switch (type) {
-      case "Bike":
-        baseFare = 50;
-        ratePerKm = 15;
-        break;
-      case "Car":
-        baseFare = 100;
-        ratePerKm = 30;
-        break;
-      case "Electric":
-        baseFare = 80;
-        ratePerKm = 25;
-        break;
-      default:
-        baseFare = 100;
-        ratePerKm = 30;
-    }
-    const calculated = Math.round(baseFare + distKm * ratePerKm);
-    setFare(calculated);
+  // Calculate fare - updated with traffic conditions
+  const calculateFare = useCallback((distKm, type, traffic = "light") => {
+    // Use the imported utility function
+    const fareDetails = calculateFareWithTraffic(distKm, type, traffic);
+
+    // Update all fare-related states
+    setBaseFare(fareDetails.baseFare);
+    setTrafficMultiplier(fareDetails.trafficMultiplier);
+    setNormalFare(fareDetails.normalFare);
+    setFare(fareDetails.trafficAdjustedFare);
+
+    return fareDetails.trafficAdjustedFare;
   }, []);
 
-  // Calculate route - memoized with cache
+  // Check traffic conditions - new function
+  const checkTrafficConditions = useCallback(async (origin, destination) => {
+    if (!origin || !destination) return "light";
+
+    setIsCheckingTraffic(true);
+    try {
+      // Call the API to get traffic condition
+      const traffic = await getTrafficCondition(origin, destination);
+      setTrafficCondition(traffic);
+      return traffic;
+    } catch (error) {
+      console.error("Error checking traffic:", error);
+      setTrafficCondition("light");
+      return "light";
+    } finally {
+      setIsCheckingTraffic(false);
+    }
+  }, []);
+
+  // Calculate route - updated with traffic check
   const calculateRoute = useCallback(
-    (origin, destination) => {
+    async (origin, destination) => {
       if (!directionsServiceRef.current || !origin || !destination) return;
 
       // Create a cache key for this route
@@ -256,16 +281,29 @@ const RideBooking = () => {
         setDirections(cachedData.directions);
         setDistance(cachedData.distance);
         setEstimatedTime(cachedData.duration);
-        calculateFare(cachedData.distance, vehicleType);
+        setTrafficCondition(cachedData.trafficCondition || "light");
+        calculateFare(
+          cachedData.distance,
+          vehicleType,
+          cachedData.trafficCondition || "light"
+        );
         setShowSummary(true);
         return;
       }
+
+      // First check traffic conditions
+      toast.info("Checking current traffic conditions...");
+      const traffic = await checkTrafficConditions(origin, destination);
 
       directionsServiceRef.current.route(
         {
           origin,
           destination,
           travelMode: window.google.maps.TravelMode.DRIVING,
+          drivingOptions: {
+            departureTime: new Date(),
+            trafficModel: window.google.maps.TrafficModel.BEST_GUESS,
+          },
         },
         (result, status) => {
           if (status === window.google.maps.DirectionsStatus.OK) {
@@ -283,26 +321,37 @@ const RideBooking = () => {
             const distKm = totalDistance / 1000;
             const durMins = Math.ceil(totalDuration / 60);
 
-            // Store in cache
+            // Store in cache with traffic data
             routeCacheRef.current.set(cacheKey, {
               directions: result,
               distance: distKm,
               duration: durMins,
+              trafficCondition: traffic,
             });
 
             setDistance(distKm);
             setEstimatedTime(durMins);
 
-            // Calculate fare
-            calculateFare(distKm, vehicleType);
+            // Calculate fare with traffic
+            calculateFare(distKm, vehicleType, traffic);
             setShowSummary(true);
+
+            // Show toast notification about traffic if not light
+            if (traffic !== "light") {
+              const message = getTrafficDescription(traffic);
+              toast(message, {
+                icon: (
+                  <AlertTriangle className={getTrafficColorClass(traffic)} />
+                ),
+              });
+            }
           } else {
             toast.error(`Failed to get directions: ${status}`);
           }
         }
       );
     },
-    [vehicleType, calculateFare]
+    [vehicleType, calculateFare, checkTrafficConditions]
   );
 
   // On map load - optimized with useCallback
@@ -457,7 +506,7 @@ const RideBooking = () => {
     calculateRoute,
   ]);
 
-  // Request Ride handler with socket integration - Fixed to remove process.env
+  // Request Ride handler with socket integration and traffic data
   const handleRequestRide = useCallback(() => {
     if (!user?._id) {
       toast.error("Please log in to request a ride");
@@ -499,6 +548,7 @@ const RideBooking = () => {
       distance,
       estimatedTime,
       fare,
+      trafficCondition, // New field for traffic condition
       paymentMethod: "cash",
     };
 
@@ -550,7 +600,31 @@ const RideBooking = () => {
     distance,
     estimatedTime,
     fare,
+    trafficCondition, // Include traffic condition
     dispatch,
+  ]);
+
+  // Refresh traffic data - new function
+  const handleRefreshTraffic = useCallback(() => {
+    if (pickupLocation && dropoffLocation) {
+      toast.info("Refreshing traffic data...");
+      checkTrafficConditions(pickupLocation, dropoffLocation)
+        .then((traffic) => {
+          calculateFare(distance, vehicleType, traffic);
+          toast.success("Traffic information updated");
+        })
+        .catch((err) => {
+          toast.error("Failed to update traffic data");
+          console.error(err);
+        });
+    }
+  }, [
+    pickupLocation,
+    dropoffLocation,
+    checkTrafficConditions,
+    calculateFare,
+    distance,
+    vehicleType,
   ]);
 
   // Vehicle Type Selection UI
@@ -564,7 +638,7 @@ const RideBooking = () => {
         }`}
         onClick={() => {
           setVehicleType("Bike");
-          calculateFare(distance, "Bike");
+          calculateFare(distance, "Bike", trafficCondition);
         }}
       >
         <Bike
@@ -582,7 +656,7 @@ const RideBooking = () => {
         }`}
         onClick={() => {
           setVehicleType("Car");
-          calculateFare(distance, "Car");
+          calculateFare(distance, "Car", trafficCondition);
         }}
       >
         <Car
@@ -600,7 +674,7 @@ const RideBooking = () => {
         }`}
         onClick={() => {
           setVehicleType("Electric");
-          calculateFare(distance, "Electric");
+          calculateFare(distance, "Electric", trafficCondition);
         }}
       >
         <Zap
@@ -669,6 +743,37 @@ const RideBooking = () => {
     }
   }, [mapLoaded, dropoffLocation, calculateRoute]);
 
+  // Render traffic badge
+  const renderTrafficBadge = () => {
+    const colorClass = getTrafficColorClass(trafficCondition);
+    const bgClass = getTrafficBgClass(trafficCondition);
+
+    return (
+      <div className={`flex items-center ${colorClass}`}>
+        <div
+          className={`px-3 py-1 rounded-full text-sm font-medium ${bgClass} ${colorClass} flex items-center`}
+        >
+          <Clock className="w-4 h-4 mr-1" />
+          {trafficCondition === "heavy"
+            ? "Heavy Traffic"
+            : trafficCondition === "moderate"
+            ? "Moderate Traffic"
+            : "Light Traffic"}
+        </div>
+        <button
+          onClick={handleRefreshTraffic}
+          disabled={isCheckingTraffic}
+          className="ml-2 text-blue-500 hover:text-blue-700 disabled:opacity-50"
+          title="Refresh traffic data"
+        >
+          <RotateCw
+            className={`w-4 h-4 ${isCheckingTraffic ? "animate-spin" : ""}`}
+          />
+        </button>
+      </div>
+    );
+  };
+
   // Main Render
   return (
     <>
@@ -718,6 +823,7 @@ const RideBooking = () => {
               driverInfo={driverInfo}
               isRideAccepted={rideAccepted}
               estimatedArrival={estimatedArrival}
+              trafficCondition={trafficCondition} // Pass traffic condition to map
             />
           </MapContainer>
 
@@ -824,7 +930,42 @@ const RideBooking = () => {
         {/* Show summary if route found */}
         {showSummary && (
           <div className="bg-white rounded-lg shadow-md p-4 mb-6">
-            <h3 className="font-medium mb-3">Ride Summary</h3>
+            <div className="flex justify-between items-center mb-3">
+              <h3 className="font-medium">Ride Summary</h3>
+              {/* Display traffic badge */}
+              {renderTrafficBadge()}
+            </div>
+
+            {/* Traffic multiplier info */}
+            {trafficCondition !== "light" && (
+              <div
+                className={`mb-4 p-3 rounded-lg ${getTrafficBgClass(
+                  trafficCondition
+                )} flex items-start`}
+              >
+                <AlertTriangle
+                  className={`${getTrafficColorClass(
+                    trafficCondition
+                  )} w-5 h-5 mr-2 mt-0.5 flex-shrink-0`}
+                />
+                <div>
+                  <p
+                    className={`${getTrafficColorClass(
+                      trafficCondition
+                    )} font-medium`}
+                  >
+                    {trafficCondition === "heavy"
+                      ? "Surge Pricing in Effect"
+                      : "Dynamic Pricing Applied"}
+                  </p>
+                  <p className="text-sm mt-1">
+                    {getTrafficDescription(trafficCondition)} Base fare has been
+                    adjusted with a {(trafficMultiplier - 1) * 100}% increase.
+                  </p>
+                </div>
+              </div>
+            )}
+
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <p className="text-sm text-gray-500">Distance</p>
@@ -834,10 +975,40 @@ const RideBooking = () => {
                 <p className="text-sm text-gray-500">Estimated Time</p>
                 <p className="font-medium">{estimatedTime} min</p>
               </div>
-              <div>
-                <p className="text-sm text-gray-500">Estimated Fare</p>
-                <p className="font-medium">NPR {fare}</p>
+
+              {/* Show fare details */}
+              <div className="col-span-2">
+                <p className="text-sm text-gray-500">Fare Breakdown</p>
+                <div className="mt-1 border-t border-gray-100 pt-2">
+                  <div className="flex justify-between text-sm">
+                    <span>Base Fare:</span>
+                    <span>NPR {baseFare}</span>
+                  </div>
+                  <div className="flex justify-between text-sm mt-1">
+                    <span>Distance ({distance.toFixed(1)} km):</span>
+                    <span>NPR {normalFare - baseFare}</span>
+                  </div>
+
+                  {trafficCondition !== "light" && (
+                    <div
+                      className={`flex justify-between text-sm mt-1 ${getTrafficColorClass(
+                        trafficCondition
+                      )}`}
+                    >
+                      <span>
+                        Traffic Adjustment ({(trafficMultiplier - 1) * 100}%):
+                      </span>
+                      <span>NPR {fare - normalFare}</span>
+                    </div>
+                  )}
+
+                  <div className="flex justify-between font-medium mt-2 pt-2 border-t border-gray-100">
+                    <span>Total Fare:</span>
+                    <span>NPR {fare}</span>
+                  </div>
+                </div>
               </div>
+
               <div>
                 <p className="text-sm text-gray-500">Vehicle Type</p>
                 <p className="font-medium">{vehicleType}</p>

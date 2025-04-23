@@ -4,7 +4,7 @@ import { Toaster, toast } from "sonner";
 import { loginUser } from "../Slices/authSlice";
 import { useDispatch, useSelector } from "react-redux";
 import { useNavigate } from "react-router-dom";
-import socketService from "../socket/socketService"; 
+import socketService from "../socket/socketService";
 
 const LoginForm = () => {
   const [credentials, setCredentials] = useState({
@@ -17,28 +17,30 @@ const LoginForm = () => {
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
 
-  const { isAuthenticated, isLoading, user } = useSelector((state) => state?.auth);
+  const { isAuthenticated, isLoading, user } = useSelector(
+    (state) => state?.auth
+  );
 
   // Effect to connect socket on authentication change
   useEffect(() => {
     // If the user is authenticated and we have a user object, connect to socket
     if (isAuthenticated && user?._id) {
       console.log("User authenticated, connecting to socket service");
-      
+
       // Connect to socket server if not already connected
       if (!socketService.connected) {
         socketService.connect();
       }
-      
+
       // Send user info to socket server
       socketService.sendUserInfo(user._id, user.role);
-      
+
       // Redirect based on role after small delay to ensure connections are established
       setTimeout(() => {
-        if (user.role === 'driver') {
-          navigate('/driverridestatus');
+        if (user.role === "driver") {
+          navigate("/driverridestatus");
         } else {
-          navigate('/userDashboard');
+          navigate("/userDashboard");
         }
       }, 500);
     }
@@ -77,7 +79,7 @@ const LoginForm = () => {
         const response = resultAction.payload;
         console.log("Login success response:", response);
         toast.success("Login successful!");
-        
+
         // We don't navigate here since it's handled in the useEffect above
         // This ensures socket connection happens before navigation
       } else if (loginUser.rejected.match(resultAction)) {

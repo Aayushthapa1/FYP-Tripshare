@@ -18,6 +18,8 @@ import chatRoutes from "./routes/chatRoute.js";
 import UserKYCRoute from "./routes/UserKYCRoute.js";
 import fileUpload from "express-fileupload";
 import notificationRoute from "./routes/notificationRoute.js";
+import ratingRoute from "./routes/ratingRoute.js";
+
 
 const app = express();
 
@@ -54,6 +56,7 @@ app.use("/api/payments", paymentRoutes);
 app.use("/api/chat", chatRoutes);
 app.use("/api/userkyc", UserKYCRoute);
 app.use("/api/notifications", notificationRoute);
+app.use("/api/ratings", ratingRoute);
 // Root route
 app.get("/", (req, res) => {
   res.send("Ride Share platform running...");

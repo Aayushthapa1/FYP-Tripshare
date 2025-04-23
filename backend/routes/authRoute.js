@@ -8,9 +8,8 @@ import {
   updateUserProfile,
   getUsersByRole,
   forgotPassword,
-  resetPassword
-
-
+  resetPassword,
+  forgotPasswordLimiter // Import the rate limiter
 } from "../controllers/userController.js";
 import protectRoute from "../middlewares/protectRoute.js";
 import refreshAccessToken from "../utils/refreshAccessToken.js";
@@ -19,7 +18,6 @@ import { createResponse } from "../utils/responseHelper.js";
 const router = express.Router();
 
 // AUTH ROUTES
-
 router.post("/register", userRegister);
 router.post("/login", userLogin);
 router.post("/logout", userLogout);
@@ -27,13 +25,17 @@ router.post("/refresh-token", refreshAccessToken);
 router.get("/profile", protectRoute, getUserProfile);
 router.put("/profile", protectRoute, updateUserProfile);
 router.get("/users/:role", protectRoute, getUsersByRole);
-router.post("/forgotpassword", forgotPassword);
-router.put("/resetpassword/:resetToken", resetPassword);
+
+// Apply rate limiter to the forgot password route
+router.post("/forgotpassword", forgotPasswordLimiter, forgotPassword);
+
+// Update reset password route to use body instead of params
+router.post("/resetpassword", resetPassword);
 
 router.get("/checkAuth", protectRoute, async (req, res) => {
   try {
     const user = req.user;
-console.log("The user is ", user)
+    console.log("The user is ", user)
     if (!user) {
       return res
         .status(400)

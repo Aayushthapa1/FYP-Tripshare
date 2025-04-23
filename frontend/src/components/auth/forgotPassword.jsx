@@ -1,62 +1,55 @@
 import { useState, useEffect } from "react";
 import { Mail } from "lucide-react";
 import { Toaster, toast } from "sonner";
-import { forgotPassword, clearError } from "../Slices/authSlice";
+import {
+  forgotPassword,
+  clearError,
+  clearPasswordResetStatus,
+} from "../Slices/authSlice";
 import { useDispatch, useSelector } from "react-redux";
 import { Link } from "react-router-dom";
 
 const ForgotPassword = () => {
   const [email, setEmail] = useState("");
-  const [successMessage, setSuccessMessage] = useState("");
-  const [loading, setLoading] = useState(false);
   const dispatch = useDispatch();
-  const { isLoading, error } = useSelector((state) => state.auth);
+  const { isLoading, error, passwordResetStatus, passwordResetMessage } =
+    useSelector((state) => state.auth);
 
   useEffect(() => {
-    // Clear any previous errors when component mounts
+    // Clear any previous errors and reset status when component mounts
     dispatch(clearError());
+    dispatch(clearPasswordResetStatus());
 
-    // Clear success message when component unmounts
-    return () => setSuccessMessage("");
+    return () => {
+      // Clean up on unmount
+      dispatch(clearPasswordResetStatus());
+    };
   }, [dispatch]);
+
+  // Handle status changes from Redux
+  useEffect(() => {
+    if (passwordResetStatus === "success" && passwordResetMessage) {
+      toast.success(passwordResetMessage);
+      setEmail("");
+    } else if (passwordResetStatus === "failed" && error) {
+      toast.error(error);
+    }
+  }, [passwordResetStatus, passwordResetMessage, error]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setLoading(true);
-    setSuccessMessage("");
 
     if (!email) {
       toast.error("Please enter your email address");
-      setLoading(false);
       return;
     }
 
-    try {
-      const resultAction = await dispatch(forgotPassword({ email }));
-
-      if (forgotPassword.fulfilled.match(resultAction)) {
-        setEmail("");
-        const successMsg =
-          "Password reset OTP has been sent to your email. It is valid for 10 minutes.";
-        setSuccessMessage(successMsg);
-        toast.success(successMsg);
-      } else if (forgotPassword.rejected.match(resultAction)) {
-        const errorMessage =
-          resultAction.payload?.message ||
-          "Failed to send reset OTP. Please try again.";
-        toast.error(errorMessage);
-      }
-    } catch (error) {
-      console.error("Forgot password error:", error);
-      toast.error("An unexpected error occurred. Please try again.");
-    } finally {
-      setLoading(false);
-    }
+    dispatch(forgotPassword({ email }));
   };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-green-50 via-emerald-50 to-teal-50 flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-md w-full bg-white rounded-2xl shadow-[0_10px_40px_rgba(8,_112,_84,_0.12)] overflow-hidden">
+      <div className="max-w-md w-full bg-white rounded-2xl shadow-[0_10px_40px_rgba(8,_112,_84,_0.12)] overflow-hidden transition-all duration-300 hover:shadow-[0_15px_50px_rgba(8,_112,_84,_0.18)]">
         <div className="bg-gradient-to-r from-green-500 to-green-600 p-6">
           <div className="flex items-center justify-center">
             <div className="bg-white/10 p-3 rounded-full">
@@ -80,25 +73,42 @@ const ForgotPassword = () => {
             Forgot Password
           </h2>
           <p className="mt-2 text-center text-sm text-green-100">
-            Enter your email address and we'll send you an OTP to reset your
-            password.
+            Enter your email address and we'll send you a password reset link.
           </p>
         </div>
 
         <div className="p-6 md:p-8">
-          <Toaster position="top-right" />
+          <Toaster position="top-right" richColors closeButton />
 
-          {successMessage && (
+          {passwordResetStatus === "success" && (
             <div
-              className="mb-6 bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-lg relative"
+              className="mb-6 bg-green-50 border-l-4 border-green-500 text-green-700 px-4 py-3 rounded-lg relative"
               role="alert"
             >
-              <span className="block sm:inline">{successMessage}</span>
+              <div className="flex items-start">
+                <div className="mr-3 mt-0.5">
+                  <svg
+                    className="h-5 w-5 text-green-500"
+                    fill="currentColor"
+                    viewBox="0 0 20 20"
+                  >
+                    <path
+                      fillRule="evenodd"
+                      d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
+                      clipRule="evenodd"
+                    />
+                  </svg>
+                </div>
+                <div>
+                  <p className="font-medium">Password Reset Link Sent!</p>
+                  <p className="text-sm">{passwordResetMessage}</p>
+                </div>
+              </div>
             </div>
           )}
 
           <div className="w-full relative">
-            {(loading || isLoading) && (
+            {isLoading && (
               <div className="absolute inset-0 flex items-center justify-center bg-white bg-opacity-70 rounded-xl z-10">
                 <div className="h-10 w-10 border-4 border-t-transparent border-green-500 rounded-full animate-spin"></div>
               </div>
@@ -115,24 +125,25 @@ const ForgotPassword = () => {
                   name="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  className="w-full px-10 py-3 bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-green-500 focus:border-green-500 transition-all duration-200 text-gray-800 placeholder-gray-400"
+                  className="w-full px-10 py-3 bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-all duration-200 text-gray-800 placeholder-gray-400"
                   placeholder="Email address"
                   required
+                  disabled={isLoading}
                 />
               </div>
 
               <button
                 type="submit"
-                className="w-full py-3 px-4 bg-green-600 text-white font-medium rounded-lg hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 transform transition-all duration-200 hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
-                disabled={loading || isLoading}
+                className="w-full py-3 px-4 bg-green-600 text-white font-medium rounded-lg hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 transform transition-all duration-200 hover:shadow-lg hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
+                disabled={isLoading}
               >
-                {loading || isLoading ? (
+                {isLoading ? (
                   <div className="flex items-center justify-center space-x-2">
                     <div className="w-4 h-4 border-2 border-t-transparent border-white rounded-full animate-spin"></div>
                     <span>Sending...</span>
                   </div>
                 ) : (
-                  "Send Reset OTP"
+                  "Send Reset Link"
                 )}
               </button>
 

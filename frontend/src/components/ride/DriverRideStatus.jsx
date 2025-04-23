@@ -30,12 +30,13 @@ import {
   Image as ImageIcon,
   Info,
   Bike,
+  X,
 } from "lucide-react";
 import socketService from "../socket/socketService";
 import { useSocket } from "../../components/socket/SocketProvider";
 import MapContainer from "./MapContainer";
 import ImprovedMapSection from "./MapSection";
-import FixedChatComponent from "../chat/FixedChatComponent";
+import FixedChatComponent from "../chat/ChatComponent";
 
 // Ride Notification Component
 const RideNotification = ({ request, onAccept, onDecline, isAccepting }) => {
@@ -135,12 +136,15 @@ const DriverRideStatus = () => {
   const [isAcceptingRide, setIsAcceptingRide] = useState(false);
   const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
   const [incomingRideRequests, setIncomingRideRequests] = useState([]);
+  const [completedRideVisible, setCompletedRideVisible] = useState(false);
+  const [errorMessage, setErrorMessage] = useState(null);
 
   // Refs
   const messagesEndRef = useRef(null);
   const refreshTimerRef = useRef(null);
   const chatContainerRef = useRef(null);
   const inputRef = useRef(null);
+  const locationWatchIdRef = useRef(null);
 
   // Effect to sync socket connection state
   useEffect(() => {
@@ -156,6 +160,7 @@ const DriverRideStatus = () => {
     const handleConnect = () => {
       console.log("Socket connected in DriverRideStatus");
       setSocketConnected(true);
+      setErrorMessage(null);
 
       // Set driver as available
       if (user && user.role === "driver") {
@@ -175,66 +180,88 @@ const DriverRideStatus = () => {
     const handleDisconnect = () => {
       console.log("Socket disconnected in DriverRideStatus");
       setSocketConnected(false);
+      setErrorMessage("Connection lost. Attempting to reconnect...");
     };
 
     const handleNewRideRequest = (data) => {
       console.log("New ride request received:", data);
 
-      // Add to incoming requests state if not already there
-      setIncomingRideRequests((prev) => {
-        // Don't add duplicates
-        if (prev.some((req) => req.rideId === data.rideId)) {
-          return prev;
-        }
-        return [...prev, data];
-      });
+      try {
+        // Add to incoming requests state if not already there
+        setIncomingRideRequests((prev) => {
+          // Don't add duplicates
+          if (prev.some((req) => req.rideId === data.rideId)) {
+            return prev;
+          }
+          return [...prev, data];
+        });
 
-      // Show toast notification with action button
-      toast.info("New ride request received!", {
-        duration: 5000,
-        action: {
-          label: "View",
-          onClick: () => {
-            // Find the ride in pending rides or refresh to get it
-            const ride = pendingRides.find((r) => r._id === data.rideId);
-            if (ride) {
-              setSelectedRide(ride);
-              const pickupLoc = {
-                lat: parseFloat(ride.pickupLocation.latitude),
-                lng: parseFloat(ride.pickupLocation.longitude),
-              };
-              setMapCenter(pickupLoc);
-            } else {
-              dispatch(getPendingRides());
-            }
+        // Show toast notification with action button
+        toast.info("New ride request received!", {
+          duration: 5000,
+          action: {
+            label: "View",
+            onClick: () => {
+              // Find the ride in pending rides or refresh to get it
+              const ride = pendingRides?.find((r) => r._id === data.rideId);
+              if (ride) {
+                setSelectedRide(ride);
+                const pickupLoc = {
+                  lat: parseFloat(ride.pickupLocation.latitude),
+                  lng: parseFloat(ride.pickupLocation.longitude),
+                };
+                setMapCenter(pickupLoc);
+              } else {
+                dispatch(getPendingRides());
+              }
+            },
           },
-        },
-      });
+        });
 
-      // Refresh pending rides
-      if (user && user._id) {
-        dispatch(getPendingRides());
+        // Refresh pending rides
+        if (user && user._id) {
+          dispatch(getPendingRides());
+        }
+      } catch (error) {
+        console.error("Error processing ride request:", error);
       }
     };
 
     const handleRideStatusUpdated = (data) => {
       console.log("Ride status updated:", data);
 
-      if (data.newStatus === "canceled") {
-        toast.error(
-          `Ride canceled: ${data.cancelReason || "No reason provided"}`
-        );
-      } else if (data.newStatus === "completed") {
-        toast.success("Ride completed successfully!");
-      }
+      try {
+        if (data.newStatus === "canceled") {
+          toast.error(
+            `Ride canceled: ${data.cancelReason || "No reason provided"}`
+          );
 
-      // Refresh ride data
-      if (user && user._id) {
-        if (activeRide && activeRide._id) {
-          dispatch(getActiveRide({ userId: user._id, userType: "driver" }));
-        } else {
-          dispatch(getPendingRides());
+          // Clear any active location tracking
+          if (locationWatchIdRef.current) {
+            navigator.geolocation.clearWatch(locationWatchIdRef.current);
+            locationWatchIdRef.current = null;
+          }
+        } else if (data.newStatus === "completed") {
+          toast.success("Ride completed successfully!");
+          setCompletedRideVisible(true);
+
+          // Clear any active location tracking
+          if (locationWatchIdRef.current) {
+            navigator.geolocation.clearWatch(locationWatchIdRef.current);
+            locationWatchIdRef.current = null;
+          }
         }
+
+        // Refresh ride data
+        if (user && user._id) {
+          if (activeRide && activeRide._id) {
+            dispatch(getActiveRide({ userId: user._id, userType: "driver" }));
+          } else {
+            dispatch(getPendingRides());
+          }
+        }
+      } catch (error) {
+        console.error("Error handling ride status update:", error);
       }
     };
 
@@ -265,64 +292,83 @@ const DriverRideStatus = () => {
         clearTimeout(refreshTimerRef.current);
         refreshTimerRef.current = null;
       }
+
+      // Clear location tracking
+      if (locationWatchIdRef.current) {
+        navigator.geolocation.clearWatch(locationWatchIdRef.current);
+        locationWatchIdRef.current = null;
+      }
     };
   }, [activeRide, user, dispatch, driverLocation, pendingRides, connected]);
 
   // Get driver's location and set up real-time tracking
   useEffect(() => {
-    let watchId = null;
+    // Clear any existing watch
+    if (locationWatchIdRef.current) {
+      navigator.geolocation.clearWatch(locationWatchIdRef.current);
+      locationWatchIdRef.current = null;
+    }
 
     // Only start location tracking if we have an active ride
     if (activeRide && ["accepted", "picked up"].includes(activeRide.status)) {
       if (navigator.geolocation) {
         // Use high accuracy watchPosition instead of getCurrentPosition for real-time updates
-        watchId = navigator.geolocation.watchPosition(
-          (position) => {
-            const newLocation = {
-              lat: position.coords.latitude,
-              lng: position.coords.longitude,
-            };
+        try {
+          locationWatchIdRef.current = navigator.geolocation.watchPosition(
+            (position) => {
+              const newLocation = {
+                lat: position.coords.latitude,
+                lng: position.coords.longitude,
+              };
 
-            // Only update if position actually changed
-            if (
-              !driverLocation ||
-              driverLocation.lat !== newLocation.lat ||
-              driverLocation.lng !== newLocation.lng
-            ) {
-              setDriverLocation(newLocation);
-              setMapCenter(newLocation);
+              // Only update if position actually changed
+              if (
+                !driverLocation ||
+                driverLocation.lat !== newLocation.lat ||
+                driverLocation.lng !== newLocation.lng
+              ) {
+                setDriverLocation(newLocation);
+                setMapCenter(newLocation);
 
-              // Calculate and set ETA
-              const eta = calculateETA(newLocation);
-              setEstimatedArrival(eta);
+                // Calculate and set ETA
+                const eta = calculateETA(newLocation);
+                setEstimatedArrival(eta);
 
-              // Send location update through socket
-              if (socketService.connected && activeRide.passengerId) {
-                socketService.updateDriverLocation({
-                  rideId: activeRide._id,
-                  driverId: user._id,
-                  passengerId:
-                    typeof activeRide.passengerId === "object"
-                      ? activeRide.passengerId._id
-                      : activeRide.passengerId,
-                  location: newLocation,
-                  estimatedArrival: eta,
-                });
+                // Send location update through socket
+                if (socketService.connected && activeRide.passengerId) {
+                  try {
+                    socketService.updateDriverLocation({
+                      rideId: activeRide._id,
+                      driverId: user._id,
+                      passengerId:
+                        typeof activeRide.passengerId === "object"
+                          ? activeRide.passengerId._id
+                          : activeRide.passengerId,
+                      location: newLocation,
+                      estimatedArrival: eta,
+                    });
+                  } catch (error) {
+                    console.error("Error updating driver location:", error);
+                  }
+                }
               }
+            },
+            (error) => {
+              console.error("Error tracking position:", error);
+              toast.error(
+                "Unable to track your location. Please check your GPS settings."
+              );
+            },
+            {
+              enableHighAccuracy: true,
+              maximumAge: 10000, // 10 seconds
+              timeout: 10000, // 10 seconds
             }
-          },
-          (error) => {
-            console.error("Error tracking position:", error);
-            toast.error(
-              "Unable to track your location. Please check your GPS settings."
-            );
-          },
-          {
-            enableHighAccuracy: true,
-            maximumAge: 10000, // 10 seconds
-            timeout: 10000, // 10 seconds
-          }
-        );
+          );
+        } catch (error) {
+          console.error("Error setting up location tracking:", error);
+          toast.error("Failed to start location tracking");
+        }
       } else {
         toast.error("Geolocation is not supported by your browser");
       }
@@ -350,8 +396,9 @@ const DriverRideStatus = () => {
 
     // Clean up watch on unmount or if ride status changes
     return () => {
-      if (watchId !== null) {
-        navigator.geolocation.clearWatch(watchId);
+      if (locationWatchIdRef.current) {
+        navigator.geolocation.clearWatch(locationWatchIdRef.current);
+        locationWatchIdRef.current = null;
       }
     };
   }, [activeRide, user]);
@@ -381,6 +428,18 @@ const DriverRideStatus = () => {
       if (interval) clearInterval(interval);
     };
   }, [activeRide, user, dispatch]);
+
+  // Process active ride data safely
+  useEffect(() => {
+    // Handle completed ride visibility
+    if (
+      activeRide &&
+      activeRide.status === "completed" &&
+      !completedRideVisible
+    ) {
+      setCompletedRideVisible(true);
+    }
+  }, [activeRide, completedRideVisible]);
 
   // Accept ride handler
   const handleAcceptRide = async (ride) => {
@@ -588,9 +647,10 @@ const DriverRideStatus = () => {
       const result = await dispatch(updateRideStatus(payload)).unwrap();
 
       if (result.success) {
-        // Emit socket event
+        // Emit socket event with additional data when completing the ride
         if (socketService.connected) {
-          socketService.updateRideStatus({
+          // Basic ride status update
+          const statusUpdateData = {
             rideId: activeRide._id,
             previousStatus: activeRide.status,
             newStatus,
@@ -600,7 +660,19 @@ const DriverRideStatus = () => {
                 : activeRide.passengerId,
             driverId: user._id,
             updatedBy: "driver",
-          });
+          };
+
+          // Add additional driver info if this is a completion
+          if (newStatus === "completed") {
+            // Add driver info for passenger's rating modal
+            statusUpdateData.driverInfo = {
+              name: user?.fullName || user?.username || "Driver",
+              image: user?.profileImage || null,
+            };
+          }
+
+          // Send the enhanced status update
+          socketService.socket.emit("ride_status_changed", statusUpdateData);
         }
 
         toast.success(
@@ -608,6 +680,11 @@ const DriverRideStatus = () => {
             newStatus === "picked up" ? "started" : "completed"
           } successfully!`
         );
+
+        // If ride is completed, set the flag
+        if (newStatus === "completed") {
+          setCompletedRideVisible(true);
+        }
 
         // Refresh active ride and force UI update
         dispatch(getActiveRide({ userId: user._id, userType: "driver" }))
@@ -637,75 +714,89 @@ const DriverRideStatus = () => {
   };
 
   // Calculate ETA between driver and pickup/dropoff location
-  const calculateETA = (currentLocation, destinationLocation = null) => {
-    // Use pickup location if no destination provided and we have an active ride
-    if (!destinationLocation && activeRide?.pickupLocation) {
-      destinationLocation = {
-        lat: parseFloat(activeRide.pickupLocation.latitude),
-        lng: parseFloat(activeRide.pickupLocation.longitude),
-      };
-    }
+  const calculateETA = useCallback(
+    (currentLocation, destinationLocation = null) => {
+      try {
+        // Use pickup location if no destination provided and we have an active ride
+        if (!destinationLocation && activeRide?.pickupLocation) {
+          destinationLocation = {
+            lat: parseFloat(activeRide.pickupLocation.latitude),
+            lng: parseFloat(activeRide.pickupLocation.longitude),
+          };
+        }
 
-    // If no valid locations, return default
-    if (!currentLocation || !destinationLocation) return "15 mins";
+        // If no valid locations, return default
+        if (!currentLocation || !destinationLocation) return "15 mins";
 
-    // Calculate distance using Haversine formula
-    const R = 6371e3; // Earth radius in meters
-    const φ1 = (currentLocation.lat * Math.PI) / 180;
-    const φ2 = (destinationLocation.lat * Math.PI) / 180;
-    const Δφ =
-      ((destinationLocation.lat - currentLocation.lat) * Math.PI) / 180;
-    const Δλ =
-      ((destinationLocation.lng - currentLocation.lng) * Math.PI) / 180;
+        // Calculate distance using Haversine formula
+        const R = 6371e3; // Earth radius in meters
+        const φ1 = (currentLocation.lat * Math.PI) / 180;
+        const φ2 = (destinationLocation.lat * Math.PI) / 180;
+        const Δφ =
+          ((destinationLocation.lat - currentLocation.lat) * Math.PI) / 180;
+        const Δλ =
+          ((destinationLocation.lng - currentLocation.lng) * Math.PI) / 180;
 
-    const a =
-      Math.sin(Δφ / 2) * Math.sin(Δφ / 2) +
-      Math.cos(φ1) * Math.cos(φ2) * Math.sin(Δλ / 2) * Math.sin(Δλ / 2);
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-    const distance = R * c; // in meters
+        const a =
+          Math.sin(Δφ / 2) * Math.sin(Δφ / 2) +
+          Math.cos(φ1) * Math.cos(φ2) * Math.sin(Δλ / 2) * Math.sin(Δλ / 2);
+        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+        const distance = R * c; // in meters
 
-    // Calculate estimated time (assuming average speed of 30 km/h in city)
-    // Adjust speed based on time of day, vehicle type, etc. for better accuracy
-    let speed = 30; // km/h
+        // Calculate estimated time (assuming average speed of 30 km/h in city)
+        // Adjust speed based on time of day, vehicle type, etc. for better accuracy
+        let speed = 30; // km/h
 
-    // If vehicle type is bike, use different speed estimate
-    if (user?.vehicleType === "Bike") {
-      speed = 25; // km/h for bikes in city traffic
-    }
+        // If vehicle type is bike, use different speed estimate
+        if (user?.vehicleType === "Bike") {
+          speed = 25; // km/h for bikes in city traffic
+        }
 
-    const timeInMinutes = Math.ceil(distance / ((speed * 1000) / 60));
+        const timeInMinutes = Math.ceil(distance / ((speed * 1000) / 60));
 
-    if (timeInMinutes < 1) return "Less than 1 min";
-    if (timeInMinutes === 1) return "1 min";
-    if (timeInMinutes < 20) return `${timeInMinutes} mins`;
+        if (timeInMinutes < 1) return "Less than 1 min";
+        if (timeInMinutes === 1) return "1 min";
+        if (timeInMinutes < 20) return `${timeInMinutes} mins`;
 
-    return "20+ mins";
-  };
+        return "20+ mins";
+      } catch (error) {
+        console.error("Error calculating ETA:", error);
+        return "15 mins";
+      }
+    },
+    [activeRide, user?.vehicleType]
+  );
 
   // Format location data to be more user-friendly
-  const formatLocation = (location) => {
+  const formatLocation = useCallback((location) => {
     if (!location) return "Not specified";
 
-    // If it's a string, return it directly
-    if (typeof location === "string") return location;
+    try {
+      // If it's a string, return it directly
+      if (typeof location === "string") return location;
 
-    // If it has a name, return that
-    if (location.name) return location.name;
+      // If it has a name, return that
+      if (location.name) return location.name;
 
-    // If it has latitude and longitude
-    if (location.latitude && location.longitude) {
-      // Return formatted coordinates
-      return `${Number.parseFloat(location.latitude).toFixed(
-        6
-      )}, ${Number.parseFloat(location.longitude).toFixed(6)}`;
+      // If it has latitude and longitude
+      if (location.latitude && location.longitude) {
+        // Return formatted coordinates
+        return `${Number.parseFloat(location.latitude).toFixed(
+          6
+        )}, ${Number.parseFloat(location.longitude).toFixed(6)}`;
+      }
+
+      return "Location details unavailable";
+    } catch (error) {
+      console.error("Error formatting location:", error);
+      return "Location unavailable";
     }
-
-    return "Location details unavailable";
-  };
+  }, []);
 
   // Manual refresh function
-  const handleRefresh = () => {
+  const handleRefresh = useCallback(() => {
     setRefreshing(true);
+    setErrorMessage(null);
 
     const refreshPromises = [];
 
@@ -748,71 +839,94 @@ const DriverRideStatus = () => {
         // Add small delay to show refresh animation
         refreshTimerRef.current = setTimeout(() => {
           setRefreshing(false);
+          toast.success("Data refreshed successfully");
         }, 1000);
       })
-      .catch(() => {
+      .catch((error) => {
         setRefreshing(false);
+        setErrorMessage("Failed to refresh data. Try again.");
+        console.error("Refresh error:", error);
       });
-  };
+  }, [user, activeRide, dispatch]);
 
   // Toggle the chat view
   const toggleChat = () => {
     setShowChat(!showChat);
   };
 
+  // Determine if chat should be enabled
+  const isChatEnabled = () => {
+    return activeRide && ["accepted", "picked up"].includes(activeRide.status);
+  };
+
   // Chat component rendering
+  // Modified renderChatInterface function for DriverRideStatus component
   const renderChatInterface = () => {
     if (!showChat || !activeRide) return null;
 
     return (
-      <div
-        className="fixed inset-0 z-40 bg-white flex flex-col"
-        ref={chatContainerRef}
-      >
-        <div className="bg-gradient-to-r from-blue-600 to-blue-500 text-white p-4 flex items-center">
-          <button
-            onClick={toggleChat}
-            className="mr-3 hover:bg-white hover:bg-opacity-10 p-2 rounded-full transition-colors"
-          >
-            <ArrowLeft className="w-6 h-6" />
-          </button>
-          <div className="flex-1">
-            <h2 className="font-semibold">
-              {typeof activeRide.passengerId === "object"
-                ? activeRide.passengerId.fullName || "Passenger"
-                : "Passenger"}
-            </h2>
-            <p className="text-xs text-blue-100">
-              {activeRide.vehicleType || "Car"} • Ride #
-              {activeRide._id.substring(0, 6)}
-            </p>
-          </div>
-          {typeof activeRide.passengerId === "object" &&
-            (activeRide.passengerId.phone ||
-              activeRide.passengerId.phoneNumber) && (
-              <a
-                href={`tel:${
-                  activeRide.passengerId.phone ||
-                  activeRide.passengerId.phoneNumber
-                }`}
+      <div className="fixed inset-0 z-40 bg-black bg-opacity-20 flex justify-end">
+        {/* Close overlay by clicking outside */}
+        <div className="flex-grow" onClick={toggleChat}></div>
+
+        {/* Chat modal */}
+        <div className="w-full md:w-1/2 lg:w-1/3 bg-white h-full shadow-xl flex flex-col animate-in slide-in-from-right">
+          <div className="bg-gradient-to-r from-blue-600 to-blue-500 text-white p-4 flex items-center">
+            <button
+              onClick={toggleChat}
+              className="mr-3 hover:bg-white hover:bg-opacity-10 p-2 rounded-full transition-colors"
+            >
+              <ArrowLeft className="w-6 h-6" />
+            </button>
+            <div className="flex-1">
+              <h2 className="font-semibold">
+                {typeof activeRide.passengerId === "object"
+                  ? activeRide.passengerId.fullName || "Passenger"
+                  : "Passenger"}
+              </h2>
+              <p className="text-xs text-blue-100">
+                {activeRide.vehicleType || "Car"} • Ride #
+                {activeRide._id.substring(0, 6)}
+              </p>
+            </div>
+
+            <div className="flex items-center gap-2">
+              {typeof activeRide.passengerId === "object" &&
+                (activeRide.passengerId.phone ||
+                  activeRide.passengerId.phoneNumber) && (
+                  <a
+                    href={`tel:${
+                      activeRide.passengerId.phone ||
+                      activeRide.passengerId.phoneNumber
+                    }`}
+                    className="bg-white bg-opacity-20 p-2 rounded-full hover:bg-opacity-30 transition-colors"
+                  >
+                    <PhoneCall className="w-5 h-5 text-white" />
+                  </a>
+                )}
+
+              <button
+                onClick={toggleChat}
                 className="bg-white bg-opacity-20 p-2 rounded-full hover:bg-opacity-30 transition-colors"
               >
-                <PhoneCall className="w-5 h-5 text-white" />
-              </a>
-            )}
-        </div>
+                <X className="w-5 h-5 text-white" />
+              </button>
+            </div>
+          </div>
 
-        <div className="flex-1 overflow-y-auto bg-gray-50">
-          <FixedChatComponent
-            rideId={activeRide._id}
-            recipientId={
-              typeof activeRide.passengerId === "object"
-                ? activeRide.passengerId._id
-                : activeRide.passengerId
-            }
-            userId={user?._id}
-            userName={user?.fullName || user?.username || "Driver"}
-          />
+          <div className="flex-1 overflow-hidden bg-gray-50">
+            <FixedChatComponent
+              rideId={activeRide._id}
+              recipientId={
+                typeof activeRide.passengerId === "object"
+                  ? activeRide.passengerId._id
+                  : activeRide.passengerId
+              }
+              userId={user?._id}
+              userName={user?.fullName || user?.username || "Driver"}
+              isModal={true}
+            />
+          </div>
         </div>
       </div>
     );
@@ -841,10 +955,35 @@ const DriverRideStatus = () => {
     );
   };
 
+  // Render error message alert if there's an error
+  const renderErrorMessage = () => {
+    if (!errorMessage) return null;
+
+    return (
+      <div className="bg-red-50 border border-red-200 rounded-lg mb-4 px-4 py-3 flex items-start">
+        <AlertTriangle className="text-red-500 w-5 h-5 mr-2 flex-shrink-0 mt-0.5" />
+        <div className="flex-1">
+          <p className="text-red-600 font-medium">{errorMessage}</p>
+          <button
+            onClick={handleRefresh}
+            className="text-red-600 text-sm underline mt-1 hover:text-red-700"
+          >
+            Try refreshing
+          </button>
+        </div>
+        <button
+          onClick={() => setErrorMessage(null)}
+          className="text-gray-400 hover:text-gray-600 p-1"
+        >
+          <XCircle className="w-5 h-5" />
+        </button>
+      </div>
+    );
+  };
+
   return (
     <>
       <Navbar />
-      <Toaster richColors position="top-center" />
 
       {/* Chat Interface */}
       {renderChatInterface()}
@@ -889,6 +1028,9 @@ const DriverRideStatus = () => {
               </button>
             </div>
           </div>
+
+          {/* Error Message */}
+          {renderErrorMessage()}
 
           {/* Map Section */}
           <div className="bg-white rounded-lg shadow-lg p-4 mb-6">
@@ -1113,7 +1255,7 @@ const DriverRideStatus = () => {
                   {/* Action Buttons */}
                   <div className="space-y-4">
                     {/* Contact Options */}
-                    <div className="grid grid-cols-2 gap-3">
+                    <div className="grid grid-cols-1 gap-3">
                       {activeRide.passengerId?.phone && (
                         <a
                           href={`tel:${activeRide.passengerId.phone}`}
@@ -1124,13 +1266,15 @@ const DriverRideStatus = () => {
                         </a>
                       )}
 
-                      <button
-                        onClick={toggleChat}
-                        className="flex items-center justify-center py-3 bg-white rounded-xl border border-gray-200 hover:bg-blue-500 hover:text-white transition-colors shadow-sm"
-                      >
-                        <MessageSquare className="w-5 h-5 mr-2" />
-                        <span className="font-medium">Message</span>
-                      </button>
+                      {isChatEnabled() && (
+                        <button
+                          onClick={toggleChat}
+                          className="flex items-center justify-center py-3 bg-white rounded-xl border border-gray-200 hover:bg-blue-500 hover:text-white transition-colors shadow-sm"
+                        >
+                          <MessageSquare className="w-5 h-5 mr-2" />
+                          <span className="font-medium">Message Passenger</span>
+                        </button>
+                      )}
                     </div>
 
                     {/* Status Update Button */}
@@ -1193,6 +1337,41 @@ const DriverRideStatus = () => {
                       </p>
                     </div>
                   </div>
+                </div>
+              </div>
+            )}
+
+          {/* Completed Ride Message */}
+          {activeRide &&
+            activeRide.status === "completed" &&
+            completedRideVisible && (
+              <div className="bg-white rounded-lg shadow-lg overflow-hidden mb-6">
+                <div className="bg-gradient-to-r from-green-600 to-green-700 text-white p-5">
+                  <h2 className="font-bold text-xl flex items-center">
+                    <CheckSquare className="mr-2" />
+                    Ride Completed Successfully
+                  </h2>
+                </div>
+                <div className="p-6 text-center">
+                  <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <CheckCircle className="w-8 h-8 text-green-600" />
+                  </div>
+                  <h3 className="text-xl font-semibold text-gray-800 mb-2">
+                    Great job!
+                  </h3>
+                  <p className="text-gray-600 mb-6">
+                    You've successfully completed the ride. Thank you for
+                    providing a safe journey.
+                  </p>
+                  <button
+                    onClick={() => {
+                      setCompletedRideVisible(false);
+                      dispatch(getPendingRides());
+                    }}
+                    className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors shadow-md"
+                  >
+                    Look for New Rides
+                  </button>
                 </div>
               </div>
             )}
@@ -1397,7 +1576,6 @@ const DriverRideStatus = () => {
           </div>
         </div>
       )}
-
       <Footer />
     </>
   );

@@ -7,7 +7,7 @@ import axiosInstance from "../utils/axiosInstance";
 
 /**
  * CREATE a booking
- * POST /api/bookings
+ * POST /api/bookings/create
  */
 const createBooking = async ({ tripId, seats, paymentMethod }) => {
   try {
@@ -15,7 +15,7 @@ const createBooking = async ({ tripId, seats, paymentMethod }) => {
 
     // If your backend requires auth headers/cookies, use axiosInstance
     const response = await axiosInstance.post(
-      `${Base_Backend_Url}/api/bookings`,
+      `${Base_Backend_Url}/api/bookings/create`,
       { tripId, seats, paymentMethod },
       {
         withCredentials: true, // If cookies/sessions are needed
@@ -73,14 +73,14 @@ const fetchBookingDetails = async (bookingId) => {
 
 /**
  * CANCEL a booking
- * PATCH /api/bookings/:bookingId/cancel
+ * PUT /api/bookings/cancel/:bookingId
  */
 const cancelBooking = async (bookingId) => {
   try {
     console.log("Cancelling booking for ID:", bookingId);
 
-    const response = await axiosInstance.patch(
-      `${Base_Backend_Url}/api/bookings/${bookingId}/cancel`,
+    const response = await axiosInstance.put(
+      `${Base_Backend_Url}/api/bookings/cancel/${bookingId}`,
       {},
       {
         withCredentials: true,
@@ -94,12 +94,125 @@ const cancelBooking = async (bookingId) => {
   }
 };
 
+// === DRIVER ROUTES (updated to match your exact routes) ===
+
+/**
+ * GET pending bookings for a driver
+ * GET /api/bookings/pending
+ */
+const getDriverPendingBookings = async () => {
+  try {
+    console.log("Fetching driver's pending bookings...");
+
+    const response = await axiosInstance.get(
+      `${Base_Backend_Url}/api/bookings/pending`,
+      { withCredentials: true }
+    );
+    return response.data;
+  } catch (error) {
+    console.error("getDriverPendingBookings error:", error);
+    const formattedError = formatError(error);
+    throw formattedError;
+  }
+};
+
+/**
+ * GET all bookings for a driver's trips
+ * GET /api/bookings/all
+ */
+const getDriverBookings = async () => {
+  try {
+    console.log("Fetching all driver's bookings...");
+
+    const response = await axiosInstance.get(
+      `${Base_Backend_Url}/api/bookings/all`,
+      { withCredentials: true }
+    );
+    return response.data;
+  } catch (error) {
+    console.error("getDriverBookings error:", error);
+    const formattedError = formatError(error);
+    throw formattedError;
+  }
+};
+
+/**
+ * ACCEPT a booking (driver only)
+ * PUT /api/bookings/accept/:bookingId
+ */
+const acceptBooking = async (bookingId) => {
+  try {
+    console.log("Accepting booking ID:", bookingId);
+
+    const response = await axiosInstance.put(
+      `${Base_Backend_Url}/api/bookings/accept/${bookingId}`,
+      {},
+      { withCredentials: true }
+    );
+    return response.data;
+  } catch (error) {
+    console.error("acceptBooking error:", error);
+    const formattedError = formatError(error);
+    throw formattedError;
+  }
+};
+
+/**
+ * REJECT a booking (driver only)
+ * PUT /api/bookings/reject/:bookingId
+ */
+const rejectBooking = async (bookingId, reason) => {
+  try {
+    console.log("Rejecting booking ID:", bookingId, "Reason:", reason);
+
+    const response = await axiosInstance.put(
+      `${Base_Backend_Url}/api/bookings/reject/${bookingId}`,
+      { reason },
+      { withCredentials: true }
+    );
+    return response.data;
+  } catch (error) {
+    console.error("rejectBooking error:", error);
+    const formattedError = formatError(error);
+    throw formattedError;
+  }
+};
+
+/**
+ * COMPLETE a booking (driver only)
+ * PUT /api/bookings/complete/:bookingId
+ */
+const completeBooking = async (bookingId) => {
+  try {
+    console.log("Completing booking ID:", bookingId);
+
+    const response = await axiosInstance.put(
+      `${Base_Backend_Url}/api/bookings/complete/${bookingId}`,
+      {},
+      { withCredentials: true }
+    );
+    return response.data;
+  } catch (error) {
+    console.error("completeBooking error:", error);
+    const formattedError = formatError(error);
+    throw formattedError;
+  }
+};
+
 // Combine them into a single object for easy import
 const bookingService = {
+  // User booking methods
   createBooking,
   getMyBookings,
   fetchBookingDetails,
   cancelBooking,
+
+  // Driver booking methods
+  getDriverPendingBookings,
+  getDriverBookings,
+  acceptBooking,
+  rejectBooking,
+  completeBooking,
 };
 
 export default bookingService;

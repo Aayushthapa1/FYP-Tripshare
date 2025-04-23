@@ -1,6 +1,6 @@
 import Notification from "../models/notificationModel.js";
 import mongoose from "mongoose";
-import { getIO } from "../utils/socketUtil.js";
+import { getIO } from "../utils/SocketUtils.js";
 
 /**
  * Create a new notification

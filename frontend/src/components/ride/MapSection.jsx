@@ -6,7 +6,7 @@ import {
   InfoWindow,
   Polyline,
 } from "@react-google-maps/api";
-import { Car, Bike, AlertCircle } from "lucide-react";
+import { Car, Bike, AlertCircle, CheckCircle } from "lucide-react";
 
 /**
  * Enhanced map component with smooth animations and real-time driver location tracking
@@ -38,6 +38,7 @@ const EnhancedMapSection = memo(
     const [reachedDestination, setReachedDestination] = useState(false);
     const [driverToPickupDirections, setDriverToPickupDirections] =
       useState(null);
+    const [mapError, setMapError] = useState(null);
 
     const mapRef = useRef(null);
     const animationFrameRef = useRef(null);
@@ -59,59 +60,78 @@ const EnhancedMapSection = memo(
       clickableIcons: false,
     };
 
-    // Handle map load - store ref
-    const handleMapLoad = (map) => {
-      mapRef.current = map;
-      if (onMapLoad) onMapLoad(map);
-    };
+    // Update current driver location when driverLocation changes initially
+    useEffect(() => {
+      if (driverLocation && !currentDriverLocation && !isAnimating) {
+        setCurrentDriverLocation(driverLocation);
+      }
+    }, [driverLocation, currentDriverLocation, isAnimating]);
+
+    // Handle map load - store ref and catch errors
+    const handleMapLoad = useCallback(
+      (map) => {
+        try {
+          mapRef.current = map;
+          if (onMapLoad) onMapLoad(map);
+        } catch (error) {
+          console.error("Error loading map:", error);
+          setMapError("Failed to load map properly");
+        }
+      },
+      [onMapLoad]
+    );
 
     // Calculate center of map based on all points
     useEffect(() => {
       if (!mapRef.current) return;
 
-      // Create bounds only if we have multiple points to show
-      if (
-        (pickupLocation && dropoffLocation) ||
-        (pickupLocation && currentDriverLocation) ||
-        (dropoffLocation && currentDriverLocation)
-      ) {
-        const bounds = new window.google.maps.LatLngBounds();
+      try {
+        // Create bounds only if we have multiple points to show
+        if (
+          (pickupLocation && dropoffLocation) ||
+          (pickupLocation && currentDriverLocation) ||
+          (dropoffLocation && currentDriverLocation)
+        ) {
+          const bounds = new window.google.maps.LatLngBounds();
 
-        if (pickupLocation) {
-          bounds.extend(
-            new window.google.maps.LatLng(
-              pickupLocation.lat,
-              pickupLocation.lng
-            )
-          );
+          if (pickupLocation) {
+            bounds.extend(
+              new window.google.maps.LatLng(
+                pickupLocation.lat,
+                pickupLocation.lng
+              )
+            );
+          }
+
+          if (dropoffLocation) {
+            bounds.extend(
+              new window.google.maps.LatLng(
+                dropoffLocation.lat,
+                dropoffLocation.lng
+              )
+            );
+          }
+
+          if (currentDriverLocation) {
+            bounds.extend(
+              new window.google.maps.LatLng(
+                currentDriverLocation.lat,
+                currentDriverLocation.lng
+              )
+            );
+          }
+
+          // Fit map to show all points
+          mapRef.current.fitBounds(bounds);
+
+          // Don't zoom in too far
+          const zoom = mapRef.current.getZoom();
+          if (zoom > 16) {
+            mapRef.current.setZoom(16);
+          }
         }
-
-        if (dropoffLocation) {
-          bounds.extend(
-            new window.google.maps.LatLng(
-              dropoffLocation.lat,
-              dropoffLocation.lng
-            )
-          );
-        }
-
-        if (currentDriverLocation) {
-          bounds.extend(
-            new window.google.maps.LatLng(
-              currentDriverLocation.lat,
-              currentDriverLocation.lng
-            )
-          );
-        }
-
-        // Fit map to show all points
-        mapRef.current.fitBounds(bounds);
-
-        // Don't zoom in too far
-        const zoom = mapRef.current.getZoom();
-        if (zoom > 16) {
-          mapRef.current.setZoom(16);
-        }
+      } catch (error) {
+        console.error("Error adjusting map bounds:", error);
       }
     }, [pickupLocation, dropoffLocation, currentDriverLocation]);
 
@@ -172,6 +192,7 @@ const EnhancedMapSection = memo(
           }
         } catch (error) {
           console.error("Error fetching driver-to-pickup directions:", error);
+          setMapError("Could not calculate route to pickup location");
         }
       };
 
@@ -182,32 +203,36 @@ const EnhancedMapSection = memo(
     useEffect(() => {
       if (!directions || !directions.routes || !directions.routes[0]) return;
 
-      const route = directions.routes[0];
-      const points = [];
+      try {
+        const route = directions.routes[0];
+        const points = [];
 
-      // Extract all points from the route
-      route.legs.forEach((leg) => {
-        leg.steps.forEach((step) => {
-          if (step.path) {
-            points.push(
-              ...step.path.map((point) => ({
-                lat: point.lat(),
-                lng: point.lng(),
-              }))
-            );
-          }
+        // Extract all points from the route
+        route.legs.forEach((leg) => {
+          leg.steps.forEach((step) => {
+            if (step.path) {
+              points.push(
+                ...step.path.map((point) => ({
+                  lat: point.lat(),
+                  lng: point.lng(),
+                }))
+              );
+            }
+          });
         });
-      });
 
-      if (rideStatus === "picked up") {
-        setRoutePath(points);
-        setRemainingPath(points);
-        setDriverPositionOnPath(0);
+        if (rideStatus === "picked up") {
+          setRoutePath(points);
+          setRemainingPath(points);
+          setDriverPositionOnPath(0);
 
-        // Start the animation for ride in progress
-        if (points.length > 0) {
-          startPathAnimation();
+          // Start the animation for ride in progress
+          if (points.length > 0) {
+            startPathAnimation();
+          }
         }
+      } catch (error) {
+        console.error("Error extracting route path:", error);
       }
     }, [directions, rideStatus]);
 
@@ -221,28 +246,37 @@ const EnhancedMapSection = memo(
 
       let pathIndex = driverPositionOnPath;
       const animatePath = () => {
-        if (pathIndex < remainingPath.length) {
-          setCurrentDriverLocation(remainingPath[pathIndex]);
-          pathIndex += 1 * simulationSpeed;
-          setDriverPositionOnPath(pathIndex);
+        try {
+          if (pathIndex < remainingPath.length) {
+            setCurrentDriverLocation(remainingPath[pathIndex]);
+            pathIndex += 1 * simulationSpeed;
+            setDriverPositionOnPath(pathIndex);
 
-          // Check if reached pickup (first 10% of path)
-          if (!reachedPickup && pathIndex > remainingPath.length * 0.1) {
-            setReachedPickup(true);
-          }
+            // Check if reached pickup (first 10% of path)
+            if (!reachedPickup && pathIndex > remainingPath.length * 0.1) {
+              setReachedPickup(true);
+            }
 
-          // Check if reached destination (last 5% of path)
-          if (!reachedDestination && pathIndex > remainingPath.length * 0.95) {
+            // Check if reached destination (last 5% of path)
+            if (
+              !reachedDestination &&
+              pathIndex > remainingPath.length * 0.95
+            ) {
+              setReachedDestination(true);
+            }
+
+            pathAnimationRef.current = requestAnimationFrame(animatePath);
+          } else {
+            // Reached end of path
+            if (remainingPath.length > 0) {
+              setCurrentDriverLocation(remainingPath[remainingPath.length - 1]);
+            }
             setReachedDestination(true);
           }
-
-          pathAnimationRef.current = requestAnimationFrame(animatePath);
-        } else {
-          // Reached end of path
-          if (remainingPath.length > 0) {
-            setCurrentDriverLocation(remainingPath[remainingPath.length - 1]);
-          }
-          setReachedDestination(true);
+        } catch (error) {
+          console.error("Error in path animation:", error);
+          // Stop animation on error
+          cancelAnimationFrame(pathAnimationRef.current);
         }
       };
 
@@ -262,73 +296,80 @@ const EnhancedMapSection = memo(
 
       // For real driver updates (not path animation)
       if (rideStatus !== "picked up") {
-        // Start position is current driver location or new driver location
-        const startLat = currentDriverLocation?.lat || driverLocation.lat;
-        const startLng = currentDriverLocation?.lng || driverLocation.lng;
+        try {
+          // Start position is current driver location or new driver location
+          const startLat = currentDriverLocation?.lat || driverLocation.lat;
+          const startLng = currentDriverLocation?.lng || driverLocation.lng;
 
-        // End position is new driver location
-        const endLat = driverLocation.lat;
-        const endLng = driverLocation.lng;
+          // End position is new driver location
+          const endLat = driverLocation.lat;
+          const endLng = driverLocation.lng;
 
-        // Don't animate if it's the initial setting or same location
-        if (
-          !currentDriverLocation ||
-          (startLat === endLat && startLng === endLng)
-        ) {
-          setCurrentDriverLocation(driverLocation);
-          return;
-        }
-
-        // Calculate distance
-        if (window.google?.maps?.geometry?.spherical) {
-          const distance =
-            window.google.maps.geometry.spherical.computeDistanceBetween(
-              new window.google.maps.LatLng(startLat, startLng),
-              new window.google.maps.LatLng(endLat, endLng)
-            );
-
-          // If distance is very small, don't animate
-          if (distance < 10) {
+          // Don't animate if it's the initial setting or same location
+          if (
+            !currentDriverLocation ||
+            (startLat === endLat && startLng === endLng)
+          ) {
             setCurrentDriverLocation(driverLocation);
             return;
           }
-        }
 
-        // Set animating flag
-        setIsAnimating(true);
+          // Calculate distance
+          if (window.google?.maps?.geometry?.spherical) {
+            const distance =
+              window.google.maps.geometry.spherical.computeDistanceBetween(
+                new window.google.maps.LatLng(startLat, startLng),
+                new window.google.maps.LatLng(endLat, endLng)
+              );
 
-        // Calculate steps for animation (more steps = smoother animation)
-        const steps = 100;
-        const latStep = (endLat - startLat) / steps;
-        const lngStep = (endLng - startLng) / steps;
-
-        let step = 0;
-        let animLat = startLat;
-        let animLng = startLng;
-
-        const animate = () => {
-          step++;
-          if (step <= steps) {
-            // Update driver position
-            animLat += latStep;
-            animLng += lngStep;
-
-            setCurrentDriverLocation({
-              lat: animLat,
-              lng: animLng,
-            });
-
-            // Continue animation
-            animationFrameRef.current = requestAnimationFrame(animate);
-          } else {
-            // Animation complete
-            setCurrentDriverLocation(driverLocation);
-            setIsAnimating(false);
+            // If distance is very small, don't animate
+            if (distance < 10) {
+              setCurrentDriverLocation(driverLocation);
+              return;
+            }
           }
-        };
 
-        // Start animation
-        animationFrameRef.current = requestAnimationFrame(animate);
+          // Set animating flag
+          setIsAnimating(true);
+
+          // Calculate steps for animation (more steps = smoother animation)
+          const steps = 100;
+          const latStep = (endLat - startLat) / steps;
+          const lngStep = (endLng - startLng) / steps;
+
+          let step = 0;
+          let animLat = startLat;
+          let animLng = startLng;
+
+          const animate = () => {
+            step++;
+            if (step <= steps) {
+              // Update driver position
+              animLat += latStep;
+              animLng += lngStep;
+
+              setCurrentDriverLocation({
+                lat: animLat,
+                lng: animLng,
+              });
+
+              // Continue animation
+              animationFrameRef.current = requestAnimationFrame(animate);
+            } else {
+              // Animation complete
+              setCurrentDriverLocation(driverLocation);
+              setIsAnimating(false);
+            }
+          };
+
+          // Start animation
+          animationFrameRef.current = requestAnimationFrame(animate);
+        } catch (error) {
+          console.error("Error in driver animation:", error);
+          // Reset animation state and set driver location directly
+          setIsAnimating(false);
+          setCurrentDriverLocation(driverLocation);
+        }
       }
 
       // Cleanup animation on unmount or when dependencies change
@@ -365,32 +406,52 @@ const EnhancedMapSection = memo(
     }, [isRideAccepted, rideStatus, remainingPath, startPathAnimation]);
 
     // Create custom driver icon based on vehicle type
-    const getDriverIcon = () => {
-      const vehicleIcon = (
-        vehicleType ||
-        driverInfo?.vehicleType ||
-        "Car"
-      ).toLowerCase();
+    const getDriverIcon = useCallback(() => {
+      try {
+        const vehicleIcon = (
+          vehicleType ||
+          driverInfo?.vehicleType ||
+          "Car"
+        ).toLowerCase();
 
-      let iconUrl;
+        let iconUrl;
 
-      if (vehicleIcon === "bike" || vehicleIcon === "motorcycle") {
-        iconUrl = "https://maps.google.com/mapfiles/ms/icons/motorcycling.png";
-      } else if (vehicleIcon === "electric") {
-        iconUrl = "https://maps.google.com/mapfiles/ms/icons/cabs.png";
-      } else {
-        // Default to car
-        iconUrl = "https://maps.google.com/mapfiles/ms/icons/cabs.png";
+        if (vehicleIcon === "bike" || vehicleIcon === "motorcycle") {
+          iconUrl =
+            "https://maps.google.com/mapfiles/ms/icons/motorcycling.png";
+        } else if (vehicleIcon === "electric") {
+          iconUrl = "https://maps.google.com/mapfiles/ms/icons/cabs.png";
+        } else {
+          // Default to car
+          iconUrl = "https://maps.google.com/mapfiles/ms/icons/cabs.png";
+        }
+
+        return {
+          url: iconUrl,
+          scaledSize: new window.google.maps.Size(40, 40),
+          anchor: new window.google.maps.Point(20, 20),
+          // Add animation for better visibility
+          animation: window.google.maps.Animation.DROP,
+        };
+      } catch (error) {
+        console.error("Error creating driver icon:", error);
+        // Return a simple default icon if there's an error
+        return {
+          url: "https://maps.google.com/mapfiles/ms/icons/cabs.png",
+          scaledSize: new window.google.maps.Size(40, 40),
+        };
       }
+    }, [vehicleType, driverInfo]);
 
-      return {
-        url: iconUrl,
-        scaledSize: new window.google.maps.Size(40, 40),
-        anchor: new window.google.maps.Point(20, 20),
-        // Add animation for better visibility
-        animation: window.google.maps.Animation.DROP,
-      };
-    };
+    if (mapError) {
+      return (
+        <div className="h-64 bg-red-50 rounded-lg flex flex-col items-center justify-center p-4 border border-red-200">
+          <AlertCircle className="w-8 h-8 text-red-500 mb-2" />
+          <p className="text-red-600 font-medium">{mapError}</p>
+          <p className="text-red-500 text-sm mt-1">Please try again later</p>
+        </div>
+      );
+    }
 
     return (
       <div className="relative">
@@ -566,5 +627,8 @@ const EnhancedMapSection = memo(
     );
   }
 );
+
+// Set display name for debugging
+EnhancedMapSection.displayName = "EnhancedMapSection";
 
 export default EnhancedMapSection;

@@ -1,15 +1,27 @@
 import { useState } from "react";
 import { Search } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import { useDispatch } from "react-redux";
+import { searchTrips } from "../Slices/tripSlice"; // Update this path if needed
 
 export default function SearchBar() {
   const [searchQuery, setSearchQuery] = useState("");
   const navigate = useNavigate();
+  const dispatch = useDispatch();
 
   const handleSearch = (e) => {
     e.preventDefault();
     if (searchQuery.trim()) {
-      navigate(`/search?q=${encodeURIComponent(searchQuery)}`);
+      // Dispatch the search action with the appropriate search parameters
+      dispatch(
+        searchTrips({
+          departureLocation: searchQuery,
+          destinationLocation: searchQuery,
+        })
+      );
+
+      // Navigate to trips page instead of search page
+      navigate(`/trips?search=${encodeURIComponent(searchQuery)}`);
     }
   };
 

@@ -7,18 +7,60 @@ import authService from "../services/authService";
 const axiosInstance = axios.create({
   baseURL: Base_Backend_Url,
   withCredentials: true,
+  timeout: 30000, // 30 seconds timeout
+  headers: {
+    "Content-Type": "application/json",
+  }
 });
+
+// Special handling for PATCH requests to prevent CORS issues
+const originalPatch = axiosInstance.patch;
+axiosInstance.patch = function patchWithFallback(url, data, config) {
+  // Try original PATCH first
+  return originalPatch.call(this, url, data, config)
+    .catch((error) => {
+      // If CORS error, fallback to PUT with method override
+      if (error.message && error.message.includes('CORS')) {
+        console.warn("⚠️ PATCH CORS issue detected, using PUT with override...");
+        return axiosInstance.put(
+          url,
+          data,
+          {
+            ...config,
+            headers: {
+              ...config?.headers,
+              'X-HTTP-Method-Override': 'PATCH'
+            }
+          }
+        );
+      }
+      return Promise.reject(error);
+    });
+};
 
 // Request Interceptor
 axiosInstance.interceptors.request.use(
   (config) => {
+    // Get token from cookies
     const accessToken = Cookies.get("accessToken");
+
+    // Add authorization header if token exists
     if (accessToken) {
       config.headers["Authorization"] = `Bearer ${accessToken}`;
     }
 
-    // Log the request for debugging
-    console.log(`🚀 Making ${config.method.toUpperCase()} request to: ${config.baseURL}${config.url}`);
+    // Include timestamp in requests to prevent caching issues
+    if (config.method === 'get') {
+      config.params = {
+        ...config.params,
+        _t: Date.now()
+      };
+    }
+
+    // Log the request for debugging (only in development)
+    if (process.env.NODE_ENV !== 'production') {
+      console.log(`🚀 ${config.method.toUpperCase()} request to: ${config.baseURL}${config.url}`);
+    }
 
     return config;
   },
@@ -31,57 +73,125 @@ axiosInstance.interceptors.request.use(
 // Response Interceptor
 axiosInstance.interceptors.response.use(
   (response) => {
-    console.log("✅ Response received:", response);
+    // Log successful responses (only in development)
+    if (process.env.NODE_ENV !== 'production') {
+      console.log(`✅ Response from ${response.config.url}:`,
+        response.status,
+        response.data ? 'Data received' : 'No data'
+      );
+    }
     return response;
   },
   async (error) => {
-    console.error("❌ Axios Error:", error);
-
+    // Get the original request that caused the error
     const originalRequest = error.config;
 
+    // Implement token refresh logic for 401 errors
     if (error.response?.status === 401 && !originalRequest._retry) {
-      console.warn("🔄 401 Unauthorized - Attempting token refresh...");
       originalRequest._retry = true;
+
       try {
-        console.log("🔄 Dispatching refreshAccessToken...");
+        console.log("🔄 Access token expired, attempting refresh...");
+
+        // Call refresh token API
         const refreshResponse = await authService.refreshAccessTokenService();
-        const newAccessToken = refreshResponse?.data?.accessToken;
+
+        // Check if we have a new token
+        const newAccessToken = refreshResponse?.data?.result?.accessToken ||
+          refreshResponse?.data?.accessToken;
+
         if (!newAccessToken) {
-          console.error("❌ Token refresh failed: No new access token found!");
-          return Promise.reject(error);
+          throw new Error("No access token returned from refresh endpoint");
         }
-        Cookies.set("accessToken", newAccessToken, { secure: true, sameSite: "strict" });
+
+        // Store the new token
+        Cookies.set("accessToken", newAccessToken, {
+          secure: process.env.NODE_ENV === 'production',
+          sameSite: "strict"
+        });
+
+        // Update the failed request with new token
         originalRequest.headers["Authorization"] = `Bearer ${newAccessToken}`;
-        console.log("🔑 New Access Token:", newAccessToken);
-        console.log("🔄 Retrying original request with new token...");
+
+        // Retry the original request with new token
         return axiosInstance(originalRequest);
       } catch (refreshError) {
-        console.error("❌ Token refresh error:", refreshError);
+        console.error("❌ Token refresh failed:", refreshError);
+
+        // Clear authentication data
         Cookies.remove("accessToken");
         Cookies.remove("refreshToken");
-        window.location.href = "/login";
+
+        // Dispatch event for auth state tracking
+        const authEvent = new CustomEvent('auth:logout', {
+          detail: { reason: 'token_refresh_failed' }
+        });
+        window.dispatchEvent(authEvent);
+
+        // Redirect to login
+        setTimeout(() => {
+          window.location.href = "/login";
+        }, 100);
+
         return Promise.reject(refreshError);
       }
     }
 
-    // Enhanced error logging
+    // Specific error handling for different status codes
     if (error.response) {
-      // The request was made and the server responded with a status code
-      // that falls out of the range of 2xx
-      console.error("❌ Response error data:", error.response.data);
-      console.error("❌ Response error status:", error.response.status);
-      console.error("❌ Response error headers:", error.response.headers);
+      // Log more detailed error information
+      console.error(`❌ ${error.config?.method?.toUpperCase()} ${error.config?.url} failed:`, {
+        status: error.response.status,
+        statusText: error.response.statusText,
+        data: error.response.data
+      });
+
+      // Handle specific status codes
+      switch (error.response.status) {
+        case 403:
+          console.error("❌ Permission denied (403)");
+          break;
+        case 404:
+          console.error(`❌ Resource not found (404): ${error.config.url}`);
+          break;
+        case 422:
+          console.error("❌ Validation error (422):", error.response.data);
+          break;
+        case 500:
+          console.error("❌ Server error (500)");
+          break;
+      }
     } else if (error.request) {
-      // The request was made but no response was received
-      console.error("❌ No response received:", error.request);
+      // Request was made but no response was received
+      console.error("❌ No response received:", {
+        url: error.config?.url,
+        method: error.config?.method
+      });
+
+      // Check for network connectivity issues
+      if (!navigator.onLine) {
+        console.error("❌ Network connectivity issue detected");
+        // You could dispatch an event here to show a network error UI
+      }
     } else {
-      // Something happened in setting up the request that triggered an Error
-      console.error("❌ Error message:", error.message);
+      // Error in setting up the request
+      console.error("❌ Request setup error:", error.message);
     }
 
-    console.error("❌ Request failed, rejecting error...");
     return Promise.reject(error);
   }
 );
+
+// Add cancel token support
+axiosInstance.cancelToken = axios.CancelToken;
+axiosInstance.isCancel = axios.isCancel;
+
+// Add helper to create pre-configured instances
+axiosInstance.createInstance = (config) => {
+  return axios.create({
+    ...axiosInstance.defaults,
+    ...config,
+  });
+};
 
 export default axiosInstance;
