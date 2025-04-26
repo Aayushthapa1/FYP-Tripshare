@@ -16,7 +16,7 @@ import {
 import Navbar from "../layout/Navbar";
 import Footer from "../layout/Footer";
 import { toast, Toaster } from "sonner";
-import { getPaymentDetails } from "../Slices/paymentSlice";
+import { getPaymentDetails,getUserPayments } from "../Slices/paymentSlice";
 
 const PaymentSuccess = () => {
   const navigate = useNavigate();

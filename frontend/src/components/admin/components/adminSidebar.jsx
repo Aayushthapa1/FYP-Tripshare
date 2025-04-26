@@ -13,6 +13,7 @@ import {
   ChevronRight,
   Menu,
   X,
+  Bell,
 } from "lucide-react";
 import { logoutUser } from "../../Slices/authSlice";
 import { NavLink, useNavigate } from "react-router-dom";
@@ -228,7 +229,24 @@ function AdminSidebar({ isOpen, onClose }) {
             <span className={`${collapsed ? "md:hidden" : ""}`}>Payments</span>
           </NavLink>
 
-          
+          <NavLink
+            to="/admin/notifications"
+            className={({ isActive }) =>
+              `flex items-center ${
+                collapsed ? "md:justify-center" : ""
+              } space-x-3 p-3 rounded-lg transition-all duration-200
+                ${
+                  isActive
+                    ? "bg-green-50 text-green-700 font-medium dark:bg-green-900/30 dark:text-green-400"
+                    : "text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700/50"
+                }`
+            }
+          >
+            <Bell className="w-5 h-5 flex-shrink-0" />
+            <span className={`${collapsed ? "md:hidden" : ""}`}>
+              Notifications
+            </span>
+          </NavLink>
         </nav>
 
         {/* Profile + Logout (bottom) */}

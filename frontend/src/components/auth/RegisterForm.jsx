@@ -21,6 +21,7 @@ const RegisterForm = () => {
 
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [registrationComplete, setRegistrationComplete] = useState(false);
 
   const togglePasswordVisibility = () => {
     setShowPassword((prev) => !prev);
@@ -94,8 +95,18 @@ const RegisterForm = () => {
       console.log("The response in the register form:", response);
 
       if (response?.StatusCode === 200 && response?.IsSuccess === true) {
-        toast.success("Registration successful!");
-        setTimeout(() => navigate("/login"), 2000);
+        setRegistrationComplete(true);
+        toast.success("Registration successful! Redirecting to login...");
+
+        // Store email in sessionStorage to autofill on login page
+        sessionStorage.setItem("registeredEmail", formData.email);
+
+        // Redirect to login after 2 seconds with query parameters
+        setTimeout(() => {
+          navigate(
+            `/login?email=${encodeURIComponent(formData.email)}&newUser=true`
+          );
+        }, 2000);
       } else {
         console.log("Registration failed. Error response:", response);
         toast.error(
@@ -136,6 +147,7 @@ const RegisterForm = () => {
             className="w-full px-10 py-3 bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-green-500 focus:border-green-500 transition-all duration-200 text-gray-800 placeholder-gray-400"
             placeholder="Full Name"
             required
+            disabled={loading || registrationComplete}
           />
         </div>
 
@@ -153,6 +165,7 @@ const RegisterForm = () => {
             className="w-full px-10 py-3 bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-green-500 focus:border-green-500 transition-all duration-200 text-gray-800 placeholder-gray-400"
             placeholder="Username"
             required
+            disabled={loading || registrationComplete}
           />
         </div>
 
@@ -171,6 +184,7 @@ const RegisterForm = () => {
             placeholder="Phone Number"
             required
             pattern="[0-9]{10}"
+            disabled={loading || registrationComplete}
           />
         </div>
 
@@ -188,6 +202,7 @@ const RegisterForm = () => {
             className="w-full px-10 py-3 bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-green-500 focus:border-green-500 transition-all duration-200 text-gray-800 placeholder-gray-400"
             placeholder="Address"
             required
+            disabled={loading || registrationComplete}
           />
         </div>
 
@@ -205,6 +220,7 @@ const RegisterForm = () => {
             className="w-full px-10 py-3 bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-green-500 focus:border-green-500 transition-all duration-200 text-gray-800 placeholder-gray-400"
             placeholder="Email"
             required
+            disabled={loading || registrationComplete}
           />
         </div>
 
@@ -220,6 +236,7 @@ const RegisterForm = () => {
             onChange={handleChange}
             className="w-full px-10 py-3 bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-green-500 focus:border-green-500 transition-all duration-200 text-gray-800 appearance-none"
             required
+            disabled={loading || registrationComplete}
           >
             <option value="user">Passenger</option>
             <option value="driver">Driver</option>
@@ -256,11 +273,13 @@ const RegisterForm = () => {
             className="w-full px-10 py-3 bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-green-500 focus:border-green-500 transition-all duration-200 text-gray-800 placeholder-gray-400"
             placeholder="Password"
             required
+            disabled={loading || registrationComplete}
           />
           <button
             type="button"
             onClick={togglePasswordVisibility}
             className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 focus:outline-none"
+            disabled={loading || registrationComplete}
           >
             {showPassword ? (
               <svg
@@ -298,12 +317,45 @@ const RegisterForm = () => {
           <button
             type="submit"
             className="w-full py-3 px-4 bg-green-600 text-white font-medium rounded-lg hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 transform transition-all duration-200 hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
-            disabled={loading}
+            disabled={loading || registrationComplete}
           >
             {loading ? (
-              <div className="flex items-center justify-center space-x-2">
-                <div className="w-4 h-4 border-2 border-t-transparent border-white rounded-full animate-spin"></div>
-                <span>Creating account...</span>
+              <div className="flex items-center justify-center">
+                <div className="loader">
+                  <div className="flex space-x-2">
+                    <div
+                      className="h-3 w-3 bg-white rounded-full animate-bounce"
+                      style={{ animationDelay: "0ms" }}
+                    ></div>
+                    <div
+                      className="h-3 w-3 bg-white rounded-full animate-bounce"
+                      style={{ animationDelay: "150ms" }}
+                    ></div>
+                    <div
+                      className="h-3 w-3 bg-white rounded-full animate-bounce"
+                      style={{ animationDelay: "300ms" }}
+                    ></div>
+                  </div>
+                </div>
+                <span className="ml-2">Creating your account...</span>
+              </div>
+            ) : registrationComplete ? (
+              <div className="flex items-center justify-center">
+                <svg
+                  className="w-5 h-5 mr-2 text-white"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                  xmlns="http://www.w3.org/2000/svg"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth="2"
+                    d="M5 13l4 4L19 7"
+                  ></path>
+                </svg>
+                <span>Account Created! Redirecting...</span>
               </div>
             ) : (
               "Create Account"

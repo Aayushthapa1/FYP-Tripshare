@@ -15,7 +15,13 @@ import {
   clearActionSuccess,
   clearBookingError,
 } from "../Slices/bookingSlice";
-import { initiatePayment } from "../Slices/paymentSlice";
+import {
+  initiatePayment,
+  completeKhaltiPayment,
+  clearPaymentError,
+  clearPaymentSuccess,
+  extractKhaltiCallbackParams,
+} from "../Slices/paymentSlice";
 
 import {
   MapPin,
@@ -58,6 +64,7 @@ const Booking = () => {
     error: tripError,
     currentTrip,
   } = useSelector((state) => state.trip);
+
   const {
     loading: bookingLoading,
     error: bookingError,
@@ -67,6 +74,13 @@ const Booking = () => {
     pendingBookings,
     currentBooking,
   } = useSelector((state) => state.booking);
+
+  const {
+    loading: paymentLoading,
+    error: paymentError,
+    success: paymentSuccess,
+    currentPayment,
+  } = useSelector((state) => state.payment);
 
   // Local state
   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState("COD");
@@ -78,6 +92,89 @@ const Booking = () => {
   const [viewMode, setViewMode] = useState(bookingId ? "details" : "create");
   const [paymentUrl, setPaymentUrl] = useState(null);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [paymentStatus, setPaymentStatus] = useState(null);
+
+  // Check for Khalti payment return
+  useEffect(() => {
+    // Check if this is a return from Khalti payment
+    const pidx = queryParams.get("pidx");
+    const khaltiStatus = queryParams.get("status");
+    const purchase_order_id = queryParams.get("purchase_order_id");
+
+    if (pidx) {
+      console.log("Detected Khalti payment return:", {
+        pidx,
+        khaltiStatus,
+        purchase_order_id,
+      });
+
+      // Process the payment completion
+      const khaltiParams = extractKhaltiCallbackParams();
+      setIsProcessingPayment(true);
+
+      // Dispatch completeKhaltiPayment action
+      dispatch(completeKhaltiPayment(khaltiParams))
+        .unwrap()
+        .then((result) => {
+          console.log("Payment completion result:", result);
+
+          // Store the payment details in localStorage for the success page
+          if (result && result.payment) {
+            localStorage.setItem("lastPayment", JSON.stringify(result.payment));
+
+            // Navigate to the payment success page with payment ID
+            // If we're already on a success page, don't navigate
+            if (!location.pathname.includes("payment-success")) {
+              navigate(
+                `/payment-success?payment_id=${result.payment._id}&pidx=${pidx}`
+              );
+            }
+          }
+
+          // Update local state based on the result or URL path
+          if (location.pathname.includes("payment-success")) {
+            setPaymentStatus("success");
+            toast.success("Payment Successful", {
+              description: "Your payment was processed successfully!",
+            });
+          } else if (location.pathname.includes("payment-cancel")) {
+            setPaymentStatus("cancelled");
+            toast.info("Payment Cancelled", {
+              description: "You've cancelled the payment process.",
+            });
+          } else if (location.pathname.includes("payment-failed")) {
+            setPaymentStatus("failed");
+            toast.error("Payment Failed", {
+              description: "Your payment attempt was unsuccessful.",
+            });
+          } else if (location.pathname.includes("payment-error")) {
+            setPaymentStatus("error");
+            toast.error("Payment Error", {
+              description: "An error occurred during payment processing.",
+            });
+          }
+
+          setIsProcessingPayment(false);
+
+          // If successful, refresh the bookings list
+          if (
+            result &&
+            result.payment &&
+            result.payment.status === "completed"
+          ) {
+            dispatch(fetchMyBookings());
+          }
+        })
+        .catch((error) => {
+          console.error("Payment completion error:", error);
+          toast.error("Payment Processing Error", {
+            description:
+              error?.message || "Failed to process payment completion.",
+          });
+          setIsProcessingPayment(false);
+        });
+    }
+  }, [dispatch, location, queryParams, navigate]);
 
   // Fetch trip details on mount if in create mode
   useEffect(() => {
@@ -139,6 +236,55 @@ const Booking = () => {
     }
   }, [bookingError, dispatch]);
 
+  // Handle payment error
+  useEffect(() => {
+    if (paymentError) {
+      toast.error("Payment Failed", {
+        description:
+          paymentError || "Failed to process payment. Please try again.",
+      });
+      setIsProcessingPayment(false);
+      dispatch(clearPaymentError());
+    }
+  }, [paymentError, dispatch]);
+
+  // Handle payment success
+  useEffect(() => {
+    if (paymentSuccess && currentPayment) {
+      // Store payment details in localStorage for the success page
+      localStorage.setItem("lastPayment", JSON.stringify(currentPayment));
+
+      toast.success("Payment Successful", {
+        description: "Your payment was processed successfully!",
+      });
+
+      // If we have a booking ID on successful payment, navigate to the payment success page
+      if (currentPayment._id) {
+        navigate(`/payment-success?payment_id=${currentPayment._id}`);
+      } else {
+        // If no payment ID but we have a booking, navigate to booking details
+        if (currentPayment.booking) {
+          navigate(`/booking?bookingId=${currentPayment.booking}`);
+        } else {
+          // Otherwise, show confirmation
+          setShowConfirmation(true);
+        }
+      }
+
+      dispatch(clearPaymentSuccess());
+    }
+  }, [paymentSuccess, currentPayment, dispatch, navigate]);
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      dispatch(clearPaymentError());
+      dispatch(clearPaymentSuccess());
+      dispatch(clearBookingError());
+      dispatch(clearActionSuccess());
+    };
+  }, [dispatch]);
+
   // Format date to a readable format
   const formatDate = (dateString) => {
     if (!dateString) return "";
@@ -170,9 +316,11 @@ const Booking = () => {
   // Process a new booking
   const processBooking = async () => {
     try {
+      console.log("entered inside try block");
       setIsProcessingPayment(true);
 
       if (selectedPaymentMethod === "online") {
+        console.log("Processing online payment");
         // For online payments, initiate payment
         const paymentResponse = await dispatch(
           initiatePayment({
@@ -184,15 +332,39 @@ const Booking = () => {
           })
         ).unwrap();
 
-        if (paymentResponse?.Result?.payment_url) {
-          // Instead of redirecting, show the payment URL in a modal
-          setPaymentUrl(paymentResponse.Result.payment_url);
-          setShowPaymentModal(true);
-          setIsProcessingPayment(false);
-        } else {
-          throw new Error("No payment URL received");
+        console.log("The payment response ", paymentResponse);
+
+        if (paymentResponse && typeof paymentResponse === "object") {
+          console.log("Payment response keys:", Object.keys(paymentResponse));
+
+          if (paymentResponse.payment_url) {
+            console.log(
+              "Found payment_url at top level:",
+              paymentResponse.payment_url
+            );
+            setPaymentUrl(paymentResponse.payment_url);
+            setShowPaymentModal(true);
+            setIsProcessingPayment(false);
+            return; // Add this return to prevent execution continuing
+          } else if (
+            paymentResponse.Result &&
+            paymentResponse.Result.payment_url
+          ) {
+            console.log(
+              "Found payment_url in Result:",
+              paymentResponse.Result.payment_url
+            );
+            setPaymentUrl(paymentResponse.Result.payment_url);
+            setShowPaymentModal(true);
+            setIsProcessingPayment(false);
+            return; // Add this return to prevent execution continuing
+          } else {
+            console.log("No payment_url found in response");
+            throw new Error("No payment URL received");
+          }
         }
       } else {
+        console.log("Processing COD payment");
         // For COD, create the booking immediately
         const bookingData = {
           tripId: tripId,
@@ -200,15 +372,27 @@ const Booking = () => {
           paymentMethod: "COD",
         };
 
-        await dispatch(createBooking(bookingData)).unwrap();
-        setIsProcessingPayment(false);
+        const result = await dispatch(createBooking(bookingData)).unwrap();
+        console.log("the booking created is", result);
       }
+
+      setIsProcessingPayment(false);
     } catch (err) {
       console.error("Booking error:", err);
       toast.error("Booking Failed", {
         description: err?.message || "Failed to book trip",
       });
       setIsProcessingPayment(false);
+    }
+  };
+  // Handle direct payment without modal
+  const handleDirectPayment = () => {
+    if (paymentUrl) {
+      // Close the modal
+      setShowPaymentModal(false);
+
+      // Redirect to Khalti
+      window.location.href = paymentUrl;
     }
   };
 
@@ -302,8 +486,25 @@ const Booking = () => {
 
   // Go to my bookings
   const goToMyBookings = () => {
-    navigate("/mybookings");
+    navigate("/bookings");
   };
+
+  // If we're processing a payment return from Khalti
+  if (isProcessingPayment && queryParams.get("pidx")) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="flex flex-col items-center">
+          <div className="w-12 h-12 border-4 border-green-500 border-t-transparent rounded-full animate-spin"></div>
+          <p className="mt-4 text-gray-600 font-medium">
+            Processing your payment...
+          </p>
+          <p className="text-sm text-gray-500 mt-2">
+            Please wait while we verify your payment.
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   // Render loading state
   if (
@@ -508,7 +709,7 @@ const Booking = () => {
                     <p className="text-gray-600">Payment method</p>
                     <p className="font-medium">
                       {selectedPaymentMethod === "COD"
-                        ? "Cash on Delivery"
+                        ? " Cash "
                         : "Online Payment"}
                     </p>
                   </div>
@@ -756,7 +957,7 @@ const Booking = () => {
                       </div>
                       <Banknote className="h-6 w-6 text-gray-500 mr-3" />
                       <div>
-                        <p className="font-medium">Cash on Delivery</p>
+                        <p className="font-medium">Cash </p>
                         <p className="text-sm text-gray-500">
                           Pay directly to the driver
                         </p>
@@ -865,14 +1066,12 @@ const Booking = () => {
                 >
                   Cancel
                 </button>
-                <a
-                  href={paymentUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
+                <button
+                  onClick={handleDirectPayment}
                   className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
                 >
                   Proceed to Payment
-                </a>
+                </button>
               </div>
             </div>
           </div>

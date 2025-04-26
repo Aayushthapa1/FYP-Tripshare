@@ -12,21 +12,21 @@ import protectRoute from "../middlewares/protectRoute.js";
 const router = express.Router();
 
 // CREATE
-router.post("/", protectRoute, createNotification);
+router.post("/create", protectRoute, createNotification);
 
 // READ - get all notifications for the authenticated user
-router.get("/notifications", protectRoute, getUserNotifications);
+router.get("/getnotifications", protectRoute, getUserNotifications);
 
 // Get unread count for the authenticated user
-router.get("/unread-count", protectRoute, getUnreadCount);
+router.get("/unreadcount", protectRoute, getUnreadCount);
 
 // MARK single as read
-router.patch("/:notificationId/read", protectRoute, markNotificationAsRead);
+router.post("/read/:notificationId", protectRoute, markNotificationAsRead);
 
 // MARK all as read
-router.patch("/mark-all-read", protectRoute, markAllNotificationsAsRead);
+router.post("/markallread", protectRoute, markAllNotificationsAsRead);
 
 // DELETE
-router.delete("/:notificationId", protectRoute, deleteNotification);
+router.delete("/delete/:notificationId", protectRoute, deleteNotification);
 
 export default router;

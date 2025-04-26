@@ -12,6 +12,7 @@ class PersistentSocketService {
     this.setupComplete = false;
     this.debugMode = true;
     this.connectionId = this.loadConnectionId() || this.generateConnectionId();
+    this.eventListeners = {}; // Store custom event listeners
   }
 
   /**
@@ -101,6 +102,9 @@ class PersistentSocketService {
       // Set up connection handlers
       this.setupConnectionHandlers();
 
+      // Set up trip-related event handlers
+      this.setupTripEventHandlers();
+
       return this.socket;
     } catch (error) {
       this.error("Socket connection error:", error.message);
@@ -170,6 +174,91 @@ class PersistentSocketService {
   }
 
   /**
+   * Setup trip-related event handlers
+   */
+  setupTripEventHandlers() {
+    if (!this.socket) return;
+
+    // Trip events from server to client
+    const tripEvents = [
+      'new_trip_available',
+      'trip_created',
+      'trip_updated',
+      'trip_cancelled',
+      'trip_completed',
+      'trip_deleted',
+      'trip_details_changed',
+      'booking_created',
+      'booking_accepted',
+      'booking_rejected',
+      'booking_cancelled'
+    ];
+
+    // Set up listeners for all trip events
+    tripEvents.forEach(eventName => {
+      this.socket.on(eventName, (data) => {
+        this.log(`Received ${eventName} event:`, data);
+        this.emitCustomEvent(eventName, data);
+      });
+    });
+
+    // Notification events
+    this.socket.on('notification', (data) => {
+      this.log('Received notification:', data);
+      this.emitCustomEvent('notification', data);
+    });
+  }
+
+  /**
+   * Register a custom event listener
+   * @param {string} eventName - Name of the event to listen for
+   * @param {Function} callback - Callback function to execute when event is received
+   * @returns {Function} - Function to unregister the listener
+   */
+  on(eventName, callback) {
+    if (!this.eventListeners[eventName]) {
+      this.eventListeners[eventName] = [];
+    }
+
+    this.eventListeners[eventName].push(callback);
+
+    // Return a function to remove this specific listener
+    return () => {
+      this.off(eventName, callback);
+    };
+  }
+
+  /**
+   * Remove a specific event listener
+   * @param {string} eventName - Name of the event
+   * @param {Function} callback - Callback function to remove
+   */
+  off(eventName, callback) {
+    if (!this.eventListeners[eventName]) return;
+
+    this.eventListeners[eventName] = this.eventListeners[eventName].filter(
+      cb => cb !== callback
+    );
+  }
+
+  /**
+   * Emit a custom event to all registered listeners
+   * @param {string} eventName - Name of the event
+   * @param {*} data - Event data
+   */
+  emitCustomEvent(eventName, data) {
+    if (!this.eventListeners[eventName]) return;
+
+    this.eventListeners[eventName].forEach(callback => {
+      try {
+        callback(data);
+      } catch (error) {
+        this.error(`Error in ${eventName} listener:`, error);
+      }
+    });
+  }
+
+  /**
    * Handle connection errors with exponential backoff
    */
   handleConnectionError() {
@@ -182,8 +271,7 @@ class PersistentSocketService {
       );
 
       this.log(
-        `Will attempt reconnection (${this.connectionAttempts}/${
-          this.maxReconnectAttempts
+        `Will attempt reconnection (${this.connectionAttempts}/${this.maxReconnectAttempts
         }) in ${delay / 1000}s`
       );
 
@@ -237,8 +325,7 @@ class PersistentSocketService {
     }
 
     this.log(
-      `Sending user info to socket server - ID: ${userId}, Role: ${
-        role || "user"
+      `Sending user info to socket server - ID: ${userId}, Role: ${role || "user"
       }`
     );
 
@@ -561,6 +648,147 @@ class PersistentSocketService {
       connectionId: this.connectionId,
     });
 
+    return true;
+  }
+
+  /**
+   * Join a trip room to receive trip-specific updates
+   * @param {string} tripId - Trip ID to join
+   */
+  joinTripRoom(tripId) {
+    if (!this.socket || !this.connected) {
+      this.error("Cannot join trip room: Socket not connected");
+      return false;
+    }
+
+    if (!tripId) {
+      this.error("Cannot join trip room: No trip ID provided");
+      return false;
+    }
+
+    this.log(`Joining trip room for trip ID: ${tripId}`);
+    this.socket.emit("join_trip_room", { tripId });
+    return true;
+  }
+
+  /**
+   * Leave a trip room
+   * @param {string} tripId - Trip ID to leave
+   */
+  leaveTripRoom(tripId) {
+    if (!this.socket || !this.connected) {
+      this.error("Cannot leave trip room: Socket not connected");
+      return false;
+    }
+
+    if (!tripId) {
+      this.error("Cannot leave trip room: No trip ID provided");
+      return false;
+    }
+
+    this.log(`Leaving trip room for trip ID: ${tripId}`);
+    this.socket.emit("leave_trip_room", { tripId });
+    return true;
+  }
+
+  /**
+   * Book a seat on a trip
+   * @param {Object} bookingData - Booking data
+   */
+  bookTrip(bookingData) {
+    if (!this.socket || !this.connected) {
+      this.error("Cannot book trip: Socket not connected");
+      return false;
+    }
+
+    if (!bookingData || !bookingData.tripId) {
+      this.error("Cannot book trip: Invalid booking data");
+      return false;
+    }
+
+    this.log(`Booking trip ${bookingData.tripId}`);
+    this.socket.emit("book_trip", {
+      ...bookingData,
+      connectionId: this.connectionId,
+      timestamp: new Date()
+    });
+
+    // Join the trip room for updates
+    this.joinTripRoom(bookingData.tripId);
+
+    return true;
+  }
+
+  /**
+   * Cancel a trip booking
+   * @param {Object} cancellationData - Cancellation data
+   */
+  cancelBooking(cancellationData) {
+    if (!this.socket || !this.connected) {
+      this.error("Cannot cancel booking: Socket not connected");
+      return false;
+    }
+
+    if (!cancellationData || !cancellationData.bookingId) {
+      this.error("Cannot cancel booking: Invalid cancellation data");
+      return false;
+    }
+
+    this.log(`Cancelling booking ${cancellationData.bookingId}`);
+    this.socket.emit("cancel_booking", {
+      ...cancellationData,
+      connectionId: this.connectionId,
+      timestamp: new Date()
+    });
+
+    return true;
+  }
+
+  /**
+   * Get all active notifications
+   */
+  getNotifications() {
+    if (!this.socket || !this.connected) {
+      this.error("Cannot get notifications: Socket not connected");
+      return false;
+    }
+
+    this.log("Requesting notifications");
+    this.socket.emit("get_notifications");
+    return true;
+  }
+
+  /**
+   * Mark a notification as read
+   * @param {string} notificationId - Notification ID to mark as read
+   */
+  markNotificationRead(notificationId) {
+    if (!this.socket || !this.connected) {
+      this.error("Cannot mark notification as read: Socket not connected");
+      return false;
+    }
+
+    if (!notificationId) {
+      this.error("Cannot mark notification as read: No notification ID provided");
+      return false;
+    }
+
+    this.log(`Marking notification ${notificationId} as read`);
+    this.socket.emit("mark_notification_read", { notificationId });
+    return true;
+  }
+
+  /**
+   * Mark all notifications as read
+   */
+  markAllNotificationsRead() {
+    if (!this.socket || !this.connected) {
+      this.error("Cannot mark all notifications as read: Socket not connected");
+      return false;
+    }
+
+    this.log("Marking all notifications as read");
+    this.socket.emit("mark_all_notifications_read");
     return true;
   }
 

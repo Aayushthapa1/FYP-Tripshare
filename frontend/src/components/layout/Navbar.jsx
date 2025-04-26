@@ -430,10 +430,12 @@ export default function Navbar() {
 
           {/* Right: Search, Rides, Notifications, User Menu */}
           <div className="flex items-center space-x-2 sm:space-x-4">
-            {/* Search Bar (hidden on mobile) */}
-            <div className="hidden md:block">
-              <SearchBar />
-            </div>
+            {/* Search Bar (hidden on mobile and when not authenticated) */}
+            {isAuthenticated && (
+              <div className="hidden md:block">
+                <SearchBar />
+              </div>
+            )}
 
             {/* Role-based action buttons */}
             {isAuthenticated && renderRoleBasedNavItems()}
@@ -599,8 +601,6 @@ export default function Navbar() {
                           </button>
                         </>
                       )}
-
-  
                     </div>
 
                     {/* Divider */}

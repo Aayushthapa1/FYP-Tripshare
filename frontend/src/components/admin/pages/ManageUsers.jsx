@@ -48,7 +48,7 @@ const VerifiedUsersPage = () => {
   useEffect(() => {
     // Fetch both users and drivers KYC data
     dispatch(fetchVerifiedUserKYC());
-    dispatch(fetchAllDriverKYCsAction({ status: "approved" })); // Only fetch approved drivers
+    dispatch(fetchAllDriverKYCsAction({ status: "verified" })); // Only fetch verified drivers
   }, [dispatch]);
 
   // Toggle expanded view for a user or driver
@@ -59,7 +59,12 @@ const VerifiedUsersPage = () => {
   // Refresh the list
   const handleRefresh = () => {
     dispatch(fetchVerifiedUserKYC());
-    dispatch(fetchAllDriverKYCsAction({ status: "approved" }));
+    dispatch(fetchAllDriverKYCsAction({ status: "verified" }));
+  };
+
+  // Clear search term
+  const clearSearch = () => {
+    setSearchTerm("");
   };
 
   // Filter verified users
@@ -170,21 +175,21 @@ const VerifiedUsersPage = () => {
   const errorMessage = userError || driverError || "";
 
   return (
-    <div className="space-y-8 bg-slate-50 p-6 min-h-screen">
+    <div className="space-y-8 bg-slate-50 p-4 md:p-6 min-h-screen">
       {/* Header */}
-      <div className="bg-white rounded-2xl shadow-lg p-8 border border-slate-100">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-8">
+      <div className="bg-white rounded-2xl shadow-lg p-4 md:p-8 border border-slate-100">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 md:gap-6 mb-6 md:mb-8">
           <div>
-            <h1 className="text-3xl font-bold text-slate-800 tracking-tight">
+            <h1 className="text-2xl md:text-3xl font-bold text-slate-800 tracking-tight">
               Verified Accounts
             </h1>
-            <p className="text-slate-500 mt-2 text-lg">
+            <p className="text-slate-500 mt-2 text-base md:text-lg">
               View and manage all verified user and driver accounts
             </p>
           </div>
 
           <div className="flex items-center space-x-4">
-            <div className="relative">
+            <div className="relative w-full md:w-auto">
               <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                 <Search size={18} className="text-slate-400" />
               </div>
@@ -197,7 +202,7 @@ const VerifiedUsersPage = () => {
               />
               {searchTerm && (
                 <button
-                  onClick={() => setSearchTerm("")}
+                  onClick={clearSearch}
                   className="absolute right-10 top-1/2 transform -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors"
                 >
                   <X size={16} />
@@ -218,8 +223,8 @@ const VerifiedUsersPage = () => {
         </div>
 
         {/* Sorting & Filtering Controls */}
-        <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
-          <div className="flex items-center space-x-3 flex-wrap gap-2">
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+          <div className="flex flex-wrap items-center gap-2">
             <span className="text-sm font-medium text-slate-600">Sort by:</span>
             <button
               onClick={() => {
@@ -268,12 +273,11 @@ const VerifiedUsersPage = () => {
             </button>
           </div>
 
-          <div className="flex items-center space-x-3">
-            <span className="text-sm font-medium text-slate-600">Filter:</span>
+          <div className="flex flex-wrap items-center gap-4">
             <div className="flex items-center space-x-1 bg-slate-100 p-1.5 rounded-xl">
               <button
                 onClick={() => setFilterType("all")}
-                className={`px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
+                className={`px-3 sm:px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
                   filterType === "all"
                     ? "bg-white text-emerald-600 shadow-sm"
                     : "text-slate-600 hover:text-slate-800 hover:bg-slate-50"
@@ -283,38 +287,38 @@ const VerifiedUsersPage = () => {
               </button>
               <button
                 onClick={() => setFilterType("user")}
-                className={`px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
+                className={`px-3 sm:px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
                   filterType === "user"
                     ? "bg-white text-emerald-600 shadow-sm"
                     : "text-slate-600 hover:text-slate-800 hover:bg-slate-50"
                 }`}
               >
-                <User className="inline mr-2 h-4 w-4" /> Users
+                <User className="inline mr-1 sm:mr-2 h-4 w-4" /> Users
               </button>
               <button
                 onClick={() => setFilterType("driver")}
-                className={`px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
+                className={`px-3 sm:px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
                   filterType === "driver"
                     ? "bg-white text-emerald-600 shadow-sm"
                     : "text-slate-600 hover:text-slate-800 hover:bg-slate-50"
                 }`}
               >
-                <Car className="inline mr-2 h-4 w-4" /> Drivers
+                <Car className="inline mr-1 sm:mr-2 h-4 w-4" /> Drivers
               </button>
             </div>
-          </div>
 
-          <div className="text-sm font-medium text-slate-600 bg-emerald-50 text-emerald-600 px-4 py-2 rounded-lg">
-            <CheckCircle className="inline mr-2 h-4 w-4" />
-            {sortedData.length}{" "}
-            {sortedData.length === 1 ? "account" : "accounts"} verified
+            <div className="text-sm font-medium text-slate-600 bg-emerald-50 text-emerald-600 px-4 py-2 rounded-lg flex items-center">
+              <CheckCircle className="inline mr-2 h-4 w-4" />
+              {sortedData.length}{" "}
+              {sortedData.length === 1 ? "account" : "accounts"} verified
+            </div>
           </div>
         </div>
       </div>
 
       {/* Loading State */}
       {isLoading && (
-        <div className="flex justify-center items-center py-16 bg-white rounded-2xl shadow-lg border border-slate-100">
+        <div className="flex justify-center items-center py-12 md:py-16 bg-white rounded-2xl shadow-lg border border-slate-100">
           <div className="w-8 h-8 border-3 border-emerald-600 border-t-transparent rounded-full animate-spin mr-3"></div>
           <p className="text-slate-600 text-lg">Loading verified accounts...</p>
         </div>
@@ -322,7 +326,7 @@ const VerifiedUsersPage = () => {
 
       {/* Error State */}
       {hasError && !isLoading && (
-        <div className="bg-rose-50 border border-rose-200 text-rose-700 px-8 py-6 rounded-2xl shadow-md mb-6">
+        <div className="bg-rose-50 border border-rose-200 text-rose-700 px-6 py-6 rounded-2xl shadow-md mb-6">
           <div className="flex items-center mb-2">
             <div className="bg-rose-100 p-2 rounded-full mr-3">
               <X className="h-5 w-5 text-rose-600" />
@@ -337,14 +341,14 @@ const VerifiedUsersPage = () => {
 
       {/* Empty State */}
       {!isLoading && !hasError && sortedData.length === 0 && (
-        <div className="text-center py-16 bg-white rounded-2xl shadow-lg border border-slate-100">
-          <div className="bg-slate-100 rounded-full w-20 h-20 flex items-center justify-center mx-auto mb-6">
-            <UserCheck className="w-10 h-10 text-slate-400" />
+        <div className="text-center py-12 md:py-16 bg-white rounded-2xl shadow-lg border border-slate-100">
+          <div className="bg-slate-100 rounded-full w-16 h-16 md:w-20 md:h-20 flex items-center justify-center mx-auto mb-6">
+            <UserCheck className="w-8 h-8 md:w-10 md:h-10 text-slate-400" />
           </div>
-          <h2 className="text-2xl font-semibold text-slate-800 mb-3">
+          <h2 className="text-xl md:text-2xl font-semibold text-slate-800 mb-3">
             No Verified Accounts
           </h2>
-          <p className="text-slate-500 max-w-md mx-auto text-lg">
+          <p className="text-slate-500 max-w-md mx-auto text-base md:text-lg px-4">
             {searchTerm
               ? "No results match your search criteria."
               : `There are no verified ${
@@ -367,7 +371,7 @@ const VerifiedUsersPage = () => {
               className="border border-slate-200 rounded-2xl overflow-hidden transition-all duration-300 bg-white shadow-md hover:shadow-lg"
             >
               {/* Card Header */}
-              <div className="p-6 flex flex-wrap items-center justify-between">
+              <div className="p-4 md:p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div className="flex items-center space-x-4">
                   <div
                     className={`w-12 h-12 rounded-full flex items-center justify-center shadow-md ${
@@ -383,7 +387,7 @@ const VerifiedUsersPage = () => {
                     )}
                   </div>
                   <div>
-                    <h2 className="text-xl font-semibold text-slate-800">
+                    <h2 className="text-lg md:text-xl font-semibold text-slate-800">
                       {getFullName(item)}
                     </h2>
                     <div className="flex items-center text-sm text-slate-500 mt-1">
@@ -392,7 +396,7 @@ const VerifiedUsersPage = () => {
                     </div>
                   </div>
                 </div>
-                <div className="flex items-center space-x-3 mt-4 md:mt-0">
+                <div className="flex items-center space-x-3">
                   <span
                     className={`inline-flex items-center px-3 py-1.5 rounded-full text-xs font-medium ${
                       item.type === "driver"
@@ -427,13 +431,13 @@ const VerifiedUsersPage = () => {
               {/* Expanded Content */}
               {expandedItem === item._id && (
                 <div className="border-t border-slate-100 bg-slate-50">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-8 p-6">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-8 p-4 md:p-6">
                     {/* User/Driver Details */}
-                    <div className="bg-white p-6 rounded-2xl shadow-md border border-slate-100">
-                      <h3 className="text-sm font-medium text-slate-500 mb-5 uppercase tracking-wider">
+                    <div className="bg-white p-4 md:p-6 rounded-2xl shadow-md border border-slate-100">
+                      <h3 className="text-sm font-medium text-slate-500 mb-4 md:mb-5 uppercase tracking-wider">
                         {item.type === "driver" ? "Driver" : "User"} Information
                       </h3>
-                      <div className="space-y-5">
+                      <div className="space-y-4 md:space-y-5">
                         <div className="flex items-start">
                           <div className="bg-slate-100 p-2.5 rounded-lg mr-4 shadow-sm">
                             <User className="w-5 h-5 text-slate-600" />
@@ -508,11 +512,11 @@ const VerifiedUsersPage = () => {
                     </div>
 
                     {/* Document Preview */}
-                    <div className="bg-white p-6 rounded-2xl shadow-md border border-slate-100">
-                      <h3 className="text-sm font-medium text-slate-500 mb-5 uppercase tracking-wider">
+                    <div className="bg-white p-4 md:p-6 rounded-2xl shadow-md border border-slate-100">
+                      <h3 className="text-sm font-medium text-slate-500 mb-4 md:mb-5 uppercase tracking-wider">
                         KYC Documents
                       </h3>
-                      <div className="grid grid-cols-2 gap-5">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         {/* Citizenship Front for Users */}
                         {item.type === "user" && item.citizenshipFront && (
                           <div className="border border-slate-200 rounded-xl overflow-hidden bg-white shadow-md hover:shadow-lg transition-all duration-300">
@@ -705,7 +709,7 @@ const VerifiedUsersPage = () => {
           onClick={closeImageModal}
         >
           <div
-            className="bg-white rounded-2xl shadow-xl max-w-4xl w-full overflow-hidden animate-fade-in-up"
+            className="bg-white rounded-2xl shadow-xl max-w-2xl md:max-w-4xl w-full overflow-hidden animate-fade-in-up"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="p-4 border-b border-slate-200 flex items-center justify-between">
@@ -719,7 +723,7 @@ const VerifiedUsersPage = () => {
                 <X size={20} className="text-slate-600" />
               </button>
             </div>
-            <div className="p-6 flex items-center justify-center bg-slate-100 max-h-[70vh] overflow-auto">
+            <div className="p-4 md:p-6 flex items-center justify-center bg-slate-100 max-h-[50vh] md:max-h-[70vh] overflow-auto">
               <img
                 src={viewImage.url || "/placeholder.svg"}
                 alt={viewImage.title}
@@ -729,7 +733,7 @@ const VerifiedUsersPage = () => {
             <div className="p-4 border-t border-slate-200 flex justify-end">
               <button
                 onClick={closeImageModal}
-                className="px-5 py-2.5 bg-slate-100 text-slate-700 rounded-xl hover:bg-slate-200 transition-colors font-medium focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                className="px-4 md:px-5 py-2 md:py-2.5 bg-slate-100 text-slate-700 rounded-xl hover:bg-slate-200 transition-colors font-medium focus:outline-none focus:ring-2 focus:ring-emerald-500"
               >
                 Close
               </button>

@@ -5,14 +5,14 @@ import { Base_Backend_Url } from "../../constant";
 
 /**
  * INITIATE a payment (with Khalti)
- * POST /api/payments/initiate
+ * POST /api/initiate
  */
 const initiatePayment = async (paymentData) => {
   try {
     console.log("Initiating payment with data:", paymentData);
 
     const response = await axiosInstance.post(
-      `${Base_Backend_Url}/api/payments/initiate`,
+      `${Base_Backend_Url}/api/initiate`,
       paymentData,
       { withCredentials: true }
     );
@@ -26,17 +26,48 @@ const initiatePayment = async (paymentData) => {
 };
 
 /**
+ * COMPLETE Khalti payment after redirect
+ * This handles the Khalti payment completion after the user is redirected
+ * back from Khalti's payment page
+ */
+const completeKhaltiPayment = async (queryParams) => {
+  try {
+    console.log("Completing Khalti payment with params:", queryParams);
+
+    // Convert params to query string
+    const params = new URLSearchParams(queryParams).toString();
+
+    // Call the backend endpoint for completing Khalti payment
+    const response = await axiosInstance.get(
+      `${Base_Backend_Url}/api/completeKhaltiPayment?${params}`,
+      { withCredentials: true }
+    );
+
+    return response.data;
+  } catch (error) {
+    console.error("completeKhaltiPayment error:", error);
+    const formattedError = formatError(error);
+    throw formattedError;
+  }
+};
+
+/**
  * GET payment details by ID
- * GET /api/payments/:paymentId
+ * GET /api/getpaymentdetails/:paymentId
  */
 const getPaymentDetails = async (paymentId) => {
   try {
     console.log("Fetching payment details for ID:", paymentId);
 
+    if (!paymentId) {
+      throw new Error("Payment ID is required");
+    }
+
     const response = await axiosInstance.get(
-      `${Base_Backend_Url}/api/payments/${paymentId}`,
+      `${Base_Backend_Url}/api/payments/getpaymentdetails/${paymentId}`,
       { withCredentials: true }
     );
+    console.log("Response data:", response);
 
     return response.data;
   } catch (error) {
@@ -69,7 +100,7 @@ const getPaymentStatusByBooking = async (bookingId) => {
 
 /**
  * GET all user payments
- * GET /api/payments/user
+ * GET /api/getuserpayments
  */
 const getUserPayments = async (filters = {}) => {
   try {
@@ -81,12 +112,19 @@ const getUserPayments = async (filters = {}) => {
       if (value) queryParams.append(key, value);
     });
 
+    // Add trailing slash to Base_Backend_Url if not present
+    const baseUrl = Base_Backend_Url.endsWith("/")
+      ? Base_Backend_Url.slice(0, -1)
+      : Base_Backend_Url;
+
     const queryString = queryParams.toString();
     const url = queryString
-      ? `${Base_Backend_Url}/api/payments/user?${queryString}`
-      : `${Base_Backend_Url}/api/payments/user`;
+      ? `${baseUrl}/api/payments/getuserpayments?${queryString}`
+      : `${baseUrl}/api/payments/getuserpayments`;
 
+    console.log("Making request to URL:", url);
     const response = await axiosInstance.get(url, { withCredentials: true });
+    console.log("Response data:", response);
     return response.data;
   } catch (error) {
     console.error("getUserPayments error:", error);
@@ -97,7 +135,7 @@ const getUserPayments = async (filters = {}) => {
 
 /**
  * GET driver payments
- * GET /api/payments/driver
+ * GET /api/getdriverpayments
  */
 const getDriverPayments = async (filters = {}) => {
   try {
@@ -109,10 +147,15 @@ const getDriverPayments = async (filters = {}) => {
       if (value) queryParams.append(key, value);
     });
 
+    // Add trailing slash to Base_Backend_Url if not present
+    const baseUrl = Base_Backend_Url.endsWith("/")
+      ? Base_Backend_Url.slice(0, -1)
+      : Base_Backend_Url;
+
     const queryString = queryParams.toString();
     const url = queryString
-      ? `${Base_Backend_Url}/api/payments/driver?${queryString}`
-      : `${Base_Backend_Url}/api/payments/driver`;
+      ? `${baseUrl}/api/payments/getdriverpayments?${queryString}`
+      : `${baseUrl}/api/payments/getdriverpayments`;
 
     const response = await axiosInstance.get(url, { withCredentials: true });
     return response.data;
@@ -125,7 +168,7 @@ const getDriverPayments = async (filters = {}) => {
 
 /**
  * GET all payments (Admin only)
- * GET /api/payments/admin/all
+ * GET /api/admin/allpayments
  */
 const getAllPayments = async (filters = {}) => {
   try {
@@ -137,10 +180,15 @@ const getAllPayments = async (filters = {}) => {
       if (value) queryParams.append(key, value);
     });
 
+    // Add trailing slash to Base_Backend_Url if not present
+    const baseUrl = Base_Backend_Url.endsWith("/")
+      ? Base_Backend_Url.slice(0, -1)
+      : Base_Backend_Url;
+
     const queryString = queryParams.toString();
     const url = queryString
-      ? `${Base_Backend_Url}/api/payments/admin/all?${queryString}`
-      : `${Base_Backend_Url}/api/payments/admin/all`;
+      ? `${baseUrl}/api/admin/allpayments?${queryString}`
+      : `${baseUrl}/api/admin/allpayments`;
 
     const response = await axiosInstance.get(url, { withCredentials: true });
     return response.data;
@@ -153,7 +201,7 @@ const getAllPayments = async (filters = {}) => {
 
 /**
  * GET admin payment stats
- * GET /api/payments/admin/stats
+ * GET /api/admin/paymentstats
  */
 const getAdminPaymentStats = async (filters = {}) => {
   try {
@@ -165,10 +213,15 @@ const getAdminPaymentStats = async (filters = {}) => {
       if (value) queryParams.append(key, value);
     });
 
+    // Add trailing slash to Base_Backend_Url if not present
+    const baseUrl = Base_Backend_Url.endsWith("/")
+      ? Base_Backend_Url.slice(0, -1)
+      : Base_Backend_Url;
+
     const queryString = queryParams.toString();
     const url = queryString
-      ? `${Base_Backend_Url}/api/payments/admin/stats?${queryString}`
-      : `${Base_Backend_Url}/api/payments/admin/stats`;
+      ? `${baseUrl}/api/admin/paymentstats?${queryString}`
+      : `${baseUrl}/api/admin/paymentstats`;
 
     const response = await axiosInstance.get(url, { withCredentials: true });
     return response.data;
@@ -190,10 +243,15 @@ const checkKhaltiPaymentStatus = async (queryParams) => {
     // Convert params to query string
     const params = new URLSearchParams(queryParams).toString();
 
+    // Add trailing slash to Base_Backend_Url if not present
+    const baseUrl = Base_Backend_Url.endsWith("/")
+      ? Base_Backend_Url.slice(0, -1)
+      : Base_Backend_Url;
+
     // This is a simulation since the actual endpoint redirects to frontend
     // In a real scenario, we'd check the payment status separately after redirect
     const response = await axiosInstance.get(
-      `${Base_Backend_Url}/api/payments/check-status?${params}`,
+      `${baseUrl}/api/check-status?${params}`,
       { withCredentials: true }
     );
 
@@ -234,6 +292,7 @@ const extractKhaltiCallbackParams = () => {
 // Combine all methods into a single service object
 const paymentService = {
   initiatePayment,
+  completeKhaltiPayment,
   getPaymentDetails,
   getPaymentStatusByBooking,
   getUserPayments,

@@ -40,7 +40,7 @@ const getMyBookings = async () => {
     console.log("Fetching my bookings...");
 
     const response = await axiosInstance.get(
-      `${Base_Backend_Url}/api/bookings/my`,
+      `${Base_Backend_Url}/api/bookings/mybookings`,
       { withCredentials: true }
     );
     return response.data;

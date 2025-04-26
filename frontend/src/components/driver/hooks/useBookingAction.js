@@ -9,7 +9,7 @@ export default function useBookingActions() {
 
   // Handle view booking details
   const viewBookingDetails = (bookingId) => {
-    navigate(`/booking?bookingId=${bookingId}`)
+    navigate(`/booking/${bookingId}`)
   }
 
   // Handle accept booking

@@ -46,7 +46,7 @@ export async function sendEmail({ to, subject, template, context }) {
 
     // Send mail with the defined transport object.
     const info = await transporter.sendMail({
-        from: `"No Reply" <${process.env.EMAIL}>`,
+        from: `"TripShare" <${process.env.EMAIL}>`,
         to,
         subject,
         html,

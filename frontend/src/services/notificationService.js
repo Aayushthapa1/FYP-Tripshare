@@ -1,13 +1,13 @@
-import axios from "axios";
-import { Base_Backend_Url } from "../../constant";
+import axiosInstance from "../utils/axiosInstance";
 import formatError from "../utils/errorUtils";
 
 /**
- * GET user's notifications
+ * Get all notifications for the authenticated user
+ * GET /api/notifications
  */
 const getNotifications = async () => {
     try {
-        const response = await axios.get(`${Base_Backend_Url}/api/notifications/notifications`, {
+        const response = await axiosInstance.get("/api/notifications/getnotifications", {
             withCredentials: true,
         });
         return response.data; // e.g. { success: true, data: [...] }
@@ -18,11 +18,12 @@ const getNotifications = async () => {
 
 /**
  * CREATE a notification
+ * POST /api/notifications/create
  */
 const createNotification = async (notificationData) => {
     try {
-        const response = await axios.post(
-            `${Base_Backend_Url}/api/notifications`,
+        const response = await axiosInstance.post(
+            "/api/notifications/create",
             notificationData,
             { withCredentials: true }
         );
@@ -34,11 +35,12 @@ const createNotification = async (notificationData) => {
 
 /**
  * MARK one notification as read
+ * PATCH /api/notifications/read/:notificationId
  */
 const markNotificationAsRead = async (notificationId) => {
     try {
-        const response = await axios.patch(
-            `${Base_Backend_Url}/api/notifications/${notificationId}/read`,
+        const response = await axiosInstance.post(
+            `/api/notifications/read/${notificationId}`,
             {},
             { withCredentials: true }
         );
@@ -50,11 +52,12 @@ const markNotificationAsRead = async (notificationId) => {
 
 /**
  * MARK all notifications as read
+ * PATCH /api/notifications/markallread
  */
 const markAllNotificationsAsRead = async () => {
     try {
-        const response = await axios.patch(
-            `${Base_Backend_Url}/api/notifications/mark-all-read`,
+        const response = await axiosInstance.post(
+            "/api/notifications/markallread",
             {},
             { withCredentials: true }
         );
@@ -66,11 +69,12 @@ const markAllNotificationsAsRead = async () => {
 
 /**
  * DELETE a notification
+ * DELETE /api/notifications/delete/:notificationId
  */
 const deleteNotification = async (notificationId) => {
     try {
-        const response = await axios.delete(
-            `${Base_Backend_Url}/api/notifications/${notificationId}`,
+        const response = await axiosInstance.delete(
+            `/api/notifications/delete/${notificationId}`,
             { withCredentials: true }
         );
         return response.data; // { success: true, data: deletedDoc, notificationId }
@@ -81,11 +85,12 @@ const deleteNotification = async (notificationId) => {
 
 /**
  * GET unread notification count
+ * GET /api/notifications/unreadcount
  */
 const getUnreadCount = async () => {
     try {
-        const response = await axios.get(
-            `${Base_Backend_Url}/api/notifications/unread-count`,
+        const response = await axiosInstance.get(
+            "/api/notifications/unreadcount",
             { withCredentials: true }
         );
         return response.data; // { success: true, count: 5 }

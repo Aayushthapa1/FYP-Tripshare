@@ -5,6 +5,7 @@ import axios from "axios";
 import _config from "../utils/config.js";
 import Trip from "../models/TripModel.js";
 import User from "../models/userModel.js";
+import mongoose from "mongoose";
 
 // Helper function for chat initialization - needed for completeKhaltiPayment
 const initializeChat = async (tripId, userId, message, req) => {

@@ -9,9 +9,9 @@ import {
 
 const router = express.Router();
 
-router.get("/:id", protectRoute, getUserProfile);
-router.put("/:id", protectRoute, updateUserProfile);
+router.get("/getprofile/:id", protectRoute, getUserProfile);
+router.put("/updateprofile/:id", protectRoute, updateUserProfile);
 router.get("/getUsersByRole/:role", protectRoute, getUsersByRole);
-router.get("/all",  getAllUsers);
+router.get("/allusers",  getAllUsers);
 
 export default router;

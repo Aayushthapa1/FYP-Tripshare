@@ -1,4 +1,5 @@
 import Notification from "../models/notificationModel.js";
+import User from "../models/userModel.js";
 import mongoose from "mongoose";
 import { getIO } from "../utils/SocketUtils.js";
 
@@ -106,21 +107,51 @@ export const createSystemNotification = async (
 
 /**
  * Get all notifications for a user
- * @route GET /api/notifications
+ * @route GET /api/notifications/notifications
  */
 export const getUserNotifications = async (req, res) => {
   try {
     const userId = req.user._id;
+    const { page = 1, limit = 20, type, read } = req.query;
 
-    const notifications = await Notification.find({
-      recipientId: userId,
-    })
+    // Build query
+    const query = { recipientId: userId };
+
+    // Add type filter if specified
+    if (type) {
+      query.type = type;
+    }
+
+    // Add read/unread filter if specified
+    if (read === 'true') {
+      query.isRead = true;
+    } else if (read === 'false') {
+      query.readBy = { $ne: userId }; // User not in readBy array means unread
+    }
+
+    // Calculate pagination
+    const skip = (parseInt(page) - 1) * parseInt(limit);
+
+    // Execute query with pagination
+    const notifications = await Notification.find(query)
       .sort({ createdAt: -1 })
-      .populate("senderId", "fullName username profileImage");
+      .skip(skip)
+      .limit(parseInt(limit))
+      .populate("senderId", "fullName userName profileImage");
+
+    // Get total count for pagination
+    const totalCount = await Notification.countDocuments(query);
+    const totalPages = Math.ceil(totalCount / parseInt(limit));
 
     return res.status(200).json({
       success: true,
       count: notifications.length,
+      pagination: {
+        totalCount,
+        totalPages,
+        currentPage: parseInt(page),
+        limit: parseInt(limit)
+      },
       data: notifications,
     });
   } catch (error) {
@@ -302,3 +333,200 @@ export const getUnreadCount = async (req, res) => {
     });
   }
 };
+
+/**
+ * Get count of unread notifications for a specific user (internal function)
+ * @param {string} userId - User ID to check
+ * @returns {Promise<number>} Count of unread notifications
+ */
+export const getUnreadNotificationCount = async (userId) => {
+  try {
+    if (!userId) {
+      return 0;
+    }
+
+    // Count notifications where user is the recipient and notification is unread
+    const count = await Notification.countDocuments({
+      recipientId: userId,
+      readBy: { $ne: userId }, // User not in readBy array means unread
+    });
+
+    return count;
+  } catch (error) {
+    console.error(`Error counting unread notifications for user ${userId}:`, error);
+    return 0;
+  }
+};
+
+/**
+ * Get recent unread notifications for a user (internal function)
+ * @param {string} userId - User ID
+ * @param {number} limit - Maximum number of notifications to return
+ * @returns {Promise<Array>} Recent unread notifications
+ */
+export const getRecentUnreadNotifications = async (userId, limit = 10) => {
+  try {
+    if (!userId) {
+      return [];
+    }
+
+    // Find recent unread notifications
+    const notifications = await Notification.find({
+      recipientId: userId,
+      readBy: { $ne: userId }, // User not in readBy array means unread
+    })
+      .sort({ createdAt: -1 })
+      .limit(limit)
+      .lean();
+
+    return notifications;
+  } catch (error) {
+    console.error(`Error fetching recent unread notifications for user ${userId}:`, error);
+    return [];
+  }
+};
+
+/**
+ * Get all user IDs with role "user" (passengers)
+ * @returns {Promise<Array<string>>} Array of user IDs
+ */
+export const getAllUserIds = async () => {
+  try {
+    // Find all users with role "user" and select only their IDs
+    const users = await User.find({ role: "user" }, "_id").lean();
+
+    // Extract IDs and convert to strings
+    const userIds = users.map(user => user._id.toString());
+
+    console.log(`Found ${userIds.length} users in the database`);
+    return userIds;
+  } catch (error) {
+    console.error("Error fetching all user IDs:", error);
+    return [];
+  }
+};
+
+/**
+ * Get IDs of all users (including users, drivers and admins)
+ * @returns {Promise<Array<string>>} Array of user IDs
+ */
+export const getAllUserAndDriverIds = async () => {
+  try {
+    // Find all users and select only their IDs and roles
+    const users = await User.find({}, "_id role").lean();
+
+    // Extract IDs and convert to strings
+    const userIds = users.map(user => user._id.toString());
+
+    const userCount = users.filter(user => user.role === "user").length;
+    const driverCount = users.filter(user => user.role === "driver").length;
+    const adminCount = users.filter(user => user.role === "Admin").length;
+
+    console.log(`Found ${userIds.length} total users: ${userCount} passengers, ${driverCount} drivers, ${adminCount} admins`);
+    return userIds;
+  } catch (error) {
+    console.error("Error fetching all user IDs:", error);
+    return [];
+  }
+};
+
+/**
+ * Create notifications for all users with a specific role
+ * Used for mass notifications like new trips
+ * @param {string} message - The notification message
+ * @param {string} type - Notification type
+ * @param {Object} data - Additional data
+ * @param {string} role - User role to target (default: "user")
+ * @param {string} excludeUserId - User ID to exclude from notifications
+ * @returns {Promise<number>} Number of notifications created
+ */
+export const createNotificationsForUsersByRole = async (
+  message,
+  type,
+  data = {},
+  role = "user",
+  excludeUserId = null
+) => {
+  try {
+    if (!message || !type) {
+      console.error("Message and type are required for mass notifications");
+      return 0;
+    }
+
+    // Find all users with the specified role
+    const query = { role };
+
+    // Exclude the specified user if any
+    if (excludeUserId) {
+      query._id = { $ne: excludeUserId };
+    }
+
+    const users = await User.find(query).select("_id").lean();
+
+    console.log(`Creating ${type} notifications for ${users.length} users with role ${role}`);
+
+    // Create notifications in bulk
+    const notificationsToCreate = users.map(user => ({
+      recipientId: user._id,
+      senderId: null, // System notification
+      message,
+      type,
+      data,
+      readBy: [],
+      isRead: false,
+      createdAt: new Date()
+    }));
+
+    // Use insertMany for better performance
+    if (notificationsToCreate.length > 0) {
+      const result = await Notification.insertMany(notificationsToCreate);
+
+      // Emit socket events
+      const io = getIO();
+      if (io) {
+        users.forEach(user => {
+          io.to(user._id.toString()).emit("new_notification", {
+            message,
+            type,
+            data,
+            createdAt: new Date()
+          });
+        });
+      }
+
+      return result.length;
+    }
+
+    return 0;
+  } catch (error) {
+    console.error("Error creating mass notifications:", error);
+    return 0;
+  }
+};
+
+/**
+ * Broadcast a message to all online users with a specific role
+ * @param {string} event - Socket event name
+ * @param {Object} data - Data to broadcast
+ * @param {string} role - User role to target (default: "user")
+ */
+export const broadcastToRole = (event, data, role = "user") => {
+  try {
+    const io = getIO();
+    if (!io) {
+      console.warn("Socket.io not initialized, can't broadcast");
+      return false;
+    }
+
+    console.log(`Broadcasting ${event} to all users with role ${role}`);
+    io.to(`role:${role}`).emit(event, data);
+    return true;
+  } catch (error) {
+    console.error(`Error broadcasting to role ${role}:`, error);
+    return false;
+  }
+};
+
+// Make the createSystemNotification function available globally
+// This allows other controllers to create system notifications easily
+global.createSystemNotification = createSystemNotification;

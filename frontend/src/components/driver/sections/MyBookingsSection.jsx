@@ -15,6 +15,9 @@ import {
   cancelBooking,
 } from "../../Slices/bookingSlice";
 import {
+  completeTrip, // Import the completeTrip action
+} from "../../Slices/tripSlice";
+import {
   MapPin,
   ChevronLeft,
   Check,
@@ -30,6 +33,7 @@ import {
   Route,
   ChevronRight,
   Loader2,
+  Flag,
 } from "lucide-react";
 
 const DriverBookingManagement = () => {
@@ -43,6 +47,13 @@ const DriverBookingManagement = () => {
   const { loading, error, pendingBookings, driverBookings, actionSuccess } =
     useSelector((state) => state.booking);
 
+  // Get trips state to monitor trip completion
+  const {
+    loading: tripLoading,
+    error: tripError,
+    success: tripSuccess,
+  } = useSelector((state) => state.trip);
+
   // Local state
   const [activeTab, setActiveTab] = useState("pending"); // "pending", "booked", "all"
   const [rejectionReason, setRejectionReason] = useState("");
@@ -52,6 +63,7 @@ const DriverBookingManagement = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [filteredBookings, setFilteredBookings] = useState([]);
   const [initialDataLoaded, setInitialDataLoaded] = useState(false);
+  const [processingTripIds, setProcessingTripIds] = useState([]); // Track trips being completed
 
   // Fetch bookings on mount
   useEffect(() => {
@@ -85,6 +97,24 @@ const DriverBookingManagement = () => {
       toast.success("Action completed successfully!");
     }
   }, [actionSuccess, dispatch]);
+
+  // Handle trip completion success or error
+  useEffect(() => {
+    if (tripSuccess) {
+      // Refresh booking data to reflect the trip completion
+      dispatch(fetchDriverPendingBookings());
+      dispatch(fetchDriverBookings());
+      setProcessingTripIds([]); // Clear processing state
+      toast.success("Trip marked as completed!");
+    }
+
+    if (tripError) {
+      setProcessingTripIds([]); // Clear processing state
+      toast.error("Trip Completion Error", {
+        description: tripError || "Failed to complete trip. Please try again.",
+      });
+    }
+  }, [tripSuccess, tripError, dispatch]);
 
   // Handle booking error
   useEffect(() => {
@@ -168,6 +198,29 @@ const DriverBookingManagement = () => {
     );
   };
 
+  // Group bookings by trip ID
+  const getBookingsByTrip = () => {
+    if (!driverBookings.length) return {};
+
+    const tripBookings = {};
+
+    driverBookings.forEach((booking) => {
+      if (!booking.trip?._id) return;
+
+      if (!tripBookings[booking.trip._id]) {
+        tripBookings[booking.trip._id] = {
+          tripId: booking.trip._id,
+          tripDetails: booking.trip,
+          bookings: [],
+        };
+      }
+
+      tripBookings[booking.trip._id].bookings.push(booking);
+    });
+
+    return tripBookings;
+  };
+
   // Format date to a readable format
   const formatDate = (dateString) => {
     if (!dateString) return "";
@@ -176,6 +229,84 @@ const DriverBookingManagement = () => {
       year: "numeric",
       month: "short",
       day: "numeric",
+    });
+  };
+
+  // Handle completing a trip
+  // Handle completing a trip (updated)
+  const handleCompleteTrip = async (tripId) => {
+    const tripBookings = getBookingsByTrip();
+    const tripInfo = tripBookings[tripId];
+
+    if (!tripInfo) {
+      toast.error("Trip information not found");
+      return;
+    }
+
+    // Count active bookings
+    const pendingBookings = tripInfo.bookings.filter(
+      (b) => b.status === "pending"
+    ).length;
+    const bookedBookings = tripInfo.bookings.filter(
+      (b) => b.status === "booked"
+    ).length;
+
+    // Create appropriate message based on booking statuses
+    let description =
+      "Are you sure you want to mark this entire trip as completed?";
+
+    if (pendingBookings > 0 || bookedBookings > 0) {
+      description = `This will mark the trip as completed and:
+${
+  bookedBookings > 0
+    ? `• Auto-complete ${bookedBookings} active booking(s)`
+    : ""
+}
+${
+  pendingBookings > 0
+    ? `• Auto-cancel ${pendingBookings} pending booking request(s)`
+    : ""
+}`;
+    }
+
+    const toastId = toast("Confirm Trip Completion", {
+      description,
+      action: {
+        label: "Complete Trip",
+        onClick: async () => {
+          try {
+            toast.dismiss(toastId);
+            setProcessingTripIds((prev) => [...prev, tripId]);
+
+            // Call the API to complete the trip
+            await dispatch(completeTrip(tripId)).unwrap();
+
+            // Refresh data after successful completion
+            await Promise.all([
+              dispatch(fetchDriverPendingBookings()),
+              dispatch(fetchDriverBookings()),
+            ]);
+
+            toast.success("Trip marked as completed successfully!");
+          } catch (error) {
+            console.error("Error completing trip:", error);
+            toast.error("Error", {
+              description:
+                error.message || "Failed to complete trip. Please try again.",
+            });
+          } finally {
+            setProcessingTripIds((prev) => prev.filter((id) => id !== tripId));
+          }
+        },
+      },
+      cancel: {
+        label: "Cancel",
+        onClick: () => {
+          toast.dismiss(toastId);
+        },
+      },
+      position: "top-right",
+      duration: 12000, // Give more time to read the details
     });
   };
 
@@ -285,7 +416,7 @@ const DriverBookingManagement = () => {
 
   // View booking details
   const viewBookingDetails = (bookingId) => {
-    navigate(`/booking?bookingId=${bookingId}`);
+    navigate(`/booking/bookingId=${bookingId}`);
   };
 
   // Navigate to publish a trip page
@@ -382,6 +513,95 @@ const DriverBookingManagement = () => {
     );
   };
 
+  // Show active trips with the complete trip button
+  // This is a new section that displays trips with active bookings
+  const renderActiveTrips = () => {
+    const tripBookings = getBookingsByTrip();
+    const activeTrips = Object.values(tripBookings).filter(
+      (group) =>
+        group.tripDetails.status !== "completed" &&
+        group.bookings.some((b) => b.status === "booked")
+    );
+
+    if (activeTab !== "booked" || activeTrips.length === 0) return null;
+
+    return (
+      <div className="mb-6">
+        <h3 className="text-lg font-semibold mb-3 text-slate-800 dark:text-white">
+          Active Trips
+        </h3>
+        <div className="space-y-4">
+          {activeTrips.map((group) => (
+            <div
+              key={group.tripId}
+              className="bg-white dark:bg-slate-800 rounded-xl shadow-md border border-slate-100 dark:border-slate-700 overflow-hidden"
+            >
+              <div className="bg-blue-50 text-blue-800 px-4 py-3 border-b border-blue-100 dark:bg-blue-900/30 dark:text-blue-400 dark:border-blue-900/50 flex justify-between items-center">
+                <div className="flex items-center space-x-2">
+                  <Route size={18} />
+                  <span className="font-medium">
+                    Trip: {group.tripDetails.departureLocation} →{" "}
+                    {group.tripDetails.destinationLocation}
+                  </span>
+                </div>
+                <div className="text-sm">
+                  {formatDate(group.tripDetails.departureDate)} at{" "}
+                  {group.tripDetails.departureTime}
+                </div>
+              </div>
+
+              <div className="p-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-slate-500 dark:text-slate-400">
+                      <span className="font-medium text-slate-600 dark:text-slate-300">
+                        {
+                          group.bookings.filter((b) => b.status === "booked")
+                            .length
+                        }
+                      </span>{" "}
+                      active bookings
+                      {group.bookings.filter((b) => b.status === "completed")
+                        .length > 0 &&
+                        ` • ${
+                          group.bookings.filter((b) => b.status === "completed")
+                            .length
+                        } completed`}
+                    </p>
+                  </div>
+
+                  <button
+                    onClick={() => handleCompleteTrip(group.tripId)}
+                    disabled={
+                      processingTripIds.includes(group.tripId) || tripLoading
+                    }
+                    className={`px-4 py-2 ${
+                      processingTripIds.includes(group.tripId)
+                        ? "bg-slate-300 cursor-not-allowed dark:bg-slate-700"
+                        : "bg-indigo-100 text-indigo-700 hover:bg-indigo-200 dark:bg-indigo-900/30 dark:text-indigo-400 dark:hover:bg-indigo-900/50"
+                    } rounded-lg transition-colors flex items-center`}
+                  >
+                    {processingTripIds.includes(group.tripId) ? (
+                      <>
+                        <Loader2 size={16} className="mr-1.5 animate-spin" />{" "}
+                        Processing...
+                      </>
+                    ) : (
+                      <>
+                        <Flag size={16} className="mr-1.5" /> Complete Entire
+                        Trip
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  };
+
   return (
     <div className="space-y-8">
       <Toaster position="top-right" richColors closeButton theme="light" />
@@ -397,10 +617,7 @@ const DriverBookingManagement = () => {
               <ChevronLeft className="h-5 w-5" />
             </button>
             <div>
-              <h1 className="text-2xl font-bold text-slate-800 dark:text-white">
-                Booking Management
-              </h1>
-              <p className="text-slate-500 dark:text-slate-400">
+              <p className="text-slate-500 text-lg dark:text-slate-400">
                 Manage your ride bookings and requests
               </p>
             </div>
@@ -547,144 +764,164 @@ const DriverBookingManagement = () => {
             </p>
           </div>
         </div>
-      ) : filteredBookings.length > 0 ? (
-        <div className="space-y-4">
-          {filteredBookings.map((booking) => (
-            <div
-              key={booking._id}
-              className="bg-white dark:bg-slate-800 rounded-xl shadow-sm hover:shadow-md transition-all duration-200 overflow-hidden border border-slate-100 dark:border-slate-700"
-            >
-              {/* Status Badge */}
-              <div
-                className={`${getStatusColor(
-                  booking.status
-                )} px-4 py-2 flex justify-between items-center dark:border-slate-700`}
-              >
-                <div className="flex items-center">
-                  {getStatusIcon(booking.status)}
-                  <span className="ml-2 font-medium capitalize">
-                    {booking.status}
-                  </span>
-                </div>
-                <div className="text-xs font-medium">
-                  {formatDate(booking.trip?.departureDate)}
-                </div>
-              </div>
+      ) : (
+        <>
+          {/* New section: Active Trips with Complete Trip button */}
+          {renderActiveTrips()}
 
-              <div className="p-4">
-                {/* Trip Route */}
-                <div className="mb-4">
-                  <div className="flex items-center mb-2">
-                    <MapPin size={16} className="text-green-500 mr-2" />
+          {/* Individual Bookings List */}
+          {filteredBookings.length > 0 ? (
+            <div className="space-y-4">
+              {activeTab === "booked" && filteredBookings.length > 0 && (
+                <h3 className="text-lg font-semibold text-slate-800 dark:text-white">
+                  Individual Bookings
+                </h3>
+              )}
+
+              {filteredBookings.map((booking) => (
+                <div
+                  key={booking._id}
+                  className="bg-white dark:bg-slate-800 rounded-xl shadow-sm hover:shadow-md transition-all duration-200 overflow-hidden border border-slate-100 dark:border-slate-700"
+                >
+                  {/* Status Badge */}
+                  <div
+                    className={`${getStatusColor(
+                      booking.status
+                    )} px-4 py-2 flex justify-between items-center dark:border-slate-700`}
+                  >
                     <div className="flex items-center">
-                      <span className="font-medium dark:text-white">
-                        {booking.trip?.departureLocation}
+                      {getStatusIcon(booking.status)}
+                      <span className="ml-2 font-medium capitalize">
+                        {booking.status}
                       </span>
-                      <ArrowRight size={14} className="mx-2 text-slate-400" />
-                      <span className="font-medium dark:text-white">
-                        {booking.trip?.destinationLocation}
-                      </span>
+                    </div>
+                    <div className="text-xs font-medium">
+                      {formatDate(booking.trip?.departureDate)}
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 my-2">
-                    <div>
-                      <p className="text-xs text-slate-500 dark:text-slate-400">
-                        Time
-                      </p>
-                      <p className="font-medium dark:text-white">
-                        {booking.trip?.departureTime}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-xs text-slate-500 dark:text-slate-400">
-                        Seats
-                      </p>
-                      <p className="font-medium dark:text-white">
-                        {booking.seatsBooked}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-xs text-slate-500 dark:text-slate-400">
-                        Payment
-                      </p>
-                      <div
-                        className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${getPaymentStatusColor(
-                          booking.paymentStatus
-                        )}`}
-                      >
-                        {booking.paymentStatus}
+                  <div className="p-4">
+                    {/* Trip Route */}
+                    <div className="mb-4">
+                      <div className="flex items-center mb-2">
+                        <MapPin size={16} className="text-green-500 mr-2" />
+                        <div className="flex items-center">
+                          <span className="font-medium dark:text-white">
+                            {booking.trip?.departureLocation}
+                          </span>
+                          <ArrowRight
+                            size={14}
+                            className="mx-2 text-slate-400"
+                          />
+                          <span className="font-medium dark:text-white">
+                            {booking.trip?.destinationLocation}
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 my-2">
+                        <div>
+                          <p className="text-xs text-slate-500 dark:text-slate-400">
+                            Time
+                          </p>
+                          <p className="font-medium dark:text-white">
+                            {booking.trip?.departureTime}
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-slate-500 dark:text-slate-400">
+                            Seats
+                          </p>
+                          <p className="font-medium dark:text-white">
+                            {booking.seatsBooked}
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-slate-500 dark:text-slate-400">
+                            Payment
+                          </p>
+                          <div
+                            className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${getPaymentStatusColor(
+                              booking.paymentStatus
+                            )}`}
+                          >
+                            {booking.paymentStatus}
+                          </div>
+                        </div>
+                        <div>
+                          <p className="text-xs text-slate-500 dark:text-slate-400">
+                            Amount
+                          </p>
+                          <p className="font-medium dark:text-white">
+                            Rs{booking.trip?.price * booking.seatsBooked}
+                          </p>
+                        </div>
                       </div>
                     </div>
-                    <div>
-                      <p className="text-xs text-slate-500 dark:text-slate-400">
-                        Amount
-                      </p>
-                      <p className="font-medium dark:text-white">
-                        Rs{booking.trip?.price * booking.seatsBooked}
-                      </p>
+
+                    {/* Passenger Info & Actions */}
+                    <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mt-2 pt-2 border-t border-slate-100 dark:border-slate-700">
+                      <div className="flex items-center mb-3 sm:mb-0">
+                        <div className="h-8 w-8 rounded-full bg-gradient-to-br from-green-500 to-emerald-600 flex items-center justify-center text-white font-medium">
+                          {(booking.user?.fullName || "P").charAt(0)}
+                        </div>
+                        <span className="text-sm ml-2 dark:text-white">
+                          {booking.user?.fullName || "Passenger"}
+                        </span>
+                      </div>
+
+                      <div className="flex flex-wrap gap-2">
+                        {booking.status === "pending" && (
+                          <>
+                            <button
+                              onClick={() => handleAcceptBooking(booking._id)}
+                              className="px-3 py-1.5 bg-green-100 text-green-700 text-sm rounded-lg hover:bg-green-200 transition-colors flex items-center dark:bg-green-900/30 dark:text-green-400 dark:hover:bg-green-900/50"
+                            >
+                              <Check size={14} className="mr-1" /> Accept
+                            </button>
+                            <button
+                              onClick={() => handleRejectClick(booking._id)}
+                              className="px-3 py-1.5 bg-red-100 text-red-700 text-sm rounded-lg hover:bg-red-200 transition-colors flex items-center dark:bg-red-900/30 dark:text-red-400 dark:hover:bg-red-900/50"
+                            >
+                              <X size={14} className="mr-1" /> Reject
+                            </button>
+                          </>
+                        )}
+                        {booking.status === "booked" && (
+                          <>
+                            <button
+                              onClick={() => handleCompleteBooking(booking._id)}
+                              className="px-3 py-1.5 bg-blue-100 text-blue-700 text-sm rounded-lg hover:bg-blue-200 transition-colors flex items-center dark:bg-blue-900/30 dark:text-blue-400 dark:hover:bg-blue-900/50"
+                            >
+                              <CheckCircle size={14} className="mr-1" />{" "}
+                              Complete
+                            </button>
+                            <button
+                              onClick={(e) =>
+                                handleCancelBooking(booking._id, e)
+                              }
+                              className="px-3 py-1.5 bg-red-100 text-red-700 text-sm rounded-lg hover:bg-red-200 transition-colors flex items-center dark:bg-red-900/30 dark:text-red-400 dark:hover:bg-red-900/50"
+                            >
+                              <X size={14} className="mr-1" /> Cancel
+                            </button>
+                          </>
+                        )}
+                        <button
+                          onClick={() => viewBookingDetails(booking._id)}
+                          className="px-3 py-1.5 bg-slate-100 text-slate-700 text-sm rounded-lg hover:bg-slate-200 transition-colors flex items-center dark:bg-slate-700 dark:text-slate-300 dark:hover:bg-slate-600"
+                        >
+                          <ChevronRight size={14} className="mr-1" /> Details
+                        </button>
+                      </div>
                     </div>
                   </div>
                 </div>
-
-                {/* Passenger Info & Actions */}
-                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mt-2 pt-2 border-t border-slate-100 dark:border-slate-700">
-                  <div className="flex items-center mb-3 sm:mb-0">
-                    <div className="h-8 w-8 rounded-full bg-gradient-to-br from-green-500 to-emerald-600 flex items-center justify-center text-white font-medium">
-                      {(booking.user?.fullName || "P").charAt(0)}
-                    </div>
-                    <span className="text-sm ml-2 dark:text-white">
-                      {booking.user?.fullName || "Passenger"}
-                    </span>
-                  </div>
-
-                  <div className="flex flex-wrap gap-2">
-                    {booking.status === "pending" && (
-                      <>
-                        <button
-                          onClick={() => handleAcceptBooking(booking._id)}
-                          className="px-3 py-1.5 bg-green-100 text-green-700 text-sm rounded-lg hover:bg-green-200 transition-colors flex items-center dark:bg-green-900/30 dark:text-green-400 dark:hover:bg-green-900/50"
-                        >
-                          <Check size={14} className="mr-1" /> Accept
-                        </button>
-                        <button
-                          onClick={() => handleRejectClick(booking._id)}
-                          className="px-3 py-1.5 bg-red-100 text-red-700 text-sm rounded-lg hover:bg-red-200 transition-colors flex items-center dark:bg-red-900/30 dark:text-red-400 dark:hover:bg-red-900/50"
-                        >
-                          <X size={14} className="mr-1" /> Reject
-                        </button>
-                      </>
-                    )}
-                    {booking.status === "booked" && (
-                      <>
-                        <button
-                          onClick={() => handleCompleteBooking(booking._id)}
-                          className="px-3 py-1.5 bg-blue-100 text-blue-700 text-sm rounded-lg hover:bg-blue-200 transition-colors flex items-center dark:bg-blue-900/30 dark:text-blue-400 dark:hover:bg-blue-900/50"
-                        >
-                          <CheckCircle size={14} className="mr-1" /> Complete
-                        </button>
-                        <button
-                          onClick={(e) => handleCancelBooking(booking._id, e)}
-                          className="px-3 py-1.5 bg-red-100 text-red-700 text-sm rounded-lg hover:bg-red-200 transition-colors flex items-center dark:bg-red-900/30 dark:text-red-400 dark:hover:bg-red-900/50"
-                        >
-                          <X size={14} className="mr-1" /> Cancel
-                        </button>
-                      </>
-                    )}
-                    <button
-                      onClick={() => viewBookingDetails(booking._id)}
-                      className="px-3 py-1.5 bg-slate-100 text-slate-700 text-sm rounded-lg hover:bg-slate-200 transition-colors flex items-center dark:bg-slate-700 dark:text-slate-300 dark:hover:bg-slate-600"
-                    >
-                      <ChevronRight size={14} className="mr-1" /> Details
-                    </button>
-                  </div>
-                </div>
-              </div>
+              ))}
             </div>
-          ))}
-        </div>
-      ) : (
-        renderEmptyState()
+          ) : (
+            renderEmptyState()
+          )}
+        </>
       )}
 
       {/* Rejection Modal */}

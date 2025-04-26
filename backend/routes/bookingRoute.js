@@ -17,7 +17,7 @@ const router = express.Router();
 // Fixed route endpoints must come BEFORE any routes with params
 router.get("/pending", protectRoute, getDriverPendingBookings);
 router.get("/all", protectRoute, getDriverBookings);
-router.get("/my", protectRoute, getMyBookings);
+router.get("/mybookings", protectRoute, getMyBookings);
 
 // Create booking
 router.post("/create", protectRoute, createBooking);

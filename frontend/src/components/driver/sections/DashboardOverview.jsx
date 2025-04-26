@@ -11,7 +11,6 @@ import {
   TrendingUp,
   Users,
   CheckCircle,
-  
 } from "lucide-react";
 import {
   LineChart,
@@ -67,6 +66,25 @@ export default function DashboardOverview({
       name: item.status || "",
       value: item.count || 0,
     })) || generateDummyStatusData();
+
+  // Format the completion rate to ensure it doesn't overflow
+  const formatCompletionRate = (rate) => {
+    // Ensure we're working with a number and round to 1 decimal place
+    const numericRate = Number(rate);
+    if (isNaN(numericRate)) return "0";
+
+    return Math.round(numericRate);
+  };
+
+  // Calculate the completion rate
+  const calculatedCompletionRate =
+    completionRate.completionRate ||
+    (myTrips.length > 0
+      ? Math.round((completedTrips.length / myTrips.length) * 100)
+      : 0);
+
+  // Format it to prevent overflow
+  const displayCompletionRate = formatCompletionRate(calculatedCompletionRate);
 
   // Colors for pie chart
   const COLORS = ["#4CAF50", "#2196F3", "#FFC107", "#FF5722", "#9C27B0"];
@@ -139,12 +157,7 @@ export default function DashboardOverview({
             <div
               className="bg-blue-500 h-full rounded-full"
               style={{
-                width: `${
-                  completionRate.completionRate ||
-                  (myTrips.length > 0
-                    ? Math.round((completedTrips.length / myTrips.length) * 100)
-                    : 0)
-                }%`,
+                width: `${displayCompletionRate}%`,
               }}
             ></div>
           </div>
@@ -159,12 +172,11 @@ export default function DashboardOverview({
               <p className="text-sm font-medium text-slate-500 dark:text-slate-400">
                 Completion Rate
               </p>
-              <h4 className="text-2xl font-bold text-slate-800 dark:text-white">
-                {completionRate.completionRate ||
-                  (myTrips.length > 0
-                    ? Math.round((completedTrips.length / myTrips.length) * 100)
-                    : 0)}
-                %
+              <h4
+                className="text-2xl font-bold text-slate-800 dark:text-white truncate"
+                title={`${calculatedCompletionRate}%`}
+              >
+                {displayCompletionRate}%
               </h4>
             </div>
           </div>
@@ -172,12 +184,7 @@ export default function DashboardOverview({
             <div
               className="bg-purple-500 h-full rounded-full"
               style={{
-                width: `${
-                  completionRate.completionRate ||
-                  (myTrips.length > 0
-                    ? Math.round((completedTrips.length / myTrips.length) * 100)
-                    : 0)
-                }%`,
+                width: `${displayCompletionRate}%`,
               }}
             ></div>
           </div>

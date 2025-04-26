@@ -50,10 +50,10 @@ const ResetPassword = () => {
       setFormData({ token: "", newPassword: "", confirmPassword: "" });
 
       // Redirect to login page after 3 seconds
-      toast.info("Redirecting to login page...");
+      toast.info("Redirecting to login page.Password reset successful!");
       setTimeout(() => {
         navigate("/login");
-      }, 3000);
+      }, 150000);
     } else if (passwordResetStatus === "failed" && error) {
       toast.error(error);
     }

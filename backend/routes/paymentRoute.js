@@ -16,19 +16,19 @@ const router = express.Router();
 router.post("/initiate", protectRoute, initiatePayment);
 
 // User routes - must be protected to get user from req.user
-router.get("/user", protectRoute, getUserPayments);
+router.get("/getuserpayments", protectRoute, getUserPayments);
 
 // Driver routes - must be protected to get driver from req.user
-router.get("/driver", protectRoute, getDriverPayments);
+router.get("/getdriverpayments", protectRoute, getDriverPayments);
 
 // Khalti callback route (public - called by Khalti)
 router.get("/completeKhaltiPayment", completeKhaltiPayment);
 
 // Get specific payment details - protected route
-router.get("/:paymentId", protectRoute, getPaymentDetails);
+router.get("/getpaymentdetails/:paymentId", protectRoute, getPaymentDetails);
 
 // Admin routes - protected routes
-router.get("/admin/stats", protectRoute, getAdminPaymentStats);
-router.get("/admin/all", protectRoute, getAllPayments);
+router.get("/admin/paymentstats", protectRoute, getAdminPaymentStats);
+router.get("/admin/allpayments", protectRoute, getAllPayments);
 
 export default router;

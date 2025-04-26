@@ -34,6 +34,7 @@ export const fetchMyBookings = createAsyncThunk(
     try {
       const result = await bookingService.getMyBookings();
       console.log("the result is", result);
+      return result
     } catch (err) {
       return rejectWithValue(err.message);
     }
@@ -47,12 +48,12 @@ export const getBookingDetails = createAsyncThunk(
     try {
       const result = await bookingService.fetchBookingDetails(bookingId);
       console.log("the result is", result);
+      return result
     } catch (error) {
       const message =
         (error.response && error.response.data && error.response.data.errors && error.response.data.errors[0]?.message) ||
         error.message ||
         error.toString();
-
       return thunkAPI.rejectWithValue(message);
     }
   }
@@ -128,7 +129,8 @@ export const completeBooking = createAsyncThunk(
   "booking/completeBooking",
   async (bookingId, { rejectWithValue }) => {
     try {
-      return await bookingService.completeBooking(bookingId);
+      const result = await bookingService.completeBooking(bookingId);
+      console.log("the result is", result);
     } catch (err) {
       return rejectWithValue(err.message);
     }
@@ -197,6 +199,7 @@ const bookingSlice = createSlice({
       .addCase(fetchMyBookings.fulfilled, (state, action) => {
         state.loading = false;
         // Handle different response formats
+        console.log("the result is", action.payload);
         state.myBookings = action.payload?.Result?.bookings ||
           action.payload?.data?.bookings ||
           action.payload?.bookings ||

@@ -4,9 +4,6 @@ import {
   userRegister,
   userLogin,
   userLogout,
-  getUserProfile,
-  updateUserProfile,
-  getUsersByRole,
   forgotPassword,
   resetPassword,
   forgotPasswordLimiter // Import the rate limiter
@@ -22,9 +19,6 @@ router.post("/register", userRegister);
 router.post("/login", userLogin);
 router.post("/logout", userLogout);
 router.post("/refresh-token", refreshAccessToken);
-router.get("/profile", protectRoute, getUserProfile);
-router.put("/profile", protectRoute, updateUserProfile);
-router.get("/users/:role", protectRoute, getUsersByRole);
 
 // Apply rate limiter to the forgot password route
 router.post("/forgotpassword", forgotPasswordLimiter, forgotPassword);

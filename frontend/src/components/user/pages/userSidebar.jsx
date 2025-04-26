@@ -137,48 +137,7 @@ const Sidebar = ({
               <ChevronRight className="w-4 h-4 ml-auto text-green-600" />
             )}
           </button>
-
-          <button
-            onClick={() => navigateTo("upcoming")}
-            className={`flex items-center ${
-              collapsed ? "justify-center" : ""
-            } space-x-3 p-3 rounded-lg transition-all duration-200
-             ${
-               activeSection === "upcoming"
-                 ? "bg-green-50 text-green-700 font-medium"
-                 : "text-gray-700 hover:bg-gray-100"
-             }`}
-          >
-            <Calendar className="w-5 h-5 flex-shrink-0" />
-            <span className={`${collapsed ? "md:hidden" : ""}`}>
-              Upcoming Trips
-            </span>
-            {activeSection === "upcoming" && !collapsed && (
-              <ChevronRight className="w-4 h-4 ml-auto text-green-600" />
-            )}
-          </button>
-
-          <button
-            onClick={() => navigateTo("past-rides")}
-            className={`flex items-center ${
-              collapsed ? "justify-center" : ""
-            } space-x-3 p-3 rounded-lg transition-all duration-200
-             ${
-               activeSection === "past-rides"
-                 ? "bg-green-50 text-green-700 font-medium"
-                 : "text-gray-700 hover:bg-gray-100"
-             }`}
-          >
-            <Car className="w-5 h-5 flex-shrink-0" />
-            <span className={`${collapsed ? "md:hidden" : ""}`}>
-              Past Rides
-            </span>
-            {activeSection === "past-rides" && !collapsed && (
-              <ChevronRight className="w-4 h-4 ml-auto text-green-600" />
-            )}
-          </button>
-
-          <button
+            <button
             onClick={() => navigateTo("payments")}
             className={`flex items-center ${
               collapsed ? "justify-center" : ""
@@ -198,30 +157,7 @@ const Sidebar = ({
             )}
           </button>
 
-          <button
-            onClick={() => navigateTo("notifications")}
-            className={`flex items-center ${
-              collapsed ? "justify-center" : ""
-            } space-x-3 p-3 rounded-lg transition-all duration-200
-             ${
-               activeSection === "notifications"
-                 ? "bg-green-50 text-green-700 font-medium"
-                 : "text-gray-700 hover:bg-gray-100"
-             }`}
-          >
-            <div className="relative">
-              <Bell className="w-5 h-5 flex-shrink-0" />
-              <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full h-4 w-4 flex items-center justify-center">
-                3
-              </span>
-            </div>
-            <span className={`${collapsed ? "md:hidden" : ""}`}>
-              Notifications
-            </span>
-            {activeSection === "notifications" && !collapsed && (
-              <ChevronRight className="w-4 h-4 ml-auto text-green-600" />
-            )}
-          </button>
+        
 
           {!collapsed && (
             <div className="mt-6 mx-2">

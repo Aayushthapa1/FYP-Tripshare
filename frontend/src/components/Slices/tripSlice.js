@@ -2,7 +2,7 @@
 import { createSlice, createAsyncThunk } from "@reduxjs/toolkit";
 import tripService from "../../services/tripService";
 
-// Thunks (could be inline or separate)
+// Thunks
 export const createTrip = createAsyncThunk(
   "trip/createTrip",
   async (formData, { rejectWithValue }) => {
@@ -63,6 +63,18 @@ export const deleteTrip = createAsyncThunk(
   }
 );
 
+export const completeTrip = createAsyncThunk(
+  "trip/completeTrip",
+  async ({ tripId, completionDetails = {} }, { rejectWithValue }) => {
+    try {
+      const completedTrip = await tripService.completeTrip(tripId, completionDetails);
+      return completedTrip;
+    } catch (err) {
+      return rejectWithValue(err.message);
+    }
+  }
+);
+
 export const searchTrips = createAsyncThunk(
   "trip/searchTrips",
   async (searchParams, { rejectWithValue }) => {
@@ -87,12 +99,25 @@ export const fetchDriverTrips = createAsyncThunk(
   }
 );
 
-export const bookSeat = createAsyncThunk(
-  "trip/bookSeat",
-  async (tripId, { rejectWithValue }) => {
+export const fetchDriverTripStats = createAsyncThunk(
+  "trip/getDriverTripStats",
+  async (params = {}, { rejectWithValue }) => {
     try {
-      const updatedTrip = await tripService.bookSeat(tripId);
-      return updatedTrip; // updated trip object
+      const stats = await tripService.getDriverTripStats(params);
+      return stats;
+    } catch (err) {
+      return rejectWithValue(err.message);
+    }
+  }
+);
+
+// New action for cleaning up expired trips
+export const cleanupExpiredTrips = createAsyncThunk(
+  "trip/cleanupExpired",
+  async (_, { rejectWithValue }) => {
+    try {
+      const result = await tripService.cleanupExpiredTrips();
+      return result;
     } catch (err) {
       return rejectWithValue(err.message);
     }
@@ -111,6 +136,11 @@ const tripSlice = createSlice({
     error: null,
     success: false,
     lastUpdated: null,
+    stats: null,
+    cleanupStats: {
+      lastCleanup: null,
+      removedCount: 0
+    }
   },
   reducers: {
     setCurrentTrip: (state, action) => {
@@ -127,6 +157,7 @@ const tripSlice = createSlice({
       state.loading = false;
       state.searchLoading = false;
       state.success = false;
+      state.stats = null;
     },
   },
   extraReducers: (builder) => {
@@ -160,7 +191,7 @@ const tripSlice = createSlice({
       .addCase(getTrips.fulfilled, (state, action) => {
         state.loading = false;
         state.success = true;
-        state.trips = action.payload; // array of trips
+        state.trips = action.payload; // array of trips already sorted by created date
       })
       .addCase(getTrips.rejected, (state, action) => {
         state.loading = false;
@@ -206,6 +237,32 @@ const tripSlice = createSlice({
         state.lastUpdated = Date.now();
       })
       .addCase(updateTrip.rejected, (state, action) => {
+        state.loading = false;
+        state.success = false;
+        state.error = action.payload;
+      })
+
+      // COMPLETE TRIP
+      .addCase(completeTrip.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+        state.success = false;
+      })
+      .addCase(completeTrip.fulfilled, (state, action) => {
+        state.loading = false;
+        state.success = true;
+        const updated = action.payload;
+        if (updated) {
+          state.trips = state.trips.map((t) =>
+            t._id === updated._id ? updated : t
+          );
+          if (state.currentTrip?._id === updated._id) {
+            state.currentTrip = updated;
+          }
+        }
+        state.lastUpdated = Date.now();
+      })
+      .addCase(completeTrip.rejected, (state, action) => {
         state.loading = false;
         state.success = false;
         state.error = action.payload;
@@ -268,32 +325,43 @@ const tripSlice = createSlice({
         state.error = action.payload;
       })
 
-      // BOOK SEAT
-      .addCase(bookSeat.pending, (state) => {
+      // GET DRIVER TRIP STATS
+      .addCase(fetchDriverTripStats.pending, (state) => {
         state.loading = true;
         state.error = null;
-        state.success = false;
       })
-      .addCase(bookSeat.fulfilled, (state, action) => {
+      .addCase(fetchDriverTripStats.fulfilled, (state, action) => {
         state.loading = false;
         state.success = true;
-        const updatedTrip = action.payload;
-        if (updatedTrip) {
-          // Replace the trip in the array
-          state.trips = state.trips.map((t) =>
-            t._id === updatedTrip._id ? updatedTrip : t
-          );
-          // Update currentTrip if it's the same
-          if (state.currentTrip?._id === updatedTrip._id) {
-            state.currentTrip = updatedTrip;
-          }
-        }
-        state.lastUpdated = Date.now();
+        state.stats = action.payload;
       })
-      .addCase(bookSeat.rejected, (state, action) => {
+      .addCase(fetchDriverTripStats.rejected, (state, action) => {
         state.loading = false;
         state.success = false;
         state.error = action.payload;
+      })
+
+      // CLEANUP EXPIRED TRIPS
+      .addCase(cleanupExpiredTrips.pending, (state) => {
+        // We don't set the main loading state here to avoid UI disruption
+        state.error = null;
+      })
+      .addCase(cleanupExpiredTrips.fulfilled, (state, action) => {
+        state.success = true;
+        if (action.payload) {
+          state.cleanupStats = {
+            lastCleanup: Date.now(),
+            removedCount: action.payload.removedCount || 0
+          };
+
+          // If any trips were removed, we might need to refresh the trips list
+          // But the backend already filters out expired trips so it's optional
+        }
+      })
+      .addCase(cleanupExpiredTrips.rejected, (state, action) => {
+        state.success = false;
+        // We don't set the main error state to avoid UI disruption
+        console.error("Cleanup error:", action.payload);
       });
   },
 });

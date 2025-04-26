@@ -9,8 +9,7 @@ import {
 
 const router = express.Router();
 
-// 1) Submit/Update KYC
-router.post("/kyc", submitUserKYC);         // no userId param
+// 1) Submit/Update KYC         // no userId param
 router.post("/kyc/:userId", submitUserKYC); // with userId param
 
 // 2) Single user's KYC status

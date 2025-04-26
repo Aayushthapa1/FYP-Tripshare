@@ -70,6 +70,32 @@ const setupSocketServer = (server) => {
     return counts;
   };
 
+  // Helper to broadcast active users count to admins
+  const broadcastActiveUsersToAdmin = () => {
+    try {
+      const counts = {
+        total: onlineUsers.size,
+        driver: 0,
+        user: 0,
+        other: 0,
+      };
+
+      // Count by role
+      onlineUsers.forEach((data) => {
+        if (data.role === "driver") counts.driver++;
+        else if (data.role === "user") counts.user++;
+        else counts.other++;
+      });
+
+      // Emit to all admins
+      io.to("role:Admin").emit("active_users_update", counts);
+
+      return counts;
+    } catch (error) {
+      console.error("❌ Error broadcasting active users to admin:", error);
+    }
+  };
+
   // Set up heartbeat to periodically check and log active users (every 30 seconds)
   const heartbeatInterval = setInterval(() => {
     // Clean up any stale connections that might not have been properly disconnected
@@ -91,7 +117,10 @@ const setupSocketServer = (server) => {
     }
 
     // Log active users
-    logActiveUsers(true);
+    const counts = logActiveUsers(true);
+
+    // Broadcast to admins
+    broadcastActiveUsersToAdmin();
   }, 30000);
 
   // Handle socket connections
@@ -145,8 +174,7 @@ const setupSocketServer = (server) => {
         }
 
         console.log(
-          `🔗 User connected: ${userData.userId} (${
-            userData.role || "unknown role"
+          `🔗 User connected: ${userData.userId} (${userData.role || "unknown role"
           })`
         );
 
@@ -186,6 +214,154 @@ const setupSocketServer = (server) => {
         socket.emit("error", { message: "Failed to process user connection" });
       }
     });
+
+    // When a driver creates a new trip
+    // When a driver creates a new trip
+    socket.on("trip_created", async (tripData) => {
+      try {
+        console.log(`🚕 New trip created by driver: ${tripData.driverId}`);
+        console.log("📍 Trip details:", {
+          from: tripData.fromLocation || "Unknown",
+          to: tripData.toLocation || "Unknown",
+          departure: tripData.departureTime || "Not specified",
+          vehicleType: tripData.vehicleType || "Not specified",
+          seats: tripData.availableSeats || "Not specified",
+        });
+
+        // Create notification for the driver (confirmation)
+        await notificationController.createSystemNotification(
+          tripData.driverId,
+          `Your trip from ${tripData.fromLocation} to ${tripData.toLocation} has been created successfully.`,
+          "trip_created",
+          {
+            tripId: tripData.tripId,
+            fromLocation: tripData.fromLocation,
+            toLocation: tripData.toLocation,
+            departureTime: tripData.departureTime,
+            availableSeats: tripData.availableSeats,
+          }
+        );
+
+        try {
+          // IMPORTANT: Create notifications for ALL users in the database
+          // This assumes you have a function to get all user IDs
+          const allUserIds = await notificationController.getAllUserIds();
+
+          console.log(`📢 Creating trip notifications for ${allUserIds.length} users in the database`);
+
+          // Create notifications for all users EXCEPT the driver who created the trip
+          for (const userId of allUserIds) {
+            // Skip the driver who created the trip
+            if (userId === tripData.driverId) continue;
+
+            // Create notification in database
+            await notificationController.createSystemNotification(
+              userId,
+              `New trip available from ${tripData.fromLocation} to ${tripData.toLocation} (${tripData.departureTime})`,
+              "new_trip",
+              {
+                tripId: tripData.tripId,
+                driverId: tripData.driverId,
+                driverName: tripData.driverName,
+                fromLocation: tripData.fromLocation,
+                toLocation: tripData.toLocation,
+                departureTime: tripData.departureTime,
+                availableSeats: tripData.availableSeats,
+                vehicleType: tripData.vehicleType,
+              }
+            );
+          }
+        } catch (err) {
+          console.error("❌ Error creating notifications for all users:", err);
+          // Continue execution - we'll still try to notify online users
+        }
+
+        // NOTIFY ONLINE USERS via socket
+        const onlineUserCount = notifyOnlineUsersAboutTrip(io, onlineUsers, tripData);
+
+        console.log(`🔔 Notified ${onlineUserCount} online users about the new trip`);
+
+        // Emit acknowledgment back to the driver
+        socket.emit("trip_creation_confirmed", {
+          status: "success",
+          message: "Trip created successfully and users have been notified",
+          tripId: tripData.tripId,
+          timestamp: new Date(),
+        });
+
+        // Also notify admins about the new trip
+        io.to("role:Admin").emit("trip_created", {
+          ...tripData,
+          timestamp: new Date()
+        });
+
+      } catch (error) {
+        console.error("❌ Error in trip_created handler:", error);
+
+        // Emit error to the driver
+        socket.emit("trip_creation_error", {
+          status: "error",
+          message: "Failed to process trip creation",
+          error: error.message,
+        });
+      }
+    });
+
+    // Helper function to notify all online users about a new trip
+    function notifyOnlineUsersAboutTrip(io, onlineUsers, tripData) {
+      let notifiedCount = 0;
+
+      // First, identify all online users (role: "user")
+      const usersToNotify = [];
+
+      onlineUsers.forEach((userData, userId) => {
+        // Only include users, not drivers, and exclude the driver who created the trip
+        if (userData.role === "user" && userId !== tripData.driverId) {
+          usersToNotify.push({
+            userId,
+            socketId: userData.socketId,
+          });
+        }
+      });
+
+      console.log(`🔍 Found ${usersToNotify.length} online users to notify about new trip`);
+
+      // Notify each online user
+      usersToNotify.forEach((user) => {
+        console.log(`📨 Notifying user ${user.userId} via socket ${user.socketId}`);
+
+        // Emit the event to the user's socket
+        io.to(user.socketId).emit("new_trip_available", {
+          tripId: tripData.tripId,
+          driverId: tripData.driverId,
+          driverName: tripData.driverName,
+          fromLocation: tripData.fromLocation,
+          toLocation: tripData.toLocation,
+          departureTime: tripData.departureTime,
+          availableSeats: tripData.availableSeats,
+          vehicleType: tripData.vehicleType,
+          timestamp: new Date(),
+        });
+
+        notifiedCount++;
+      });
+
+      // IMPORTANT: Also broadcast to ALL users via role-based room
+      // Using io.to() instead of socket.to() to ensure it reaches everyone
+      io.to("role:user").emit("new_trip_available", {
+        tripId: tripData.tripId,
+        driverId: tripData.driverId,
+        driverName: tripData.driverName,
+        fromLocation: tripData.fromLocation,
+        toLocation: tripData.toLocation,
+        departureTime: tripData.departureTime,
+        availableSeats: tripData.availableSeats,
+        vehicleType: tripData.vehicleType,
+        timestamp: new Date(),
+      });
+
+      return notifiedCount;
+    }
 
     // When a user requests a ride
     socket.on("ride_requested", async (rideData) => {
@@ -348,8 +524,7 @@ const setupSocketServer = (server) => {
         // Create notification for passenger
         await notificationController.createSystemNotification(
           data.passengerId,
-          `Driver ${
-            data.driverName || "someone"
+          `Driver ${data.driverName || "someone"
           } has accepted your ride and is on the way!`,
           "ride_accepted",
           {
@@ -424,6 +599,22 @@ const setupSocketServer = (server) => {
       }
     });
 
+    // Join a specific trip room
+    socket.on("join_trip_room", (data) => {
+      try {
+        if (!data || !data.tripId) {
+          console.error("❌ Invalid trip room join request");
+          return;
+        }
+
+        const roomName = `trip:${data.tripId}`;
+        socket.join(roomName);
+        console.log(`🔗 Socket ${socket.id} joined trip room ${roomName}`);
+      } catch (error) {
+        console.error("❌ Error in join_trip_room handler:", error);
+      }
+    });
+
     // When a ride status changes
     socket.on("ride_status_updated", async (data) => {
       try {
@@ -446,9 +637,8 @@ const setupSocketServer = (server) => {
           const message =
             newStatus === "completed"
               ? "Your ride has been completed successfully!"
-              : `Ride was canceled: ${
-                  data.cancelReason || "No reason provided"
-                }`;
+              : `Ride was canceled: ${data.cancelReason || "No reason provided"
+              }`;
 
           await notificationController.createSystemNotification(
             data.passengerId,
@@ -503,10 +693,98 @@ const setupSocketServer = (server) => {
           );
         }
 
+        // Notify admins about status change
+        io.to("role:Admin").emit("ride_status_changed", statusUpdate);
+
         // Log active users
         logActiveUsers();
       } catch (error) {
         console.error("❌ Error in ride_status_updated handler:", error);
+      }
+    });
+
+    // When trip status changes
+    socket.on("trip_status_updated", async (data) => {
+      try {
+        const newStatus = data.status || data.newStatus;
+        console.log(`🔄 Trip ${data.tripId} status updated to: ${newStatus}`);
+
+        // Create notifications based on status
+        if (newStatus === "completed" || newStatus === "canceled") {
+          // Notify all passengers booked on this trip
+          if (data.passengerIds && Array.isArray(data.passengerIds)) {
+            for (const passengerId of data.passengerIds) {
+              const message =
+                newStatus === "completed"
+                  ? `Your trip from ${data.fromLocation} to ${data.toLocation} has been completed.`
+                  : `Trip from ${data.fromLocation} to ${data.toLocation} was canceled: ${data.cancelReason || "No reason provided"}`;
+
+              await notificationController.createSystemNotification(
+                passengerId,
+                message,
+                `trip_${newStatus}`,
+                {
+                  tripId: data.tripId,
+                  fromLocation: data.fromLocation,
+                  toLocation: data.toLocation
+                }
+              );
+
+              // Notify passenger via socket if online
+              const passengerSocketId = onlineUsers.get(passengerId)?.socketId;
+              if (passengerSocketId) {
+                io.to(passengerSocketId).emit("trip_status_changed", {
+                  tripId: data.tripId,
+                  status: newStatus,
+                  message: message,
+                  timestamp: new Date()
+                });
+              }
+            }
+          }
+
+          // If it's a driver-created trip, notify the driver
+          if (data.driverId) {
+            await notificationController.createSystemNotification(
+              data.driverId,
+              `Your trip from ${data.fromLocation} to ${data.toLocation} has been ${newStatus}.`,
+              `trip_${newStatus}`,
+              { tripId: data.tripId }
+            );
+
+            // Notify driver via socket if online
+            const driverSocketId = onlineUsers.get(data.driverId)?.socketId;
+            if (driverSocketId) {
+              io.to(driverSocketId).emit("trip_status_changed", {
+                tripId: data.tripId,
+                status: newStatus,
+                timestamp: new Date()
+              });
+            }
+          }
+        }
+
+        // Broadcast to the trip room
+        io.to(`trip:${data.tripId}`).emit("trip_status_changed", {
+          tripId: data.tripId,
+          status: newStatus,
+          previousStatus: data.previousStatus,
+          message: data.message || `Trip status updated to ${newStatus}`,
+          timestamp: new Date(),
+          updatedBy: data.updatedBy,
+          cancelReason: data.cancelReason
+        });
+
+        // Notify admins
+        io.to("role:Admin").emit("trip_status_changed", {
+          tripId: data.tripId,
+          status: newStatus,
+          previousStatus: data.previousStatus,
+          timestamp: new Date()
+        });
+
+      } catch (error) {
+        console.error("❌ Error in trip_status_updated handler:", error);
       }
     });
 
@@ -567,6 +845,14 @@ const setupSocketServer = (server) => {
           userData.lastSeen = new Date();
           onlineUsers.set(userId, userData);
         }
+
+        // Notify admins about driver availability
+        io.to("role:Admin").emit("driver_availability_update", {
+          driverId: userId,
+          available: data.available,
+          location: data.location,
+          timestamp: new Date()
+        });
       } catch (error) {
         console.error("❌ Error in driver_availability_update handler:", error);
       }
@@ -699,10 +985,9 @@ const setupSocketServer = (server) => {
           try {
             await global.createSystemNotification(
               data.recipient,
-              `New message from ${data.senderName}: ${
-                data.content.length > 30
-                  ? data.content.substring(0, 30) + "..."
-                  : data.content
+              `New message from ${data.senderName}: ${data.content.length > 30
+                ? data.content.substring(0, 30) + "..."
+                : data.content
               }`,
               "new_message",
               {
@@ -798,6 +1083,8 @@ const setupSocketServer = (server) => {
                     `⏰ User ${userId} removed from online users after 30s disconnect`
                   );
                   logActiveUsers();
+                  // Update active users counts for admin dashboards
+                  broadcastActiveUsersToAdmin();
                 }
               }
             }, 30000);
@@ -806,6 +1093,8 @@ const setupSocketServer = (server) => {
             onlineUsers.delete(userId);
             console.log(`👋 User ${userId} removed from online users`);
             logActiveUsers();
+            // Update active users counts for admin dashboards
+            broadcastActiveUsersToAdmin();
           }
         }
       } catch (error) {

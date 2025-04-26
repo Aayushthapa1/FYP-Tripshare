@@ -25,6 +25,7 @@ import {
   Filter,
   Search,
   AlertCircle,
+  CheckCircle,
 } from "lucide-react";
 
 const AdminKYCRequests = () => {
@@ -345,22 +346,27 @@ const AdminKYCRequests = () => {
     }
   };
 
+  // Check if item is verified
+  const isVerified = (item) => {
+    return item.status === "verified";
+  };
+
   return (
-    <div className="space-y-8 bg-slate-50 p-6 min-h-screen">
+    <div className="space-y-8 bg-slate-50 p-4 md:p-6 min-h-screen">
       {/* Header */}
-      <div className="bg-white rounded-2xl shadow-lg p-8 border border-slate-100">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-8">
+      <div className="bg-white rounded-2xl shadow-lg p-4 md:p-8 border border-slate-100">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 md:gap-6 mb-6 md:mb-8">
           <div>
-            <h1 className="text-3xl font-bold text-slate-800 tracking-tight">
+            <h1 className="text-2xl md:text-3xl font-bold text-slate-800 tracking-tight">
               KYC Verification Requests
             </h1>
-            <p className="text-slate-500 mt-2 text-lg">
+            <p className="text-slate-500 mt-2 text-base md:text-lg">
               Review and manage user and driver verification documents
             </p>
           </div>
 
           <div className="flex items-center space-x-4">
-            <div className="relative">
+            <div className="relative w-full md:w-auto">
               <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                 <Search size={18} className="text-slate-400" />
               </div>
@@ -386,38 +392,38 @@ const AdminKYCRequests = () => {
         </div>
 
         {/* KYC Type Selector and Filters */}
-        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-          <div className="flex items-center space-x-4">
+        <div className="flex flex-col sm:flex-row justify-between items-start md:items-center gap-4">
+          <div className="flex flex-wrap items-center gap-3 w-full sm:w-auto">
             <div className="flex items-center space-x-1 bg-slate-100 p-1.5 rounded-xl">
               <button
                 onClick={() => setKycType("user")}
-                className={`px-5 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 ${
+                className={`px-3 sm:px-5 py-2 sm:py-2.5 rounded-lg text-sm font-medium transition-all duration-200 ${
                   kycType === "user"
                     ? "bg-white text-violet-600 shadow-sm"
                     : "text-slate-600 hover:text-slate-800 hover:bg-slate-50"
                 }`}
               >
-                <User className="inline mr-2 h-4 w-4" /> User KYC
+                <User className="inline mr-1 sm:mr-2 h-4 w-4" /> User KYC
               </button>
               <button
                 onClick={() => setKycType("driver")}
-                className={`px-5 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 ${
+                className={`px-3 sm:px-5 py-2 sm:py-2.5 rounded-lg text-sm font-medium transition-all duration-200 ${
                   kycType === "driver"
                     ? "bg-white text-violet-600 shadow-sm"
                     : "text-slate-600 hover:text-slate-800 hover:bg-slate-50"
                 }`}
               >
-                <Car className="inline mr-2 h-4 w-4" /> Driver KYC
+                <Car className="inline mr-1 sm:mr-2 h-4 w-4" /> Driver KYC
               </button>
             </div>
 
             {kycType === "driver" && (
-              <div className="flex items-center space-x-2">
+              <div className="flex items-center space-x-2 mt-2 sm:mt-0">
                 <Filter size={16} className="text-slate-500" />
                 <select
                   value={statusFilter}
                   onChange={(e) => setStatusFilter(e.target.value)}
-                  className="border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500 bg-slate-50"
+                  className="border border-slate-200 rounded-lg px-2 sm:px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500 bg-slate-50"
                 >
                   <option value="pending">Pending</option>
                   <option value="verified">Verified</option>
@@ -430,7 +436,7 @@ const AdminKYCRequests = () => {
           </div>
 
           {/* Sorting Controls */}
-          <div className="flex items-center space-x-2">
+          <div className="flex flex-wrap items-center gap-2 mt-3 sm:mt-0">
             <span className="text-sm text-slate-600">Sort by:</span>
             <button
               onClick={() => {
@@ -468,7 +474,7 @@ const AdminKYCRequests = () => {
 
       {/* Loading State */}
       {loading && (
-        <div className="flex justify-center items-center py-16 bg-white rounded-2xl shadow-lg border border-slate-100">
+        <div className="flex justify-center items-center py-12 md:py-16 bg-white rounded-2xl shadow-lg border border-slate-100">
           <div className="w-8 h-8 border-3 border-violet-600 border-t-transparent rounded-full animate-spin mr-3"></div>
           <p className="text-slate-600 text-lg">Loading requests...</p>
         </div>
@@ -476,12 +482,12 @@ const AdminKYCRequests = () => {
 
       {/* Empty State */}
       {!loading && items.length === 0 && (
-        <div className="text-center py-16 bg-white rounded-2xl shadow-lg border border-slate-100">
-          <FileText className="w-16 h-16 text-slate-300 mx-auto mb-4" />
-          <h2 className="text-2xl font-semibold text-slate-800 mb-2">
+        <div className="text-center py-12 md:py-16 bg-white rounded-2xl shadow-lg border border-slate-100">
+          <FileText className="w-12 md:w-16 h-12 md:h-16 text-slate-300 mx-auto mb-4" />
+          <h2 className="text-xl md:text-2xl font-semibold text-slate-800 mb-2">
             No KYC Requests
           </h2>
-          <p className="text-slate-500 max-w-md mx-auto text-lg">
+          <p className="text-slate-500 max-w-md mx-auto text-base md:text-lg px-4">
             {searchTerm
               ? "No results match your search criteria."
               : `There are no ${
@@ -499,7 +505,7 @@ const AdminKYCRequests = () => {
             className="border border-slate-200 rounded-2xl overflow-hidden transition-all duration-300 bg-white shadow-md hover:shadow-lg"
           >
             {/* Card Header */}
-            <div className="p-6 flex flex-wrap items-center justify-between">
+            <div className="p-4 md:p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
               <div className="flex items-center space-x-4">
                 <div className="w-12 h-12 bg-gradient-to-br from-violet-500 to-fuchsia-500 rounded-full flex items-center justify-center shadow-md">
                   {kycType === "user" ? (
@@ -509,7 +515,7 @@ const AdminKYCRequests = () => {
                   )}
                 </div>
                 <div>
-                  <h2 className="text-xl font-semibold text-slate-800">
+                  <h2 className="text-lg md:text-xl font-semibold text-slate-800">
                     {getItemName(item)}
                   </h2>
                   <div className="flex items-center text-sm text-slate-500">
@@ -518,12 +524,15 @@ const AdminKYCRequests = () => {
                   </div>
                 </div>
               </div>
-              <div className="flex items-center space-x-3 mt-4 md:mt-0">
+              <div className="flex items-center space-x-3">
                 <span
                   className={`inline-flex items-center px-3 py-1.5 rounded-full text-xs font-medium ${getStatusColor(
                     item.status
                   )}`}
                 >
+                  {isVerified(item) && (
+                    <CheckCircle className="w-3.5 h-3.5 mr-1.5" />
+                  )}
                   {item.status
                     ? item.status.charAt(0).toUpperCase() +
                       item.status.slice(1).replace("_", " ")
@@ -550,14 +559,14 @@ const AdminKYCRequests = () => {
 
             {/* Expanded Content */}
             {expandedItem === item._id && (
-              <div className="p-6 border-t border-slate-100 bg-slate-50">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+              <div className="p-4 md:p-6 border-t border-slate-100 bg-slate-50">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-8">
                   {/* User/Driver Info */}
-                  <div className="bg-white p-6 rounded-2xl shadow-md border border-slate-100">
-                    <h3 className="text-sm font-medium text-slate-500 mb-5 uppercase tracking-wider">
+                  <div className="bg-white p-4 md:p-6 rounded-2xl shadow-md border border-slate-100">
+                    <h3 className="text-sm font-medium text-slate-500 mb-4 md:mb-5 uppercase tracking-wider">
                       {kycType === "user" ? "User" : "Driver"} Information
                     </h3>
-                    <div className="space-y-5">
+                    <div className="space-y-4 md:space-y-5">
                       <div className="flex items-start">
                         <div className="bg-violet-100 p-2.5 rounded-lg mr-4 shadow-sm">
                           <User className="w-5 h-5 text-violet-600" />
@@ -614,11 +623,11 @@ const AdminKYCRequests = () => {
                   </div>
 
                   {/* Document Preview */}
-                  <div className="bg-white p-6 rounded-2xl shadow-md border border-slate-100">
-                    <h3 className="text-sm font-medium text-slate-500 mb-5 uppercase tracking-wider">
+                  <div className="bg-white p-4 md:p-6 rounded-2xl shadow-md border border-slate-100">
+                    <h3 className="text-sm font-medium text-slate-500 mb-4 md:mb-5 uppercase tracking-wider">
                       KYC Documents
                     </h3>
-                    <div className="grid grid-cols-2 gap-5">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 md:gap-5">
                       {kycType === "user" && (
                         <>
                           {item.citizenshipFront && (
@@ -812,67 +821,84 @@ const AdminKYCRequests = () => {
                   </div>
                 </div>
 
-                {/* Rejection Reason Input */}
-                <div className="mt-8">
-                  <label
-                    htmlFor={`rejection-${item._id}`}
-                    className="block text-sm font-medium text-slate-700 mb-2"
-                  >
-                    Rejection Reason (required if rejecting)
-                  </label>
-                  <textarea
-                    id={`rejection-${item._id}`}
-                    value={rejectionReasons[item._id] || ""}
-                    onChange={(e) =>
-                      handleReasonChange(item._id, e.target.value)
-                    }
-                    placeholder="Provide a detailed reason for rejection..."
-                    className="w-full px-4 py-3 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-violet-500 resize-none bg-white shadow-sm"
-                    rows="3"
-                  />
-                </div>
+                {/* Only show rejection reason input and action buttons if not verified */}
+                {!isVerified(item) && (
+                  <>
+                    {/* Rejection Reason Input */}
+                    <div className="mt-6 md:mt-8">
+                      <label
+                        htmlFor={`rejection-${item._id}`}
+                        className="block text-sm font-medium text-slate-700 mb-2"
+                      >
+                        Rejection Reason (required if rejecting)
+                      </label>
+                      <textarea
+                        id={`rejection-${item._id}`}
+                        value={rejectionReasons[item._id] || ""}
+                        onChange={(e) =>
+                          handleReasonChange(item._id, e.target.value)
+                        }
+                        placeholder="Provide a detailed reason for rejection..."
+                        className="w-full px-4 py-3 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-violet-500 resize-none bg-white shadow-sm"
+                        rows="3"
+                      />
+                    </div>
 
-                {/* Action Buttons */}
-                <div className="mt-6 flex justify-end gap-4">
-                  <button
-                    onClick={() =>
-                      setupConfirmation("reject", item._id, kycType)
-                    }
-                    className="px-5 py-2.5 bg-white border border-rose-300 text-rose-600 rounded-xl hover:bg-rose-50 transition-colors flex items-center shadow-sm"
-                    disabled={actionInProgress}
-                  >
-                    <X size={18} className="mr-2" /> Reject
-                  </button>
-                  {kycType === "driver" && (
-                    <button
-                      onClick={() =>
-                        setupConfirmation("resubmit", item._id, kycType)
-                      }
-                      className="px-5 py-2.5 bg-white border border-amber-300 text-amber-600 rounded-xl hover:bg-amber-50 transition-colors flex items-center shadow-sm"
-                      disabled={actionInProgress}
-                    >
-                      <RefreshCw size={18} className="mr-2" /> Need Resubmission
-                    </button>
-                  )}
-                  <button
-                    onClick={() =>
-                      setupConfirmation("approve", item._id, kycType)
-                    }
-                    className="px-5 py-2.5 bg-violet-600 text-white rounded-xl hover:bg-violet-700 transition-colors flex items-center shadow-sm"
-                    disabled={actionInProgress}
-                  >
-                    <Check size={18} className="mr-2" /> Approve
-                  </button>
-                </div>
+                    {/* Action Buttons */}
+                    <div className="mt-6 flex flex-wrap justify-end gap-3 md:gap-4">
+                      <button
+                        onClick={() =>
+                          setupConfirmation("reject", item._id, kycType)
+                        }
+                        className="px-4 md:px-5 py-2 md:py-2.5 bg-white border border-rose-300 text-rose-600 rounded-xl hover:bg-rose-50 transition-colors flex items-center shadow-sm"
+                        disabled={actionInProgress}
+                      >
+                        <X size={18} className="mr-2" /> Reject
+                      </button>
+                      {kycType === "driver" && (
+                        <button
+                          onClick={() =>
+                            setupConfirmation("resubmit", item._id, kycType)
+                          }
+                          className="px-4 md:px-5 py-2 md:py-2.5 bg-white border border-amber-300 text-amber-600 rounded-xl hover:bg-amber-50 transition-colors flex items-center shadow-sm"
+                          disabled={actionInProgress}
+                        >
+                          <RefreshCw size={18} className="mr-2" /> Need
+                          Resubmission
+                        </button>
+                      )}
+                      <button
+                        onClick={() =>
+                          setupConfirmation("approve", item._id, kycType)
+                        }
+                        className="px-4 md:px-5 py-2 md:py-2.5 bg-violet-600 text-white rounded-xl hover:bg-violet-700 transition-colors flex items-center shadow-sm"
+                        disabled={actionInProgress}
+                      >
+                        <Check size={18} className="mr-2" /> Approve
+                      </button>
+                    </div>
+                  </>
+                )}
+
+                {/* For verified items, show a verified status message instead of action buttons */}
+                {isVerified(item) && (
+                  <div className="mt-6 flex justify-center">
+                    <div className="bg-emerald-50 text-emerald-700 px-6 py-4 rounded-xl flex items-center">
+                      <CheckCircle className="w-5 h-5 mr-2" />
+                      This {kycType} KYC has been verified and is now visible in
+                      the Verified Accounts section.
+                    </div>
+                  </div>
+                )}
               </div>
             )}
 
-            {/* Card Footer with Actions (when collapsed) */}
-            {expandedItem !== item._id && (
-              <div className="p-5 border-t border-slate-100 flex justify-end gap-4">
+            {/* Card Footer with Actions (when collapsed) - only show for non-verified items */}
+            {expandedItem !== item._id && !isVerified(item) && (
+              <div className="p-4 md:p-5 border-t border-slate-100 flex flex-wrap justify-end gap-3 md:gap-4">
                 <button
                   onClick={() => setupConfirmation("reject", item._id, kycType)}
-                  className="px-4 py-2 bg-white border border-rose-300 text-rose-600 rounded-lg hover:bg-rose-50 transition-colors shadow-sm"
+                  className="px-3 md:px-4 py-2 bg-white border border-rose-300 text-rose-600 rounded-lg hover:bg-rose-50 transition-colors shadow-sm"
                   disabled={actionInProgress}
                 >
                   Reject
@@ -882,7 +908,7 @@ const AdminKYCRequests = () => {
                     onClick={() =>
                       setupConfirmation("resubmit", item._id, kycType)
                     }
-                    className="px-4 py-2 bg-white border border-amber-300 text-amber-600 rounded-lg hover:bg-amber-50 transition-colors shadow-sm"
+                    className="px-3 md:px-4 py-2 bg-white border border-amber-300 text-amber-600 rounded-lg hover:bg-amber-50 transition-colors shadow-sm"
                     disabled={actionInProgress}
                   >
                     Need Resubmission
@@ -892,11 +918,23 @@ const AdminKYCRequests = () => {
                   onClick={() =>
                     setupConfirmation("approve", item._id, kycType)
                   }
-                  className="px-4 py-2 bg-violet-600 text-white rounded-lg hover:bg-violet-700 transition-colors shadow-sm"
+                  className="px-3 md:px-4 py-2 bg-violet-600 text-white rounded-lg hover:bg-violet-700 transition-colors shadow-sm"
                   disabled={actionInProgress}
                 >
                   Approve
                 </button>
+              </div>
+            )}
+
+            {/* For verified items in collapsed view, show a simplified verified status footer */}
+            {expandedItem !== item._id && isVerified(item) && (
+              <div className="p-4 md:p-5 border-t border-slate-100 flex justify-between items-center">
+                <div className="text-sm text-slate-500">
+                  Verified on {formatDate(item.updatedAt || item.createdAt)}
+                </div>
+                <span className="inline-flex items-center px-3 py-1.5 rounded-full text-xs font-medium bg-emerald-100 text-emerald-800">
+                  <CheckCircle className="w-3.5 h-3.5 mr-1.5" /> Verified
+                </span>
               </div>
             )}
           </div>
@@ -906,8 +944,8 @@ const AdminKYCRequests = () => {
       {/* Confirmation Modal */}
       {confirmAction && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black bg-opacity-50 backdrop-blur-sm">
-          <div className="bg-white rounded-2xl shadow-xl max-w-md w-full animate-fade-in-up">
-            <div className="p-6">
+          <div className="bg-white rounded-2xl shadow-xl max-w-sm md:max-w-md w-full animate-fade-in-up">
+            <div className="p-5 md:p-6">
               <div className="flex items-center mb-4">
                 {confirmAction.action === "approve" ? (
                   <div className="w-10 h-10 rounded-full bg-emerald-100 flex items-center justify-center mr-3">
@@ -922,7 +960,7 @@ const AdminKYCRequests = () => {
                     <X className="w-5 h-5 text-rose-600" />
                   </div>
                 )}
-                <h2 className="text-xl font-semibold text-slate-800">
+                <h2 className="text-lg md:text-xl font-semibold text-slate-800">
                   {confirmAction.action === "approve"
                     ? "Approve KYC"
                     : confirmAction.action === "resubmit"
@@ -944,16 +982,16 @@ const AdminKYCRequests = () => {
                   <p className="text-sm font-medium text-slate-700 mb-2">
                     Reason:
                   </p>
-                  <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl text-slate-700">
+                  <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl text-slate-700 max-h-32 overflow-y-auto">
                     {rejectionReasons[confirmAction.id]}
                   </div>
                 </div>
               )}
 
-              <div className="flex justify-end gap-3">
+              <div className="flex flex-wrap justify-end gap-3">
                 <button
                   onClick={cancelConfirmation}
-                  className="px-5 py-2.5 bg-slate-100 text-slate-700 rounded-xl hover:bg-slate-200 transition-colors font-medium"
+                  className="px-4 md:px-5 py-2 md:py-2.5 bg-slate-100 text-slate-700 rounded-xl hover:bg-slate-200 transition-colors font-medium"
                 >
                   Cancel
                 </button>
@@ -965,7 +1003,7 @@ const AdminKYCRequests = () => {
                       ? handleNeedsResubmission(confirmAction.id)
                       : handleReject(confirmAction.id, confirmAction.itemType)
                   }
-                  className={`px-5 py-2.5 text-white rounded-xl transition-colors font-medium ${
+                  className={`px-4 md:px-5 py-2 md:py-2.5 text-white rounded-xl transition-colors font-medium ${
                     confirmAction.action === "approve"
                       ? "bg-violet-600 hover:bg-violet-700"
                       : confirmAction.action === "resubmit"
@@ -1000,7 +1038,7 @@ const AdminKYCRequests = () => {
           onClick={closeImageModal}
         >
           <div
-            className="bg-white rounded-2xl shadow-xl max-w-4xl w-full overflow-hidden animate-fade-in-up"
+            className="bg-white rounded-2xl shadow-xl max-w-2xl md:max-w-4xl w-full overflow-hidden animate-fade-in-up"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="p-4 border-b border-slate-200 flex items-center justify-between">
@@ -1014,7 +1052,7 @@ const AdminKYCRequests = () => {
                 <X size={20} className="text-slate-600" />
               </button>
             </div>
-            <div className="p-6 flex items-center justify-center bg-slate-100 max-h-[70vh] overflow-auto">
+            <div className="p-4 md:p-6 flex items-center justify-center bg-slate-100 max-h-[50vh] md:max-h-[70vh] overflow-auto">
               <img
                 src={viewImage.url || "/placeholder.svg"}
                 alt={viewImage.title}
@@ -1024,7 +1062,7 @@ const AdminKYCRequests = () => {
             <div className="p-4 border-t border-slate-200 flex justify-end">
               <button
                 onClick={closeImageModal}
-                className="px-5 py-2.5 bg-slate-100 text-slate-700 rounded-xl hover:bg-slate-200 transition-colors font-medium focus:outline-none focus:ring-2 focus:ring-violet-500"
+                className="px-4 md:px-5 py-2 md:py-2.5 bg-slate-100 text-slate-700 rounded-xl hover:bg-slate-200 transition-colors font-medium focus:outline-none focus:ring-2 focus:ring-violet-500"
               >
                 Close
               </button>

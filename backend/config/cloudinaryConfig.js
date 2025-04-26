@@ -4,11 +4,6 @@ import fs from "fs/promises"; // Using promise-based fs
 
 dotenv.config();
 
-// Configure Cloudinary with environment variables.
-// Make sure your .env file includes:
-// CLOUDINARY_CLOUD=yourCloudName
-// CLOUDINARY_API_KEY=1234
-// CLOUDINARY_API_SECRET=abcd
 cloudinary.config({
   cloud_name: process.env.CLOUDINARY_CLOUD,
   api_key: process.env.CLOUDINARY_API_KEY,

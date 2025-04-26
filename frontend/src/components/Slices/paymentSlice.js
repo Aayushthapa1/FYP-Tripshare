@@ -23,6 +23,7 @@ export const initiatePayment = createAsyncThunk(
             }
 
             const result = await paymentService.initiatePayment(paymentData);
+            console.log("Payment initiation result:", result);
 
             if (!result.success) {
                 return rejectWithValue({
@@ -36,6 +37,50 @@ export const initiatePayment = createAsyncThunk(
             console.error("Payment initiation error:", error);
             return rejectWithValue({
                 message: error.message || "Failed to initiate payment",
+                errors: error.errors || []
+            });
+        }
+    }
+);
+
+// Complete Khalti payment after redirect
+export const completeKhaltiPayment = createAsyncThunk(
+    "payment/completeKhalti",
+    async (queryParams, { rejectWithValue }) => {
+        try {
+            console.log("Completing Khalti payment with params:", queryParams);
+
+            // If no query params provided, extract from URL
+            if (!queryParams) {
+                queryParams = paymentService.extractKhaltiCallbackParams();
+            }
+
+            // Validate required params
+            if (!queryParams.pidx) {
+                throw new Error("Missing pidx parameter");
+            }
+
+            if (!queryParams.purchase_order_id) {
+                throw new Error("Missing purchase_order_id parameter");
+            }
+
+            const result = await paymentService.completeKhaltiPayment(queryParams);
+            console.log("Complete Khalti payment result:", result);
+
+            // Note: This endpoint redirects in the backend, so we may not get a typical response
+            // We'll handle the redirect in the UI based on the URL after redirect
+            if (!result.success && result.data) {
+                return rejectWithValue({
+                    message: result.message || "Failed to complete payment",
+                    errors: result.errors || []
+                });
+            }
+
+            return result.data;
+        } catch (error) {
+            console.error("Complete Khalti payment error:", error);
+            return rejectWithValue({
+                message: error.message || "Failed to complete payment",
                 errors: error.errors || []
             });
         }
@@ -90,14 +135,8 @@ export const getPaymentDetails = createAsyncThunk(
 
             const result = await paymentService.getPaymentDetails(paymentId);
 
-            if (!result.success) {
-                return rejectWithValue({
-                    message: result.message || "Failed to get payment details",
-                    errors: result.errors || []
-                });
-            }
-
-            return result.data;
+           console.log("Payment details result:", result);
+            return result.Result;
         } catch (error) {
             console.error("Get payment details error:", error);
             return rejectWithValue({
@@ -174,15 +213,11 @@ export const getUserPayments = createAsyncThunk(
             console.log("Fetching user payments with filters:", filters);
 
             const result = await paymentService.getUserPayments(filters);
+            console.log("User payments result:", result);
 
-            if (!result.success) {
-                return rejectWithValue({
-                    message: result.message || "Failed to get user payments",
-                    errors: result.errors || []
-                });
-            }
+           
 
-            return result.data;
+            return result.Result;
         } catch (error) {
             console.error("Get user payments error:", error);
             return rejectWithValue({
@@ -201,15 +236,11 @@ export const getDriverPayments = createAsyncThunk(
             console.log("Fetching driver payments with filters:", filters);
 
             const result = await paymentService.getDriverPayments(filters);
+            console.log("Driver payments result:", result);
 
-            if (!result.success) {
-                return rejectWithValue({
-                    message: result.message || "Failed to get driver payments",
-                    errors: result.errors || []
-                });
-            }
+           
 
-            return result.data;
+            return result.Result;
         } catch (error) {
             console.error("Get driver payments error:", error);
             return rejectWithValue({
@@ -261,6 +292,14 @@ const initialState = {
     recentPayments: [],
     paymentsByBooking: {},
 
+    // Pagination
+    pagination: {
+        totalCount: 0,
+        totalPages: 0,
+        currentPage: 1,
+        limit: 10
+    },
+
     // UI states
     loading: false,
     statsLoading: false,
@@ -299,6 +338,29 @@ const paymentSlice = createSlice({
         clearCurrentPayment: (state) => {
             state.currentPayment = null;
             state.paymentUrl = null;
+        },
+
+        // Reducer to handle payment completion based on URL
+        setPaymentCompletionStatus: (state, action) => {
+            const { status } = action.payload;
+            state.loading = false;
+
+            if (status === 'success') {
+                state.success = true;
+                state.actionSuccess = true;
+                state.successMessage = "Payment completed successfully";
+            } else if (status === 'cancel') {
+                state.success = false;
+                state.error = "Payment was canceled";
+            } else if (status === 'failed') {
+                state.success = false;
+                state.error = "Payment failed";
+            } else if (status === 'error') {
+                state.success = false;
+                state.error = "An error occurred during payment processing";
+            }
+
+            state.lastAction = Date.now();
         }
     },
     extraReducers: (builder) => {
@@ -333,6 +395,43 @@ const paymentSlice = createSlice({
                 state.errorDetails = action.payload?.errors || [];
                 state.success = false;
                 state.actionSuccess = false;
+            })
+
+            // Complete Khalti Payment
+            .addCase(completeKhaltiPayment.pending, (state) => {
+                state.loading = true;
+                state.error = null;
+                state.errorDetails = [];
+                state.success = false;
+            })
+            .addCase(completeKhaltiPayment.fulfilled, (state, action) => {
+                state.loading = false;
+
+                // Note: This might not be reached due to redirect behavior
+                // The setPaymentCompletionStatus reducer will handle the state update
+                // based on the redirect URL
+
+                if (action.payload?.payment) {
+                    state.currentPayment = action.payload.payment;
+
+                    if (state.currentPayment.status === "completed") {
+                        state.success = true;
+                        state.actionSuccess = true;
+                        state.successMessage = "Payment completed successfully";
+                    } else if (state.currentPayment.status === "canceled") {
+                        state.error = "Payment was canceled";
+                    } else if (state.currentPayment.status === "failed") {
+                        state.error = "Payment failed";
+                    }
+                }
+
+                state.lastAction = Date.now();
+            })
+            .addCase(completeKhaltiPayment.rejected, (state, action) => {
+                state.loading = false;
+                state.error = action.payload?.message || "Failed to complete payment";
+                state.errorDetails = action.payload?.errors || [];
+                state.success = false;
             })
 
             // Check Khalti Payment Status
@@ -446,7 +545,7 @@ const paymentSlice = createSlice({
 
                 // Store pagination if provided
                 if (action.payload.pagination) {
-                    state.userPagination = action.payload.pagination;
+                    state.pagination = action.payload.pagination;
                 }
 
                 state.lastAction = Date.now();
@@ -470,7 +569,7 @@ const paymentSlice = createSlice({
 
                 // Store pagination if provided
                 if (action.payload.pagination) {
-                    state.driverPagination = action.payload.pagination;
+                    state.pagination = action.payload.pagination;
                 }
 
                 state.lastAction = Date.now();
@@ -506,7 +605,8 @@ export const {
     clearPaymentError,
     clearPaymentSuccess,
     resetPaymentState,
-    clearCurrentPayment
+    clearCurrentPayment,
+    setPaymentCompletionStatus
 } = paymentSlice.actions;
 
 // Export helper functions from service

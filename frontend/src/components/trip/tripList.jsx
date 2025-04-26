@@ -8,6 +8,7 @@ import {
   getTrips,
   getTripById,
   searchTrips,
+  cleanupExpiredTrips,
 } from "../Slices/tripSlice";
 import { fetchMyBookings } from "../Slices/bookingSlice";
 import { useNavigate } from "react-router-dom";
@@ -35,6 +36,7 @@ import {
   ChevronLeft,
   ChevronDown,
   Filter,
+  AlertTriangle,
 } from "lucide-react";
 import Navbar from "../layout/Navbar";
 import Footer from "../layout/Footer";
@@ -50,7 +52,12 @@ const TripList = () => {
   // Auth user
   const { user } = useSelector((state) => state.auth) || {};
 
-  const { trips = [], loading, error } = useSelector((state) => state.trip);
+  const {
+    trips = [],
+    loading,
+    error,
+    cleanupStats,
+  } = useSelector((state) => state.trip);
   const { myBookings = [] } = useSelector((state) => state.booking) || {};
 
   // State for modals
@@ -58,9 +65,17 @@ const TripList = () => {
   const [editingTrip, setEditingTrip] = useState(null);
   const [editFormData, setEditFormData] = useState(null);
 
+  // State for confirmation modals
+  const [deleteConfirmation, setDeleteConfirmation] = useState(null);
+  const [statusConfirmation, setStatusConfirmation] = useState(null);
+  const [updateConfirmation, setUpdateConfirmation] = useState(null);
+
   // For filtering and search
   const [statusFilter, setStatusFilter] = useState("all");
   const [searchTerm, setSearchTerm] = useState("");
+
+  // For sorting
+  const [sortBy, setSortBy] = useState("newest");
 
   // For pagination
   const [currentPage, setCurrentPage] = useState(1);
@@ -75,37 +90,84 @@ const TripList = () => {
     dispatch(getTrips());
     dispatch(fetchMyBookings());
 
+    // Clean up expired trips
+    if (user && user._id) {
+      dispatch(cleanupExpiredTrips())
+        .unwrap()
+        .then((result) => {
+          if (result && result.removedCount > 0) {
+            toast.info(
+              `${result.removedCount} expired trips were automatically removed`
+            );
+          }
+        })
+        .catch((error) => {
+          console.error("Failed to clean expired trips:", error);
+        });
+    }
+
     const handleResize = () => {
       setIsMobileView(window.innerWidth < 768);
     };
 
     window.addEventListener("resize", handleResize);
     return () => window.removeEventListener("resize", handleResize);
-  }, [dispatch]);
+  }, [dispatch, user]);
 
   // --- ACTION HANDLERS ---
 
-  const handleDelete = async (tripId) => {
+  const handleDeleteClick = (trip) => {
+    setDeleteConfirmation(trip);
+  };
+
+  const confirmDelete = async () => {
+    if (!deleteConfirmation) return;
+
     try {
-      await dispatch(deleteTrip(tripId)).unwrap();
-      toast.success("Trip deleted successfully");
+      toast.loading("Deleting trip...");
+      await dispatch(deleteTrip(deleteConfirmation._id)).unwrap();
+      toast.dismiss();
+      toast.success("Trip deleted successfully", {
+        description: "The trip has been permanently removed",
+      });
+      setDeleteConfirmation(null);
       dispatch(getTrips());
     } catch (err) {
-      toast.error(err?.message || "Failed to delete trip");
+      toast.dismiss();
+      toast.error(err?.message || "Failed to delete trip", {
+        description: err?.cause || "Please try again later",
+      });
     }
   };
 
-  const handleStatusUpdate = async (tripId, currentStatus) => {
+  const handleStatusClick = (tripId, currentStatus) => {
+    const newStatus = currentStatus === "scheduled" ? "cancelled" : "scheduled";
+    setStatusConfirmation({ tripId, currentStatus, newStatus });
+  };
+
+  const confirmStatusUpdate = async () => {
+    if (!statusConfirmation) return;
+
     try {
-      const newStatus =
-        currentStatus === "scheduled" ? "cancelled" : "scheduled";
+      const { tripId, newStatus } = statusConfirmation;
+      toast.loading(`Updating trip status to ${newStatus}...`);
       await dispatch(
         updateTrip({ tripId, tripData: { status: newStatus } })
       ).unwrap();
-      toast.success(`Trip status updated to "${newStatus}"`);
+      toast.dismiss();
+      toast.success(`Trip status updated to "${newStatus}"`, {
+        description:
+          newStatus === "cancelled"
+            ? "Passengers will be notified"
+            : "Trip is now visible to passengers",
+      });
+      setStatusConfirmation(null);
       dispatch(getTrips());
     } catch (err) {
-      toast.error(err?.message || "Failed to update status");
+      toast.dismiss();
+      toast.error(err?.message || "Failed to update status", {
+        description: "Please try again later",
+      });
     }
   };
 
@@ -113,6 +175,7 @@ const TripList = () => {
   const handleViewDetails = (trip) => {
     setSelectedTrip(trip);
   };
+
   const closeDetailsModal = () => {
     setSelectedTrip(null);
   };
@@ -120,13 +183,19 @@ const TripList = () => {
   // "Edit" modal
   const handleEditClick = async (trip) => {
     try {
+      toast.loading("Loading trip details...");
       await dispatch(getTripById(trip._id)).unwrap();
+      toast.dismiss();
       setEditingTrip(trip);
       setEditFormData({ ...trip });
     } catch (err) {
-      toast.error("Failed to fetch trip details");
+      toast.dismiss();
+      toast.error("Failed to fetch trip details", {
+        description: err?.message || "Please try again",
+      });
     }
   };
+
   const closeEditModal = () => {
     setEditingTrip(null);
     setEditFormData(null);
@@ -136,18 +205,55 @@ const TripList = () => {
     e.preventDefault();
     if (!editingTrip || !editFormData) return;
 
+    // Validation
+    if (!editFormData.departureLocation || !editFormData.destinationLocation) {
+      toast.error("Departure and destination locations are required");
+      return;
+    }
+
+    if (!editFormData.departureDate || !editFormData.departureTime) {
+      toast.error("Departure date and time are required");
+      return;
+    }
+
+    // Validate future date
+    const departureDate = new Date(editFormData.departureDate);
+    departureDate.setHours(0, 0, 0, 0);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    if (departureDate < today) {
+      toast.error("Departure date must be in the future");
+      return;
+    }
+
+    // Show confirmation modal
+    setUpdateConfirmation(editFormData);
+  };
+
+  const confirmUpdate = async () => {
+    if (!editingTrip || !updateConfirmation) return;
+
     try {
+      toast.loading("Updating trip...");
       await dispatch(
         updateTrip({
           tripId: editingTrip._id,
-          tripData: editFormData,
+          tripData: updateConfirmation,
         })
       ).unwrap();
-      toast.success("Trip updated successfully");
+      toast.dismiss();
+      toast.success("Trip updated successfully", {
+        description: "All changes have been saved",
+      });
+      setUpdateConfirmation(null);
       closeEditModal();
       dispatch(getTrips());
     } catch (err) {
-      toast.error(err?.message || "Failed to update trip");
+      toast.dismiss();
+      toast.error(err?.message || "Failed to update trip", {
+        description: "Please try again later",
+      });
     }
   };
 
@@ -182,7 +288,21 @@ const TripList = () => {
 
   const handleSearch = () => {
     if (searchTerm.trim()) {
-      dispatch(searchTrips(searchTerm));
+      toast.loading("Searching trips...");
+      dispatch(searchTrips(searchTerm))
+        .unwrap()
+        .then((result) => {
+          toast.dismiss();
+          if (!result || result.length === 0) {
+            toast.info("No trips found matching your search criteria");
+          } else {
+            toast.success(`Found ${result.length} trips matching your search`);
+          }
+        })
+        .catch((error) => {
+          toast.dismiss();
+          toast.error(`Search failed: ${error.message || "Unknown error"}`);
+        });
       setCurrentPage(1);
     } else {
       dispatch(getTrips());
@@ -206,27 +326,85 @@ const TripList = () => {
     });
   };
 
+  // Format date to show time since creation
+  const formatTimeSince = (dateString) => {
+    if (!dateString) return "";
+
+    const date = dateString instanceof Date ? dateString : new Date(dateString);
+
+    const now = new Date();
+    const seconds = Math.floor((now - date) / 1000);
+
+    if (seconds < 60) return "just now";
+
+    const minutes = Math.floor(seconds / 60);
+    if (minutes < 60) return `${minutes}m ago`;
+
+    const hours = Math.floor(minutes / 60);
+    if (hours < 24) return `${hours}h ago`;
+
+    const days = Math.floor(hours / 24);
+    if (days < 7) return `${days}d ago`;
+
+    return formatDate(dateString);
+  };
+
+  // Get creation date for a trip from either createdAt field or _id
+  const getTripDate = (trip) => {
+    if (trip.createdAt) return new Date(trip.createdAt);
+    // Extract creation time from MongoDB _id (first 8 chars are a timestamp)
+    if (trip._id && trip._id.length >= 8) {
+      return new Date(Number.parseInt(trip._id.substring(0, 8), 16) * 1000);
+    }
+    return new Date();
+  };
+
   // Get today's date without time
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
+  // Sort trips based on selected sort criteria
+  const sortTrips = (trips) => {
+    if (sortBy === "newest") {
+      // Sort by createdAt field, newest first
+      return [...trips].sort((a, b) => {
+        const dateA = getTripDate(a);
+        const dateB = getTripDate(b);
+        return dateB - dateA;
+      });
+    } else if (sortBy === "price") {
+      // Sort by price, lowest first
+      return [...trips].sort((a, b) => a.price - b.price);
+    } else if (sortBy === "departure") {
+      // Sort by departure date, soonest first
+      return [...trips].sort((a, b) => {
+        const dateA = new Date(a.departureDate);
+        const dateB = new Date(b.departureDate);
+        return dateA - dateB;
+      });
+    }
+    return trips;
+  };
+
   // Filter trips
-  const filteredTrips = trips.filter((trip) => {
-    const tripDate = new Date(trip.departureDate);
-    tripDate.setHours(0, 0, 0, 0);
+  const filteredTrips = sortTrips(
+    trips.filter((trip) => {
+      const tripDate = new Date(trip.departureDate);
+      tripDate.setHours(0, 0, 0, 0);
 
-    // Filter out trips with 0 available seats
-    const hasAvailableSeats = trip.availableSeats > 0;
+      // Filter out trips with 0 available seats
+      const hasAvailableSeats = trip.availableSeats > 0;
 
-    // Filter out trips with past departure dates
-    const isFutureTrip = tripDate >= today;
+      // Filter out trips with past departure dates
+      const isFutureTrip = tripDate >= today;
 
-    // Filter by status
-    const statusFilterMatch =
-      statusFilter === "all" || trip.status === statusFilter;
+      // Filter by status
+      const statusFilterMatch =
+        statusFilter === "all" || trip.status === statusFilter;
 
-    return hasAvailableSeats && isFutureTrip && statusFilterMatch;
-  });
+      return hasAvailableSeats && isFutureTrip && statusFilterMatch;
+    })
+  );
 
   // Pagination logic
   const indexOfLastTrip = currentPage * tripsPerPage;
@@ -338,50 +516,88 @@ const TripList = () => {
       >
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3">
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-            <div className="flex items-center justify-between md:justify-start">
-              <div className="flex items-center space-x-2">
+            <div className="flex flex-col md:flex-row md:items-center gap-4">
+              <div className="flex items-center justify-between md:justify-start">
+                <div className="flex items-center space-x-2">
+                  <button
+                    onClick={() => setStatusFilter("all")}
+                    className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${
+                      statusFilter === "all"
+                        ? "bg-green-500 text-white"
+                        : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                    }`}
+                  >
+                    All
+                  </button>
+                  <button
+                    onClick={() => setStatusFilter("scheduled")}
+                    className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${
+                      statusFilter === "scheduled"
+                        ? "bg-green-500 text-white"
+                        : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                    }`}
+                  >
+                    Scheduled
+                  </button>
+                  <button
+                    onClick={() => setStatusFilter("cancelled")}
+                    className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${
+                      statusFilter === "cancelled"
+                        ? "bg-green-500 text-white"
+                        : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                    }`}
+                  >
+                    Cancelled
+                  </button>
+                </div>
                 <button
-                  onClick={() => setStatusFilter("all")}
-                  className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${
-                    statusFilter === "all"
-                      ? "bg-green-500 text-white"
-                      : "bg-gray-100 text-gray-700 hover:bg-gray-200"
-                  }`}
+                  onClick={() => setShowFilters(!showFilters)}
+                  className="md:hidden"
                 >
-                  All
-                </button>
-                <button
-                  onClick={() => setStatusFilter("scheduled")}
-                  className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${
-                    statusFilter === "scheduled"
-                      ? "bg-green-500 text-white"
-                      : "bg-gray-100 text-gray-700 hover:bg-gray-200"
-                  }`}
-                >
-                  Scheduled
-                </button>
-                <button
-                  onClick={() => setStatusFilter("cancelled")}
-                  className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${
-                    statusFilter === "cancelled"
-                      ? "bg-green-500 text-white"
-                      : "bg-gray-100 text-gray-700 hover:bg-gray-200"
-                  }`}
-                >
-                  Cancelled
+                  <ChevronDown
+                    size={20}
+                    className={`text-gray-500 transition-transform ${
+                      showFilters ? "rotate-180" : ""
+                    }`}
+                  />
                 </button>
               </div>
-              <button
-                onClick={() => setShowFilters(!showFilters)}
-                className="md:hidden"
-              >
-                <ChevronDown
-                  size={20}
-                  className={`text-gray-500 transition-transform ${
-                    showFilters ? "rotate-180" : ""
-                  }`}
-                />
-              </button>
+
+              <div className="flex items-center space-x-3 mt-2 md:mt-0">
+                <span className="text-sm text-gray-500">Sort by:</span>
+                <div className="flex items-center space-x-2">
+                  <button
+                    onClick={() => setSortBy("newest")}
+                    className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
+                      sortBy === "newest"
+                        ? "bg-green-500 text-white"
+                        : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                    }`}
+                  >
+                    Newest
+                  </button>
+                  <button
+                    onClick={() => setSortBy("price")}
+                    className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
+                      sortBy === "price"
+                        ? "bg-green-500 text-white"
+                        : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                    }`}
+                  >
+                    Price
+                  </button>
+                  <button
+                    onClick={() => setSortBy("departure")}
+                    className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
+                      sortBy === "departure"
+                        ? "bg-green-500 text-white"
+                        : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                    }`}
+                  >
+                    Soonest
+                  </button>
+                </div>
+              </div>
             </div>
 
             <div className="md:hidden flex items-center bg-white border border-gray-300 rounded-full overflow-hidden mt-2">
@@ -470,9 +686,15 @@ const TripList = () => {
                           {trip.destinationLocation}
                         </span>
                       </div>
-                      <h3 className="text-lg font-semibold text-gray-800">
-                        {trip.vehicleDetails?.model || "Comfortable Journey"}
-                      </h3>
+                      <div className="flex items-center justify-between">
+                        <h3 className="text-lg font-semibold text-gray-800">
+                          {trip.vehicleDetails?.model || "Comfortable Journey"}
+                        </h3>
+                        {/* Posted time */}
+                        <span className="text-xs text-gray-500">
+                          {formatTimeSince(getTripDate(trip))}
+                        </span>
+                      </div>
                     </div>
 
                     {/* Trip Details Grid */}
@@ -538,26 +760,37 @@ const TripList = () => {
                           <>
                             <button
                               onClick={() =>
-                                handleStatusUpdate(trip._id, trip.status)
+                                handleStatusClick(trip._id, trip.status)
                               }
-                              className="p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-full transition-colors"
+                              className="p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-full transition-colors group relative"
                               title="Toggle Status"
                             >
                               <ToggleLeft size={18} />
+                              <span className="absolute bottom-full mb-2 left-1/2 transform -translate-x-1/2 bg-gray-800 text-white text-xs rounded py-1 px-2 opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
+                                {trip.status === "scheduled"
+                                  ? "Cancel trip"
+                                  : "Activate trip"}
+                              </span>
                             </button>
                             <button
                               onClick={() => handleEditClick(trip)}
-                              className="p-2 text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded-full transition-colors"
+                              className="p-2 text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded-full transition-colors group relative"
                               title="Edit"
                             >
                               <Edit size={18} />
+                              <span className="absolute bottom-full mb-2 left-1/2 transform -translate-x-1/2 bg-gray-800 text-white text-xs rounded py-1 px-2 opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
+                                Edit trip
+                              </span>
                             </button>
                             <button
-                              onClick={() => handleDelete(trip._id)}
-                              className="p-2 text-red-600 hover:text-red-700 hover:bg-red-50 rounded-full transition-colors"
+                              onClick={() => handleDeleteClick(trip)}
+                              className="p-2 text-red-600 hover:text-red-700 hover:bg-red-50 rounded-full transition-colors group relative"
                               title="Delete"
                             >
                               <Trash size={18} />
+                              <span className="absolute bottom-full mb-2 left-1/2 transform -translate-x-1/2 bg-gray-800 text-white text-xs rounded py-1 px-2 opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
+                                Delete trip
+                              </span>
                             </button>
                           </>
                         ) : (
@@ -708,6 +941,15 @@ const TripList = () => {
                       </div>
                     </div>
                   )}
+                  {/* Added: Trip Created Time */}
+                  <div>
+                    <div className="flex items-center text-gray-500 text-sm mb-1">
+                      <Clock size={14} className="mr-1.5" /> Posted
+                    </div>
+                    <p className="text-gray-900 font-medium">
+                      {formatTimeSince(getTripDate(selectedTrip))}
+                    </p>
+                  </div>
                 </div>
               </div>
               {selectedTrip.preferences && (
@@ -1074,6 +1316,108 @@ const TripList = () => {
           </div>
         </div>
       )}
+
+      {/* Delete Confirmation Modal */}
+      {deleteConfirmation && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black bg-opacity-50 backdrop-blur-sm">
+          <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6 animate-fade-in">
+            <div className="flex items-center mb-4 text-red-600">
+              <AlertTriangle className="w-6 h-6 mr-2" />
+              <h3 className="text-lg font-semibold">Delete Trip</h3>
+            </div>
+            <p className="text-gray-700 mb-6">
+              Are you sure you want to delete this trip from{" "}
+              {deleteConfirmation.departureLocation} to{" "}
+              {deleteConfirmation.destinationLocation}? This action cannot be
+              undone.
+            </p>
+            <div className="flex justify-end gap-3">
+              <button
+                onClick={() => setDeleteConfirmation(null)}
+                className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmDelete}
+                className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors flex items-center"
+              >
+                <Trash size={16} className="mr-1.5" /> Delete Trip
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Status Update Confirmation Modal */}
+      {statusConfirmation && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black bg-opacity-50 backdrop-blur-sm">
+          <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6 animate-fade-in">
+            <div className="flex items-center mb-4 text-blue-600">
+              <AlertTriangle className="w-6 h-6 mr-2" />
+              <h3 className="text-lg font-semibold">Change Trip Status</h3>
+            </div>
+            <p className="text-gray-700 mb-6">
+              Are you sure you want to change the trip status to{" "}
+              <span className="font-medium">
+                {statusConfirmation.newStatus}
+              </span>
+              ?
+              {statusConfirmation.newStatus === "cancelled" && (
+                <span className="block mt-2 text-sm text-red-600">
+                  This will notify all passengers that the trip has been
+                  cancelled.
+                </span>
+              )}
+            </p>
+            <div className="flex justify-end gap-3">
+              <button
+                onClick={() => setStatusConfirmation(null)}
+                className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmStatusUpdate}
+                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center"
+              >
+                <Check size={16} className="mr-1.5" /> Confirm
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Update Confirmation Modal */}
+      {updateConfirmation && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black bg-opacity-50 backdrop-blur-sm">
+          <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6 animate-fade-in">
+            <div className="flex items-center mb-4 text-green-600">
+              <AlertTriangle className="w-6 h-6 mr-2" />
+              <h3 className="text-lg font-semibold">Update Trip</h3>
+            </div>
+            <p className="text-gray-700 mb-6">
+              Are you sure you want to update this trip? This will modify the
+              trip details for all passengers.
+            </p>
+            <div className="flex justify-end gap-3">
+              <button
+                onClick={() => setUpdateConfirmation(null)}
+                className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmUpdate}
+                className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center"
+              >
+                <Save size={16} className="mr-1.5" /> Update Trip
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <Footer />
     </div>
   );

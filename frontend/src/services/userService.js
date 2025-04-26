@@ -2,7 +2,7 @@ import axiosInstance from '../utils/axiosInstance';
 
 export const fetchUserProfile = async (userId) => {
   try {
-    const response = await axiosInstance.get(`/api/users/${userId}`);
+    const response = await axiosInstance.get(`/api/users/getprofile/${userId}`);
     return response.data;
   } catch (error) {
     const formattedError = formatError(error);
@@ -12,7 +12,7 @@ export const fetchUserProfile = async (userId) => {
 
 export const updateUserProfile = async (userId, userData) => {
   try {
-    const response = await axiosInstance.put(`/api/users/${userId}`, userData);
+    const response = await axiosInstance.put(`/api/users/updateprofile/${userId}`, userData);
     return response.data;
   } catch (error) {
     const formattedError = formatError(error);
@@ -31,7 +31,7 @@ export const getAllUsersService = async (params = {}) => {
     });
 
     const queryString = queryParams.toString() ? `?${queryParams.toString()}` : '';
-    const response = await axiosInstance.get(`/api/users/all${queryString}`);
+    const response = await axiosInstance.get(`/api/users/allusers${queryString}`);
 
     console.log("API Response:", response.data);
 

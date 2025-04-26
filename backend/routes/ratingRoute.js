@@ -14,17 +14,17 @@ import protectRoute from "../middlewares/protectRoute.js";
 const router = express.Router();
 
 // Public routes
-router.get("/driver/:driverId", getDriverRatings);
-router.get("/driver/:driverId/summary", getDriverRatingSummary);
-router.get("/:ratingId", getRatingById);
+router.get("/getdriverratings/:driverId", getDriverRatings);
+router.get("/getdriverratingsummary/:driverId/summary", getDriverRatingSummary);
+router.get("/getrating/:ratingId", getRatingById);
 
 // Protected routes (require authentication)
-router.post("/submit", protectRoute, submitRating);
-router.get("/user/me", protectRoute, getUserRatings);
-router.put("/update/:ratingId", protectRoute, updateRating);
-router.delete("/delete/:ratingId", protectRoute, deleteRating);
+router.post("/submitrating", protectRoute, submitRating);
+router.get("/getuserratings", protectRoute, getUserRatings);
+router.put("/updaterating/:ratingId", protectRoute, updateRating);
+router.delete("/deleterating/:ratingId", protectRoute, deleteRating);
 
 // Admin routes
-router.patch("/moderate/:ratingId", protectRoute,  moderateRating);
+router.patch("/moderaterating/:ratingId", protectRoute,  moderateRating);
 
 export default router;
