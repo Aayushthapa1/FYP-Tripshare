@@ -7,8 +7,8 @@ import {
   updateUserKYCStatus,
 } from "../../Slices/userKYCSlice";
 import {
-  fetchAllDriverKYCsAction,
-  updateDriverKYCStatusAction,
+  fetchPendingDriverKYC,
+  updateDriverKYCStatus,
 } from "../../Slices/driverKYCSlice";
 import {
   FileText,
@@ -48,6 +48,7 @@ const AdminKYCRequests = () => {
     status: driverStatus,
     operation: driverOperation,
   } = useSelector((state) => state.driverKYC);
+  
 
   // Local states
   const [kycType, setKycType] = useState("user"); // 'user' or 'driver'
@@ -66,7 +67,7 @@ const AdminKYCRequests = () => {
     if (kycType === "user") {
       dispatch(fetchPendingUserKYC());
     } else {
-      dispatch(fetchAllDriverKYCsAction({ status: statusFilter }));
+      dispatch(fetchPendingDriverKYC({ status: statusFilter })); // Fixed: using the correctly imported function
     }
   }, [dispatch, kycType, statusFilter]);
 
@@ -132,7 +133,7 @@ const AdminKYCRequests = () => {
         ).unwrap();
       } else {
         await dispatch(
-          updateDriverKYCStatusAction({
+          updateDriverKYCStatus({
             id,
             statusData: { status: "verified" },
           })
@@ -145,7 +146,7 @@ const AdminKYCRequests = () => {
         if (itemType === "user") {
           dispatch(fetchPendingUserKYC());
         } else {
-          dispatch(fetchAllDriverKYCsAction({ status: statusFilter }));
+          dispatch(fetchPendingDriverKYC({ status: statusFilter }));
         }
         setActionInProgress(false);
       }, 1000);
@@ -175,7 +176,7 @@ const AdminKYCRequests = () => {
         ).unwrap();
       } else {
         await dispatch(
-          updateDriverKYCStatusAction({
+          updateDriverKYCStatus({
             id,
             statusData: {
               status: "rejected",
@@ -196,7 +197,7 @@ const AdminKYCRequests = () => {
         if (itemType === "user") {
           dispatch(fetchPendingUserKYC());
         } else {
-          dispatch(fetchAllDriverKYCsAction({ status: statusFilter }));
+          dispatch(fetchPendingDriverKYC({ status: statusFilter }));
         }
         setActionInProgress(false);
       }, 1000);
@@ -217,7 +218,7 @@ const AdminKYCRequests = () => {
     setActionInProgress(true);
     try {
       await dispatch(
-        updateDriverKYCStatusAction({
+        updateDriverKYCStatus({
           id,
           statusData: {
             status: "needs_resubmission",
@@ -234,7 +235,7 @@ const AdminKYCRequests = () => {
 
       // Refresh the list after successful operation
       setTimeout(() => {
-        dispatch(fetchAllDriverKYCsAction({ status: statusFilter }));
+        dispatch(fetchPendingDriverKYC({ status: statusFilter }));
         setActionInProgress(false);
       }, 1000);
     } catch (err) {
@@ -248,7 +249,7 @@ const AdminKYCRequests = () => {
     if (kycType === "user") {
       dispatch(fetchPendingUserKYC());
     } else {
-      dispatch(fetchAllDriverKYCsAction({ status: statusFilter }));
+      dispatch(fetchPendingDriverKYC({ status: statusFilter }));
     }
   };
 

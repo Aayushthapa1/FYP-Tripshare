@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { fetchVerifiedUserKYC } from "../../Slices/userKYCSlice";
-import { fetchAllDriverKYCsAction } from "../../Slices/driverKYCSlice";
+import { fetchVerifiedDriverKYC } from "../../Slices/driverKYCSlice";
 import {
   FileCheck,
   RefreshCw,
@@ -48,7 +48,7 @@ const VerifiedUsersPage = () => {
   useEffect(() => {
     // Fetch both users and drivers KYC data
     dispatch(fetchVerifiedUserKYC());
-    dispatch(fetchAllDriverKYCsAction({ status: "verified" })); // Only fetch verified drivers
+    dispatch(fetchVerifiedDriverKYC()); // Fixed: using the correctly imported function
   }, [dispatch]);
 
   // Toggle expanded view for a user or driver
@@ -59,7 +59,7 @@ const VerifiedUsersPage = () => {
   // Refresh the list
   const handleRefresh = () => {
     dispatch(fetchVerifiedUserKYC());
-    dispatch(fetchAllDriverKYCsAction({ status: "verified" }));
+    dispatch(fetchVerifiedDriverKYC()); // Fixed: using the correctly imported function
   };
 
   // Clear search term

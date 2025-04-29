@@ -1,119 +1,118 @@
 import { createSlice, createAsyncThunk } from "@reduxjs/toolkit";
-import {
-  submitDriverKYC,
-  getAllDriverKYCs,
-  getDriverKYCById,
-  getDriverKYCByUser,
-  updateDriverKYC,
-  updateKYCStatus,
-  deleteDriverKYC,
-} from "../../services/driverKYCService";
+import driverKYCService from "../../services/driverKYCService"; // Adjust path if needed
 
+// Initial state now includes verifiedDrivers and kycRejectionReason
 const initialState = {
-  submissions: [],
-  currentSubmission: null,
-  pagination: {
-    page: 1,
-    limit: 10,
-    total: 0,
-    totalPages: 0,
-  },
+  drivers: [],
+  pendingDrivers: [],
+  verifiedDrivers: [],
+  currentDriver: null,
   loading: false,
+  updateLoading: false,
   error: null,
-  status: "idle", // 'idle' | 'loading' | 'succeeded' | 'failed'
-  operation: null, // 'create', 'fetchAll', 'fetchById', 'fetchByUser', 'update', 'status', 'delete'
+  kycStatus: null,
+  kycRejectionReason: null,  // <-- NEW
+  message: null,
 };
 
-// CREATE KYC
-export const createDriverKYCAction = createAsyncThunk(
-  "driverKYC/create",
-  async (data, { rejectWithValue }) => {
+// 1) Submit Driver KYC
+export const submitDriverKYC = createAsyncThunk(
+  "driverKYC/submitDriverKYC",
+  async (formData, { rejectWithValue }) => {
     try {
-      const doc = await submitDriverKYC(data);
-      return doc;
+      return await driverKYCService.submitDriverKYC(formData);
     } catch (error) {
-      return rejectWithValue(error);
+      return rejectWithValue(error.message);
     }
   }
 );
 
-// FETCH ALL KYC
-export const fetchAllDriverKYCsAction = createAsyncThunk(
-  "driverKYC/fetchAll",
-  async (params, { rejectWithValue }) => {
-    try {
-      const response = await getAllDriverKYCs(params);
-      return {
-        data: response.data || [],
-        pagination: response.pagination || {},
-      };
-    } catch (error) {
-      return rejectWithValue(error);
-    }
-  }
-);
-
-// FETCH KYC BY ID
-export const fetchDriverKYCByIdAction = createAsyncThunk(
-  "driverKYC/fetchById",
-  async (id, { rejectWithValue }) => {
-    try {
-      const doc = await getDriverKYCById(id);
-      return doc;
-    } catch (error) {
-      return rejectWithValue(error);
-    }
-  }
-);
-
-// FETCH KYC BY USER
-export const fetchDriverKYCByUserAction = createAsyncThunk(
-  "driverKYC/fetchByUser",
+// 2) Get Driver KYC Status
+export const getDriverKYCStatus = createAsyncThunk(
+  "driverKYC/getDriverKYCStatus",
   async (userId, { rejectWithValue }) => {
     try {
-      const doc = await getDriverKYCByUser(userId);
-      return doc;
+      return await driverKYCService.getDriverKYCStatus(userId);
     } catch (error) {
-      return rejectWithValue(error);
+      return rejectWithValue(error.message);
     }
   }
 );
 
-// UPDATE KYC
-export const updateDriverKYCAction = createAsyncThunk(
-  "driverKYC/update",
-  async ({ id, data }, { rejectWithValue }) => {
+// 3) Fetch All Drivers KYC (Admin)
+export const fetchAllDriversKYC = createAsyncThunk(
+  "driverKYC/fetchAllDriversKYC",
+  async (_, { rejectWithValue }) => {
     try {
-      const updatedDoc = await updateDriverKYC(id, data);
-      return updatedDoc;
+      const response = await driverKYCService.getAllDriversKYC();
+      // The backend returns { success: true, drivers: [...] }
+      return response.drivers || response;
     } catch (error) {
-      return rejectWithValue(error);
+      return rejectWithValue(error.message);
     }
   }
 );
 
-// UPDATE KYC STATUS
-export const updateDriverKYCStatusAction = createAsyncThunk(
-  "driverKYC/updateStatus",
-  async ({ id, statusData }, { rejectWithValue }) => {
+// 4) Fetch Pending Driver KYC Requests (Admin)
+export const fetchPendingDriverKYC = createAsyncThunk(
+  "driverKYC/fetchPendingDriverKYC",
+  async (_, { rejectWithValue }) => {
     try {
-      const doc = await updateKYCStatus(id, statusData);
-      return doc;
+      const response = await driverKYCService.getPendingDriverKYC();
+      return response.data || response;
     } catch (error) {
-      return rejectWithValue(error);
+      return rejectWithValue(error.message);
     }
   }
 );
 
-// DELETE KYC
-export const deleteDriverKYCAction = createAsyncThunk(
-  "driverKYC/delete",
-  async (id, { rejectWithValue }) => {
+// 5) Update Driver KYC Status (Admin)
+export const updateDriverKYCStatus = createAsyncThunk(
+  "driverKYC/updateDriverKYCStatus",
+  async ({ userId, status, rejectionReason }, { rejectWithValue }) => {
     try {
-      await deleteDriverKYC(id);
-      return id; // the deleted _id
+      return await driverKYCService.updateDriverKYCVerification(
+        userId,
+        status,
+        rejectionReason
+      );
     } catch (error) {
-      return rejectWithValue(error);
+      return rejectWithValue(error.message);
+    }
+  }
+);
+
+// 6) Fetch Verified Drivers KYC (Admin)
+export const fetchVerifiedDriverKYC = createAsyncThunk(
+  "driverKYC/fetchVerifiedDriverKYC",
+  async (_, { rejectWithValue }) => {
+    try {
+      const response = await driverKYCService.getVerifiedDriverKYC();
+      return response.drivers || response;
+    } catch (error) {
+      return rejectWithValue(error.message);
+    }
+  }
+);
+
+// Get Driver KYC details
+export const getDriverKYCDetails = createAsyncThunk(
+  'driverKYC/getDriverKYCDetails',
+  async (userId, { rejectWithValue }) => {
+    try {
+      const token = localStorage.getItem('token');
+      const config = {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      };
+
+      const response = await axios.get(`${API_URL}/driverkyc/details/${userId}`, config);
+      return response.data;
+    } catch (error) {
+      return rejectWithValue(
+        error.response?.data?.message || 'Failed to fetch driver KYC details'
+      );
     }
   }
 );
@@ -122,179 +121,191 @@ const driverKYCSlice = createSlice({
   name: "driverKYC",
   initialState,
   reducers: {
-    resetKYCState: () => ({ ...initialState }),
-    clearKYCError: (state) => {
+    clearDriverKYCError: (state) => {
       state.error = null;
     },
-    clearCurrentSubmission: (state) => {
-      state.currentSubmission = null;
+    clearDriverKYCMessage: (state) => {
+      state.message = null;
+    },
+    setCurrentDriver: (state, action) => {
+      state.currentDriver = action.payload;
+    },
+    clearCurrentDriver: (state) => {
+      state.currentDriver = null;
+    },
+    resetDriverKYCState: (state) => {
+      state.drivers = [];
+      state.pendingDrivers = [];
+      state.verifiedDrivers = [];
+      state.currentDriver = null;
+      state.loading = false;
+      state.updateLoading = false;
+      state.error = null;
+      state.kycStatus = null;
+      state.kycRejectionReason = null;
+      state.message = null;
     },
   },
   extraReducers: (builder) => {
     builder
-      // CREATE
-      .addCase(createDriverKYCAction.pending, (state) => {
+      // 1) Submit Driver KYC
+      .addCase(submitDriverKYC.pending, (state) => {
         state.loading = true;
-        state.status = "loading";
-        state.operation = "create";
         state.error = null;
+        state.message = null;
       })
-      .addCase(createDriverKYCAction.fulfilled, (state, action) => {
+      .addCase(submitDriverKYC.fulfilled, (state, action) => {
         state.loading = false;
-        state.status = "succeeded";
-        const newDoc = action.payload;
-        // Add doc to the top of the array
-        state.submissions.unshift(newDoc);
-        state.currentSubmission = newDoc;
-        state.operation = null;
-      })
-      .addCase(createDriverKYCAction.rejected, (state, action) => {
-        state.loading = false;
-        state.status = "failed";
-        state.error = action.payload;
-        state.operation = null;
-      })
+        const user = action.payload.user || action.payload;
 
-      // FETCH ALL
-      .addCase(fetchAllDriverKYCsAction.pending, (state) => {
-        state.loading = true;
-        state.status = "loading";
-        state.operation = "fetchAll";
-        state.error = null;
-      })
-      .addCase(fetchAllDriverKYCsAction.fulfilled, (state, action) => {
-        state.loading = false;
-        state.status = "succeeded";
-        state.submissions = action.payload.data;
-        state.pagination = action.payload.pagination;
-        state.operation = null;
-      })
-      .addCase(fetchAllDriverKYCsAction.rejected, (state, action) => {
-        state.loading = false;
-        state.status = "failed";
-        state.error = action.payload;
-        state.operation = null;
-      })
-
-      // FETCH BY ID
-      .addCase(fetchDriverKYCByIdAction.pending, (state) => {
-        state.loading = true;
-        state.status = "loading";
-        state.operation = "fetchById";
-        state.error = null;
-      })
-      .addCase(fetchDriverKYCByIdAction.fulfilled, (state, action) => {
-        state.loading = false;
-        state.status = "succeeded";
-        state.currentSubmission = action.payload;
-        state.operation = null;
-      })
-      .addCase(fetchDriverKYCByIdAction.rejected, (state, action) => {
-        state.loading = false;
-        state.status = "failed";
-        state.error = action.payload;
-        state.operation = null;
-      })
-
-      // FETCH BY USER
-      .addCase(fetchDriverKYCByUserAction.pending, (state) => {
-        state.loading = true;
-        state.status = "loading";
-        state.operation = "fetchByUser";
-        state.error = null;
-      })
-      .addCase(fetchDriverKYCByUserAction.fulfilled, (state, action) => {
-        state.loading = false;
-        state.status = "succeeded";
-        state.currentSubmission = action.payload;
-        state.operation = null;
-      })
-      .addCase(fetchDriverKYCByUserAction.rejected, (state, action) => {
-        state.loading = false;
-        state.status = "failed";
-        state.error = action.payload;
-        state.operation = null;
-      })
-
-      // UPDATE
-      .addCase(updateDriverKYCAction.pending, (state) => {
-        state.loading = true;
-        state.status = "loading";
-        state.operation = "update";
-        state.error = null;
-      })
-      .addCase(updateDriverKYCAction.fulfilled, (state, action) => {
-        state.loading = false;
-        state.status = "succeeded";
-        const updatedDoc = action.payload;
-        state.submissions = state.submissions.map((sub) =>
-          sub._id === updatedDoc._id ? updatedDoc : sub
-        );
-        state.currentSubmission = updatedDoc;
-        state.operation = null;
-      })
-      .addCase(updateDriverKYCAction.rejected, (state, action) => {
-        state.loading = false;
-        state.status = "failed";
-        state.error = action.payload;
-        state.operation = null;
-      })
-
-      // UPDATE STATUS
-      .addCase(updateDriverKYCStatusAction.pending, (state) => {
-        state.loading = true;
-        state.status = "loading";
-        state.operation = "status";
-        state.error = null;
-      })
-      .addCase(updateDriverKYCStatusAction.fulfilled, (state, action) => {
-        state.loading = false;
-        state.status = "succeeded";
-        const updatedDoc = action.payload;
-        state.submissions = state.submissions.map((sub) =>
-          sub._id === updatedDoc._id ? updatedDoc : sub
-        );
-        if (state.currentSubmission?._id === updatedDoc._id) {
-          state.currentSubmission = updatedDoc;
+        // Update or add driver in 'drivers' array
+        const idx = state.drivers.findIndex((d) => d._id === user._id);
+        if (idx >= 0) {
+          state.drivers[idx] = user;
+        } else {
+          state.drivers.push(user);
         }
-        state.operation = null;
+
+        // Also set as currentDriver
+        state.currentDriver = user;
+        state.kycStatus = user.kycStatus || "pending";
+        // If the driver is re-submitting after rejection,
+        // they might have had a rejection reason before;
+        // now it should be cleared.
+        state.kycRejectionReason = null;
+        state.message = "Driver KYC information submitted successfully";
       })
-      .addCase(updateDriverKYCStatusAction.rejected, (state, action) => {
+      .addCase(submitDriverKYC.rejected, (state, action) => {
         state.loading = false;
-        state.status = "failed";
         state.error = action.payload;
-        state.operation = null;
       })
 
-      // DELETE
-      .addCase(deleteDriverKYCAction.pending, (state) => {
+      // 2) Get Driver KYC Status
+      .addCase(getDriverKYCStatus.pending, (state) => {
         state.loading = true;
-        state.status = "loading";
-        state.operation = "delete";
         state.error = null;
       })
-      .addCase(deleteDriverKYCAction.fulfilled, (state, action) => {
+      .addCase(getDriverKYCStatus.fulfilled, (state, action) => {
         state.loading = false;
-        state.status = "succeeded";
-        const deletedId = action.payload;
-        state.submissions = state.submissions.filter(
-          (sub) => sub._id !== deletedId
-        );
-        if (state.currentSubmission?._id === deletedId) {
-          state.currentSubmission = null;
+        // The response typically has shape: { success, kycStatus, kycRejectionReason, user }
+        const { kycStatus, kycRejectionReason, user } = action.payload;
+        state.kycStatus = kycStatus;
+        state.kycRejectionReason = kycRejectionReason || null;
+
+        if (user) {
+          // Update or add driver in 'drivers' array
+          const idx = state.drivers.findIndex((d) => d._id === user._id);
+          if (idx >= 0) {
+            state.drivers[idx] = user;
+          } else {
+            state.drivers.push(user);
+          }
+          // Set as current driver
+          state.currentDriver = user;
         }
-        state.operation = null;
       })
-      .addCase(deleteDriverKYCAction.rejected, (state, action) => {
+      .addCase(getDriverKYCStatus.rejected, (state, action) => {
         state.loading = false;
-        state.status = "failed";
         state.error = action.payload;
-        state.operation = null;
+        // If we got an error, we might default to not_submitted
+        state.kycStatus = "not_submitted";
+        state.kycRejectionReason = null;
+      })
+
+      // 3) Fetch All Drivers KYC
+      .addCase(fetchAllDriversKYC.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(fetchAllDriversKYC.fulfilled, (state, action) => {
+        state.loading = false;
+        state.drivers = action.payload; // e.g. array of driver objects
+      })
+      .addCase(fetchAllDriversKYC.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload;
+      })
+
+      // 4) Fetch Pending Driver KYC
+      .addCase(fetchPendingDriverKYC.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(fetchPendingDriverKYC.fulfilled, (state, action) => {
+        state.loading = false;
+        state.pendingDrivers = action.payload.drivers; // array of driver objects
+      })
+      .addCase(fetchPendingDriverKYC.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload;
+      })
+
+      // 5) Update Driver KYC Status
+      .addCase(updateDriverKYCStatus.pending, (state) => {
+        state.updateLoading = true;
+        state.error = null;
+        state.message = null;
+      })
+      .addCase(updateDriverKYCStatus.fulfilled, (state, action) => {
+        state.updateLoading = false;
+        const updatedUser = action.payload.user || action.payload;
+        const newStatus = updatedUser.kycStatus;
+
+        // Update driver in the 'drivers' array
+        const idx = state.drivers.findIndex((d) => d._id === updatedUser._id);
+        if (idx >= 0) {
+          state.drivers[idx] = updatedUser;
+        }
+
+        // Update driver in the 'pendingDrivers' array if needed
+        const pIdx = state.pendingDrivers.findIndex((d) => d._id === updatedUser._id);
+        if (pIdx >= 0) {
+          // If the admin verified or rejected, remove from pending
+          if (newStatus === "verified" || newStatus === "rejected") {
+            state.pendingDrivers.splice(pIdx, 1);
+          } else {
+            state.pendingDrivers[pIdx] = updatedUser;
+          }
+        }
+
+        // Update currentDriver if it matches
+        if (state.currentDriver && state.currentDriver._id === updatedUser._id) {
+          state.currentDriver = updatedUser;
+          state.kycStatus = newStatus;
+          // If status = rejected, store the reason
+          state.kycRejectionReason = updatedUser.kycRejectionReason || null;
+        }
+
+        state.message = `Driver KYC status updated to ${newStatus}`;
+      })
+      .addCase(updateDriverKYCStatus.rejected, (state, action) => {
+        state.updateLoading = false;
+        state.error = action.payload;
+      })
+
+      // 6) Fetch Verified Driver KYC
+      .addCase(fetchVerifiedDriverKYC.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(fetchVerifiedDriverKYC.fulfilled, (state, action) => {
+        state.loading = false;
+        // array of verified driver objects
+        state.verifiedDrivers = action.payload;
+      })
+      .addCase(fetchVerifiedDriverKYC.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload;
       });
   },
 });
 
-export const { resetKYCState, clearKYCError, clearCurrentSubmission } =
-  driverKYCSlice.actions;
+export const {
+  clearDriverKYCError,
+  clearDriverKYCMessage,
+  setCurrentDriver,
+  clearCurrentDriver,
+  resetDriverKYCState,
+} = driverKYCSlice.actions;
 
 export default driverKYCSlice.reducer;

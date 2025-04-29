@@ -111,6 +111,20 @@ export const fetchDriverTripStats = createAsyncThunk(
   }
 );
 
+// New action for admin trip analytics
+export const fetchAdminTripAnalytics = createAsyncThunk(
+  "trip/getAdminTripAnalytics",
+  async (params = {}, { rejectWithValue }) => {
+    try {
+      const result = await tripService.getAdminTripAnalytics(params);
+      console.log("Admin trip analytics result:", result);
+      return result;
+    } catch (err) {
+      return rejectWithValue(err.message);
+    }
+  }
+);
+
 // New action for cleaning up expired trips
 export const cleanupExpiredTrips = createAsyncThunk(
   "trip/cleanupExpired",
@@ -137,6 +151,8 @@ const tripSlice = createSlice({
     success: false,
     lastUpdated: null,
     stats: null,
+    adminAnalytics: null,
+    adminAnalyticsLoading: false,
     cleanupStats: {
       lastCleanup: null,
       removedCount: 0
@@ -158,6 +174,8 @@ const tripSlice = createSlice({
       state.searchLoading = false;
       state.success = false;
       state.stats = null;
+      state.adminAnalytics = null;
+      state.adminAnalyticsLoading = false;
     },
   },
   extraReducers: (builder) => {
@@ -337,6 +355,22 @@ const tripSlice = createSlice({
       })
       .addCase(fetchDriverTripStats.rejected, (state, action) => {
         state.loading = false;
+        state.success = false;
+        state.error = action.payload;
+      })
+
+       // ADMIN TRIP ANALYTICS
+       .addCase(fetchAdminTripAnalytics.pending, (state) => {
+        state.adminAnalyticsLoading = true;
+        state.error = null;
+      })
+      .addCase(fetchAdminTripAnalytics.fulfilled, (state, action) => {
+        state.adminAnalyticsLoading = false;
+        state.success = true;
+        state.adminAnalytics = action.payload;
+      })
+      .addCase(fetchAdminTripAnalytics.rejected, (state, action) => {
+        state.adminAnalyticsLoading = false;
         state.success = false;
         state.error = action.payload;
       })

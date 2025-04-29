@@ -55,7 +55,7 @@ router.put("/updatetrip/:tripId", protectRoute, authorizeRole("driver"), updateT
 router.delete("/deletetrip/:tripId", protectRoute, authorizeRole("driver"), deleteTrip);
 
 // Admin trip analytics (admin only)
-router.get("/admin/analytics", protectRoute, authorizeRole("admin"), getAdminTripAnalytics);
+router.get("/admin/analytics", protectRoute, authorizeRole("Admin"), getAdminTripAnalytics);
 
 // Clean up expired trips (accessible by both users and system)
 router.delete("/cleanup", protectRoute, cleanupExpiredTrips);

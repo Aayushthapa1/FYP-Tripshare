@@ -4,7 +4,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import { getPaymentDetails } from "../../Slices/paymentSlice";
 import {
   ArrowLeft,
-  DollarSign,
+  // DollarSign,
   User,
   Calendar,
   CreditCard,
@@ -121,7 +121,7 @@ const PaymentDetails = () => {
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mt-6">
           <div className="bg-gradient-to-br from-purple-50 to-purple-100 rounded-xl shadow-sm border border-purple-200 p-5">
             <div className="flex items-center space-x-2 mb-1">
-              <DollarSign className="h-5 w-5 text-purple-600" />
+              {/* <DollarSign className="h-5 w-5 text-purple-600" /> */}
               <span className="text-sm font-medium text-gray-600">Amount</span>
             </div>
             <div className="text-2xl font-bold text-gray-800">

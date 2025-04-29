@@ -27,7 +27,7 @@ export const leaveTripChat = (tripId) => {
  */
 export const emitTypingStatus = (tripId, isTyping, userData = {}) => {
   if (!tripId) return;
-  
+
   const eventName = isTyping ? "typing_started" : "typing_stopped";
   socketService.emit(eventName, {
     tripId,
@@ -58,20 +58,20 @@ export const setupChatSocketListeners = (
   });
 
   socketService.on("typing_started", ({ tripId, userId, userName, timestamp }) => {
-    dispatch(updateTypingStatus({ 
-      tripId, 
-      userId, 
-      isTyping: true, 
+    dispatch(updateTypingStatus({
+      tripId,
+      userId,
+      isTyping: true,
       timestamp,
-      userName 
+      userName
     }));
   });
 
   socketService.on("typing_stopped", ({ tripId, userId }) => {
-    dispatch(updateTypingStatus({ 
-      tripId, 
-      userId, 
-      isTyping: false 
+    dispatch(updateTypingStatus({
+      tripId,
+      userId,
+      isTyping: false
     }));
   });
 

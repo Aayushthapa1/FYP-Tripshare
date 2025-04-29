@@ -41,6 +41,7 @@ import UpcomingRidesSection from "./sections/UpcomingRidesSection";
 import CompletedRidesSection from "./sections/CompletedRideSection";
 import EarningsSection from "./sections/EarningsSection";
 import MyBookingsSection from "./sections/MyBookingsSection";
+import MyRatings from "./sections/MyRatings.jsx";
 
 // Import NotificationCenter at the top of the file
 import NotificationCenter from "../socket/notificationDropdown";
@@ -410,6 +411,26 @@ export default function DriverDashboard() {
               </button>
 
               <button
+                onClick={() => setActiveSection("myratings")}
+                className={`flex items-center ${
+                  collapsed ? "justify-center" : ""
+                } space-x-3 p-3 rounded-lg transition-all duration-200
+                 ${
+                   activeSection === "myratings"
+                     ? "bg-green-50 text-green-600 font-medium dark:bg-green-900/30 dark:text-green-400"
+                     : "text-slate-700 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-700/50"
+                 }`}
+              >
+                <Star className="w-5 h-5 flex-shrink-0" />
+                <span className={`${collapsed ? "md:hidden" : ""}`}>
+                  My Ratings
+                </span>
+                {activeSection === "myratings" && !collapsed && (
+                  <ChevronRight className="w-4 h-4 ml-auto text-green-600 dark:text-green-400" />
+                )}
+              </button>
+
+              <button
                 onClick={() => setActiveSection("upcoming")}
                 className={`flex items-center ${
                   collapsed ? "justify-center" : ""
@@ -509,15 +530,7 @@ export default function DriverDashboard() {
                 )}
               </button>
 
-              {!collapsed && (
-                <>
-                  
-
-                  
-
-                  
-                </>
-              )}
+              {!collapsed && <></>}
             </nav>
 
             {/* Sidebar footer */}
@@ -569,6 +582,7 @@ export default function DriverDashboard() {
                 <h1 className="text-xl font-semibold text-slate-800 dark:text-white">
                   {activeSection === "dashboard" && "Driver Dashboard"}
                   {activeSection === "statistics" && "Driver Statistics"}
+                  {activeSection === "myratings" && "My Ratings"}
                   {activeSection === "upcoming" && "Upcoming Rides"}
                   {activeSection === "completed-rides" && "Completed Rides"}
                   {activeSection === "earnings" && "Earnings"}
@@ -645,6 +659,7 @@ export default function DriverDashboard() {
               {activeSection === "statistics" && (
                 <StatisticsSection {...sectionProps} />
               )}
+              {activeSection === "myratings" && <MyRatings {...sectionProps} />}
               {activeSection === "upcoming" && (
                 <UpcomingRidesSection {...sectionProps} />
               )}

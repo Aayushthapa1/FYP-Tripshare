@@ -35,7 +35,6 @@ import ManageUsers from "./components/admin/pages/ManageUsers";
 import ManageRides from "./components/admin/pages/ManageRides";
 import PaymentDashboard from "./components/admin/pages/PaymentDashboard.jsx";
 import AdminSettings from "./components/admin/pages/AdminSettings";
-// import DriverList from "./components/admin/pages/DriverList";
 import AdminKYCRequests from "./components/admin/pages/KycVerification.jsx";
 
 // User
@@ -54,8 +53,6 @@ import TripList from "./components/trip/tripList";
 import Bookinglist from "./components/trip/bookingList.jsx";
 import Booking from "./components/trip/Booking.jsx";
 
-
-
 // Driver
 import UserKycModal from "./components/driver/UserKYCModal.jsx";
 import DriverKycModal from "./components/driver/DriverKYCModal.jsx";
@@ -67,14 +64,16 @@ import ForgotPassword from "./components/auth/forgotPassword";
 import ResetPassword from "./components/auth/resetPassword";
 import UnauthPage from "./components/pages/UnAuthPage";
 import { checkAuth } from "./components/Slices/authSlice";
-import CheckAuth from "./utils/ProtectedRoute"; // or wherever your ProtectedRoute is located
 import socketService from "./components/socket/socketService"; // Import socket service
+
+// Import the updated CheckAuth component
+import CheckAuth from "./utils/ProtectedRoute";
 
 function App() {
   const dispatch = useDispatch();
-  const { isAuthenticated, user, isLoading } = useSelector(
-    (state) => state.auth
-  );
+  const { user } = useSelector((state) => state.auth) || {};
+  const isAuthenticated = !!user?._id;
+  const isLoading = useSelector((state) => state.auth.isLoading);
   const [authChecked, setAuthChecked] = useState(false);
 
   // Enhanced useEffect to ensure authentication state is properly restored and socket connection is established
@@ -147,11 +146,11 @@ function App() {
             }
           />
 
-          {/* KYC modals if you want them as standalone routes */}
+          {/* KYC modals - accessible by both users and drivers */}
           <Route
             path="/driverkyc"
             element={
-              <CheckAuth>
+              <CheckAuth role="driver">
                 <DriverKycModal />
               </CheckAuth>
             }
@@ -159,13 +158,13 @@ function App() {
           <Route
             path="/userkyc"
             element={
-              <CheckAuth>
+              <CheckAuth role="user">
                 <UserKycModal />
               </CheckAuth>
             }
           />
 
-          {/* Driver */}
+          {/* Driver-specific routes */}
           <Route
             path="/driverdashboard"
             element={
@@ -174,11 +173,20 @@ function App() {
               </CheckAuth>
             }
           />
+          <Route
+            path="/driverridestatus"
+            element={
+              <CheckAuth role="driver">
+                <DriverRideStatus />
+              </CheckAuth>
+            }
+          />
 
+          {/* User-specific routes */}
           <Route
             path="/userDashboard"
             element={
-              <CheckAuth>
+              <CheckAuth role="user">
                 <UserDashboard />
               </CheckAuth>
             }
@@ -191,6 +199,8 @@ function App() {
               </CheckAuth>
             }
           />
+
+          {/* Payment routes - accessible to all authenticated users */}
           <Route
             path="/payment-success"
             element={
@@ -207,7 +217,11 @@ function App() {
               </CheckAuth>
             }
           />
+
+          {/* Public route for contact */}
           <Route path="/contact" element={<HelpCenter />} />
+
+          {/* Profile - accessible to all authenticated users */}
           <Route
             path="/profile/:userId"
             element={
@@ -217,11 +231,11 @@ function App() {
             }
           />
 
-          {/* Trips */}
+          {/* Trips - accessible by both users and drivers */}
           <Route
             path="/trips"
             element={
-              <CheckAuth>
+              <CheckAuth role={["user", "driver"]}>
                 <TripList />
               </CheckAuth>
             }
@@ -229,7 +243,7 @@ function App() {
           <Route
             path="/tripform"
             element={
-              <CheckAuth>
+              <CheckAuth role={[ "driver"]}>
                 <TripForm />
               </CheckAuth>
             }
@@ -237,37 +251,25 @@ function App() {
           <Route
             path="/bookings"
             element={
-              <CheckAuth>
+              <CheckAuth role={["user", "driver"]}>
                 <Bookinglist />
               </CheckAuth>
             }
           />
-         
           <Route
             path="/booking/:tripId"
             element={
-              <CheckAuth>
+              <CheckAuth role={["user", "driver"]}>
                 <Booking />
               </CheckAuth>
             }
           />
-          
-         
-          {/* <Route
-            path="/ratingform"
-            element={
-              <CheckAuth>
-                <RatingForm />
-              </CheckAuth>
-            }
-          /> */}
 
-
-          {/* Ride */}
+          {/* Ride routes - user-specific */}
           <Route
             path="/requestride"
             element={
-              <CheckAuth>
+              <CheckAuth role="user">
                 <RideBooking />
               </CheckAuth>
             }
@@ -275,16 +277,8 @@ function App() {
           <Route
             path="/ridestatus"
             element={
-              <CheckAuth>
+              <CheckAuth role="user">
                 <RideStatus />
-              </CheckAuth>
-            }
-          />
-          <Route
-            path="/driverridestatus"
-            element={
-              <CheckAuth role="driver">
-                <DriverRideStatus />
               </CheckAuth>
             }
           />
@@ -318,6 +312,7 @@ function App() {
               )
             }
           />
+
           {/* Password Reset Routes */}
           <Route path="/forgot-password" element={<ForgotPassword />} />
           <Route path="/resetpassword/:token" element={<ResetPassword />} />
@@ -337,15 +332,14 @@ function App() {
             <Route path="payments" element={<PaymentDashboard />} />
             <Route path="settings" element={<AdminSettings />} />
             <Route path="profile" element={<AdminProfile />} />
-            {/* <Route path="drivers" element={<DriverList />} /> */}
             <Route path="kyc" element={<AdminKYCRequests />} />
           </Route>
 
-          {/* User Routes (Protected) */}
+          {/* User Layout Routes (Role-specific) */}
           <Route
             path="/ride"
             element={
-              <CheckAuth>
+              <CheckAuth role="user">
                 <UserLayout />
               </CheckAuth>
             }

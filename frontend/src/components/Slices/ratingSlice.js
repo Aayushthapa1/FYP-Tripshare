@@ -18,17 +18,16 @@ export const submitRating = createAsyncThunk(
         throw new Error("Invalid reference type");
       }
 
-      // Call the service function to submit rating
-      const result = await ratingService.submitRating({ 
-        referenceId, 
-        referenceType, 
-        rating, 
-        review, 
-        categoryRatings 
+      const result = await ratingService.submitRating({
+        referenceId,
+        referenceType,
+        rating,
+        review,
+        categoryRatings
       });
       return result;
     } catch (err) {
-      return rejectWithValue(err.message);
+      return rejectWithValue(err.message || "Failed to submit rating");
     }
   }
 );
@@ -38,9 +37,10 @@ export const fetchUserRatings = createAsyncThunk(
   "rating/getUserRatings",
   async ({ page = 1, limit = 10 } = {}, { rejectWithValue }) => {
     try {
-      return await ratingService.getUserRatings(page, limit);
+      const result = await ratingService.getUserRatings(page, limit);
+      return result;
     } catch (err) {
-      return rejectWithValue(err.message);
+      return rejectWithValue(err.message || "Failed to fetch user ratings");
     }
   }
 );
@@ -50,123 +50,103 @@ export const getRatingById = createAsyncThunk(
   "rating/getById",
   async (ratingId, { rejectWithValue }) => {
     try {
-      return await ratingService.getRatingById(ratingId);
+      if (!ratingId) {
+        throw new Error("Rating ID is required");
+      }
+      const result = await ratingService.getRatingById(ratingId);
+      return result;
     } catch (err) {
-      return rejectWithValue(err.message);
-    }
-  }
-);
-
-// 4) Update an existing rating
-export const updateRating = createAsyncThunk(
-  "rating/update",
-  async ({ ratingId, rating, review, categoryRatings }, { rejectWithValue }) => {
-    try {
-      return await ratingService.updateRating(ratingId, { rating, review, categoryRatings });
-    } catch (err) {
-      return rejectWithValue(err.message);
-    }
-  }
-);
-
-// 5) Delete a rating
-export const deleteRating = createAsyncThunk(
-  "rating/delete",
-  async (ratingId, { rejectWithValue }) => {
-    try {
-      return await ratingService.deleteRating(ratingId);
-    } catch (err) {
-      return rejectWithValue(err.message);
+      return rejectWithValue(err.message || "Failed to fetch rating");
     }
   }
 );
 
 // ===== DRIVER RATING ACTIONS =====
-// 6) Get all ratings for a driver
+// 4) Get all ratings for a driver
 export const fetchDriverRatings = createAsyncThunk(
   "rating/getDriverRatings",
   async ({ driverId, page = 1, limit = 10 }, { rejectWithValue }) => {
     try {
-      return await ratingService.getDriverRatings(driverId, page, limit);
+      if (!driverId) {
+        throw new Error("Driver ID is required");
+      }
+      const result = await ratingService.getDriverRatings(driverId, page, limit);
+      console.log("Ddddddddddddriver Ratings Result:", result);
+      return result;
     } catch (err) {
-      return rejectWithValue(err.message);
+      console.error("Errorrrrrrrr fetching driver ratings:", err);
+      return rejectWithValue(err.message || "Failed to fetch driver ratings");
     }
   }
 );
 
-// 7) Get rating summary for a driver
+// 5) Get rating summary for a driver
 export const fetchDriverRatingSummary = createAsyncThunk(
   "rating/getDriverSummary",
   async (driverId, { rejectWithValue }) => {
     try {
-      return await ratingService.getDriverRatingSummary(driverId);
+      if (!driverId) {
+        throw new Error("Driver ID is required");
+      }
+      const result = await ratingService.getDriverRatingSummary(driverId);
+      return result;
     } catch (err) {
-      return rejectWithValue(err.message);
+      return rejectWithValue(err.message || "Failed to fetch driver rating summary");
     }
   }
 );
 
 // ===== ADMIN ACTIONS =====
-// 8) Moderate a rating (admin only)
+// 6) Moderate a rating (admin only)
 export const moderateRating = createAsyncThunk(
   "rating/moderate",
   async ({ ratingId, action, reason }, { rejectWithValue }) => {
     try {
-      // Validate action
-      if (!["flag", "remove", "restore"].includes(action)) {
+      if (!ratingId) {
+        throw new Error("Rating ID is required");
+      }
+      if (!["flag", "delete"].includes(action)) {
         throw new Error("Invalid moderation action");
       }
-      
       return await ratingService.moderateRating(ratingId, { action, reason });
     } catch (err) {
-      return rejectWithValue(err.message);
+      return rejectWithValue(err.message || "Failed to moderate rating");
     }
   }
 );
 
+const initialState = {
+  loading: false,
+  error: null,
+  userRatings: [],
+  driverRatings: [],
+  currentRating: null,
+  driverSummary: null,
+  lastAction: null,
+  actionSuccess: false,
+  pagination: {
+    currentPage: 1,
+    totalPages: 1,
+    total: 0
+  }
+};
+
 const ratingSlice = createSlice({
   name: "rating",
-  initialState: {
-    loading: false,
-    error: null,
-    userRatings: [],          // Ratings submitted by user
-    driverRatings: [],        // Ratings for a specific driver
-    currentRating: null,      // Single rating details
-    driverSummary: null,      // Rating summary for a driver
-    lastAction: null,         // Track last update time
-    actionSuccess: false,     // Flag for successful actions
-    pagination: {             // Pagination state
-      currentPage: 1,
-      totalPages: 1,
-      total: 0
-    }
-  },
+  initialState,
   reducers: {
     clearRatingError: (state) => {
       state.error = null;
     },
-    resetRatingState: (state) => {
-      state.loading = false;
-      state.error = null;
-      state.userRatings = [];
-      state.driverRatings = [];
-      state.currentRating = null;
-      state.driverSummary = null;
-      state.lastAction = null;
-      state.actionSuccess = false;
-      state.pagination = {
-        currentPage: 1,
-        totalPages: 1,
-        total: 0
-      };
-    },
+    resetRatingState: () => initialState,
     clearActionSuccess: (state) => {
       state.actionSuccess = false;
+      state.lastAction = null;
     }
   },
   extraReducers: (builder) => {
     builder
-      // ==== SUBMIT RATING ====
+      // Submit Rating
       .addCase(submitRating.pending, (state) => {
         state.loading = true;
         state.error = null;
@@ -176,41 +156,42 @@ const ratingSlice = createSlice({
         state.loading = false;
         state.actionSuccess = true;
         state.lastAction = Date.now();
-        
-        // Add new rating to userRatings if it exists
         if (action.payload?.rating) {
-          state.userRatings.unshift(action.payload.rating);
+          // Add new rating to the beginning of the list
+          state.userRatings = [action.payload.rating, ...state.userRatings];
           state.currentRating = action.payload.rating;
+          // Update total count in pagination if it exists
+          if (state.pagination) {
+            state.pagination.total = (state.pagination.total || 0) + 1;
+          }
         }
       })
       .addCase(submitRating.rejected, (state, action) => {
         state.loading = false;
-        state.error = action.payload;
+        state.error = action.payload || "An unknown error occurred";
         state.actionSuccess = false;
       })
 
-      // ==== GET USER RATINGS ====
+      // Get User Ratings
       .addCase(fetchUserRatings.pending, (state) => {
         state.loading = true;
         state.error = null;
       })
       .addCase(fetchUserRatings.fulfilled, (state, action) => {
         state.loading = false;
-        
-        // Extract ratings and pagination data
         state.userRatings = action.payload?.ratings || [];
-        
-        // Update pagination info
-        if (action.payload?.pagination) {
-          state.pagination = action.payload.pagination;
-        }
+        state.pagination = action.payload?.pagination || {
+          currentPage: 1,
+          totalPages: 1,
+          total: state.userRatings.length
+        };
       })
       .addCase(fetchUserRatings.rejected, (state, action) => {
         state.loading = false;
-        state.error = action.payload;
+        state.error = action.payload || "Failed to fetch ratings";
       })
 
-      // ==== GET RATING BY ID ====
+      // Get Rating By ID
       .addCase(getRatingById.pending, (state) => {
         state.loading = true;
         state.error = null;
@@ -221,93 +202,30 @@ const ratingSlice = createSlice({
       })
       .addCase(getRatingById.rejected, (state, action) => {
         state.loading = false;
-        state.error = action.payload;
+        state.error = action.payload || "Failed to fetch rating";
+        state.currentRating = null;
       })
 
-      // ==== UPDATE RATING ====
-      .addCase(updateRating.pending, (state) => {
-        state.loading = true;
-        state.error = null;
-        state.actionSuccess = false;
-      })
-      .addCase(updateRating.fulfilled, (state, action) => {
-        state.loading = false;
-        state.actionSuccess = true;
-        state.lastAction = Date.now();
-        
-        // Extract updated rating data
-        const updatedRating = action.payload?.rating;
-        
-        if (updatedRating?._id) {
-          // Update in userRatings array
-          state.userRatings = state.userRatings.map(rating => 
-            rating._id === updatedRating._id ? updatedRating : rating
-          );
-          
-          // Update currentRating if it matches
-          if (state.currentRating?._id === updatedRating._id) {
-            state.currentRating = updatedRating;
-          }
-        }
-      })
-      .addCase(updateRating.rejected, (state, action) => {
-        state.loading = false;
-        state.error = action.payload;
-        state.actionSuccess = false;
-      })
-
-      // ==== DELETE RATING ====
-      .addCase(deleteRating.pending, (state) => {
-        state.loading = true;
-        state.error = null;
-        state.actionSuccess = false;
-      })
-      .addCase(deleteRating.fulfilled, (state, action) => {
-        state.loading = false;
-        state.actionSuccess = true;
-        state.lastAction = Date.now();
-        
-        // Remove from userRatings array if ID exists
-        if (action.meta.arg) { // ratingId was passed in as arg
-          const ratingId = action.meta.arg;
-          state.userRatings = state.userRatings.filter(rating => 
-            rating._id !== ratingId
-          );
-          
-          // Clear currentRating if it matches
-          if (state.currentRating?._id === ratingId) {
-            state.currentRating = null;
-          }
-        }
-      })
-      .addCase(deleteRating.rejected, (state, action) => {
-        state.loading = false;
-        state.error = action.payload;
-        state.actionSuccess = false;
-      })
-
-      // ==== GET DRIVER RATINGS ====
+      // Get Driver Ratings
       .addCase(fetchDriverRatings.pending, (state) => {
         state.loading = true;
         state.error = null;
       })
       .addCase(fetchDriverRatings.fulfilled, (state, action) => {
         state.loading = false;
-        
-        // Extract ratings and pagination data
         state.driverRatings = action.payload?.ratings || [];
-        
-        // Update pagination info
-        if (action.payload?.pagination) {
-          state.pagination = action.payload.pagination;
-        }
+        state.pagination = action.payload?.pagination || {
+          currentPage: 1,
+          totalPages: 1,
+          total: state.driverRatings.length
+        };
       })
       .addCase(fetchDriverRatings.rejected, (state, action) => {
         state.loading = false;
-        state.error = action.payload;
+        state.error = action.payload || "Failed to fetch driver ratings";
       })
 
-      // ==== GET DRIVER RATING SUMMARY ====
+      // Get Driver Rating Summary
       .addCase(fetchDriverRatingSummary.pending, (state) => {
         state.loading = true;
         state.error = null;
@@ -318,10 +236,11 @@ const ratingSlice = createSlice({
       })
       .addCase(fetchDriverRatingSummary.rejected, (state, action) => {
         state.loading = false;
-        state.error = action.payload;
+        state.error = action.payload || "Failed to fetch driver rating summary";
+        state.driverSummary = null;
       })
 
-      // ==== MODERATE RATING (ADMIN) ====
+      // Moderate Rating
       .addCase(moderateRating.pending, (state) => {
         state.loading = true;
         state.error = null;
@@ -331,33 +250,38 @@ const ratingSlice = createSlice({
         state.loading = false;
         state.actionSuccess = true;
         state.lastAction = Date.now();
-        
-        // Extract moderated rating data
         const moderatedRating = action.payload?.rating;
-        
+
         if (moderatedRating?._id) {
-          // Update in relevant arrays based on rating status
+          // Update or remove rating from all relevant state arrays
           if (moderatedRating.status === "active") {
-            // If restored, update in arrays
-            state.userRatings = state.userRatings.map(rating => 
+            // Update rating in user ratings array
+            state.userRatings = state.userRatings.map(rating =>
               rating._id === moderatedRating._id ? moderatedRating : rating
             );
-            
-            state.driverRatings = state.driverRatings.map(rating => 
+
+            // Update rating in driver ratings array
+            state.driverRatings = state.driverRatings.map(rating =>
               rating._id === moderatedRating._id ? moderatedRating : rating
             );
           } else {
-            // If flagged or removed, filter out from arrays
-            state.userRatings = state.userRatings.filter(rating => 
+            // Remove rating from user ratings array
+            state.userRatings = state.userRatings.filter(rating =>
               rating._id !== moderatedRating._id
             );
-            
-            state.driverRatings = state.driverRatings.filter(rating => 
+
+            // Remove rating from driver ratings array
+            state.driverRatings = state.driverRatings.filter(rating =>
               rating._id !== moderatedRating._id
             );
+
+            // Update pagination total count
+            if (state.pagination && state.pagination.total > 0) {
+              state.pagination.total -= 1;
+            }
           }
-          
-          // Update currentRating if it matches
+
+          // Update current rating if it matches the moderated rating
           if (state.currentRating?._id === moderatedRating._id) {
             state.currentRating = moderatedRating;
           }
@@ -365,7 +289,7 @@ const ratingSlice = createSlice({
       })
       .addCase(moderateRating.rejected, (state, action) => {
         state.loading = false;
-        state.error = action.payload;
+        state.error = action.payload || "Failed to moderate rating";
         state.actionSuccess = false;
       });
   }

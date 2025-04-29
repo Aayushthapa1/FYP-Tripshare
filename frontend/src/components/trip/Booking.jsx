@@ -378,7 +378,7 @@ const Booking = () => {
 
       setIsProcessingPayment(false);
     } catch (err) {
-      console.error("Booking error:", err);
+      console.error("Booking adbjkadcbmerror:", err);
       toast.error("Booking Failed", {
         description: err?.message || "Failed to book trip",
       });

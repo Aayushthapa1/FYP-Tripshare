@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from "react";
 import { useDispatch, useSelector } from "react-redux";
-import { toast } from "react-toastify";
+import { toast } from "sonner";
 import {
-  createDriverKYCAction,
-  updateDriverKYCAction,
-  fetchDriverKYCByIdAction,
+  submitDriverKYC,
+  fetchPendingDriverKYC,
+  
+  
 } from "../Slices/driverKYCSlice";
 
 
@@ -330,6 +331,7 @@ const DriverKYCModal = ({ isOpen, onClose, kycId = null }) => {
   if (!isOpen) return null;
 
   return (
+    
     <div className="fixed inset-0 z-50 overflow-auto bg-black bg-opacity-50 flex">
       <div className="relative bg-white w-full max-w-4xl m-auto rounded-lg shadow-lg">
         <div className="p-5 border-b border-gray-200">

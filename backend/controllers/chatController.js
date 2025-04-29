@@ -202,8 +202,7 @@ export const sendChatMessage = async (req, res) => {
       try {
         await global.createSystemNotification(
           recipient,
-          `New message from ${senderName}: ${
-            content.length > 30 ? content.substring(0, 30) + "..." : content
+          `New message from ${senderName}: ${content.length > 30 ? content.substring(0, 30) + "..." : content
           }`,
           "new_message",
           {

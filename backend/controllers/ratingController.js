@@ -133,85 +133,92 @@ export const submitRating = async (req, res) => {
 };
 
 // Get all ratings for a driver
-export const getDriverRatings = async (req, res) => {
-  const { driverId } = req.params;
-  const page = parseInt(req.query.page) || 1;
-  const limit = parseInt(req.query.limit) || 10;
-  const skip = (page - 1) * limit;
+// Get all ratings for a driver (with reference type filter)
+  export const getDriverRatings = async (req, res) => {
+    const { driverId } = req.params;
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
+    const skip = (page - 1) * limit;
+    const referenceType = req.query.referenceType; // New filter parameter
 
-  try {
-    // Validate driver ID
-    if (!mongoose.Types.ObjectId.isValid(driverId)) {
-      return res.status(400).json({ message: "Invalid driver ID" });
-    }
-
-    // Get ratings count
-    const total = await Rating.countDocuments({
-      driverId,
-      status: "active"
-    });
-
-    // Get driver details
-    const driver = await UserModel.findById(driverId);
-    if (!driver) {
-      return res.status(404).json({ message: "Driver not found" });
-    }
-
-    // Get paginated ratings
-    const ratings = await Rating.find({
-      driverId,
-      status: "active"
-    })
-      .sort({ createdAt: -1 })
-      .skip(skip)
-      .limit(limit)
-      .populate("userId", "fullName")
-      .lean();
-
-    // Add reference details to each rating
-    const enhancedRatings = await Promise.all(ratings.map(async (rating) => {
-      let referenceDetails = null;
-
-      if (rating.referenceType === "Trip") {
-        referenceDetails = await Trip.findById(rating.referenceId)
-          .select("departureLocation destinationLocation departureDate")
-          .lean();
-      } else if (rating.referenceType === "Ride") {
-        referenceDetails = await Ride.findById(rating.referenceId)
-          .select("pickupLocationName dropoffLocationName distance fare")
-          .lean();
+    try {
+      // Validate driver ID
+      if (!mongoose.Types.ObjectId.isValid(driverId)) {
+        return res.status(400).json({ message: "Invalid driver ID" });
       }
 
-      return {
-        ...rating,
-        referenceDetails
+      // Build query condition
+      const queryCondition = {
+        driverId,
+        status: "active"
       };
-    }));
 
-    // Calculate total pages
-    const totalPages = Math.ceil(total / limit);
-
-    res.status(200).json({
-      ratings: enhancedRatings,
-      driverInfo: {
-        name: driver.fullName,
-        averageRating: driver.driverRating?.average || 0,
-        totalRatings: driver.driverRating?.count || 0
-      },
-      pagination: {
-        total,
-        totalPages,
-        currentPage: page,
-        hasNextPage: page < totalPages,
-        hasPrevPage: page > 1
+      // Add reference type filter if provided
+      if (referenceType && ["Trip", "Ride"].includes(referenceType)) {
+        queryCondition.referenceType = referenceType;
       }
-    });
 
-  } catch (error) {
-    console.error("Error fetching driver ratings:", error);
-    res.status(500).json({ message: "Failed to fetch ratings", error: error.message });
-  }
-};
+      // Get ratings count
+      const total = await Rating.countDocuments(queryCondition);
+
+      // Get driver details
+      const driver = await UserModel.findById(driverId);
+      if (!driver) {
+        return res.status(404).json({ message: "Driver not found" });
+      }
+
+      // Get paginated ratings
+      const ratings = await Rating.find(queryCondition)
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit)
+        .populate("userId", "fullName")
+        .lean();
+
+      // Add reference details to each rating
+      const enhancedRatings = await Promise.all(ratings.map(async (rating) => {
+        let referenceDetails = null;
+
+        if (rating.referenceType === "Trip") {
+          referenceDetails = await Trip.findById(rating.referenceId)
+            .select("departureLocation destinationLocation departureDate departureTime")
+            .lean();
+        } else if (rating.referenceType === "Ride") {
+          referenceDetails = await Ride.findById(rating.referenceId)
+            .select("pickupLocationName dropoffLocationName distance fare createdAt")
+            .lean();
+        }
+
+        return {
+          ...rating,
+          referenceDetails
+        };
+      }));
+
+      // Calculate total pages
+      const totalPages = Math.ceil(total / limit);
+
+      res.status(200).json({
+        ratings: enhancedRatings,
+        driverInfo: {
+          name: driver.fullName,
+          averageRating: driver.driverRating?.average || 0,
+          totalRatings: driver.driverRating?.count || 0
+        },
+        pagination: {
+          total,
+          totalPages,
+          currentPage: page,
+          hasNextPage: page < totalPages,
+          hasPrevPage: page > 1
+        }
+      });
+
+    } catch (error) {
+      console.error("Error fetching driver ratings:", error);
+      res.status(500).json({ message: "Failed to fetch ratings", error: error.message });
+    }
+  };
 
 // Get all ratings by the current user
 export const getUserRatings = async (req, res) => {
@@ -315,151 +322,8 @@ export const getRatingById = async (req, res) => {
   }
 };
 
-// Update an existing rating
-export const updateRating = async (req, res) => {
-  const { ratingId } = req.params;
-  const { rating, review, categoryRatings } = req.body;
-  const userId = req.user._id;
-
-  try {
-    // Find the rating
-    const existingRating = await Rating.findById(ratingId);
-
-    if (!existingRating) {
-      return res.status(404).json({ message: "Rating not found" });
-    }
-
-    // Check if the user is the owner of the rating
-    if (existingRating.userId.toString() !== userId.toString()) {
-      return res.status(403).json({ message: "You can only update your own ratings" });
-    }
-
-    // Check if the rating is active
-    if (existingRating.status !== "active") {
-      return res.status(400).json({ message: "Cannot update a flagged or removed rating" });
-    }
-
-    // Update the rating
-    existingRating.rating = rating || existingRating.rating;
-    existingRating.review = review || existingRating.review;
-
-    // Update category ratings if provided
-    if (categoryRatings) {
-      for (const category in categoryRatings) {
-        if (existingRating.categoryRatings.hasOwnProperty(category)) {
-          existingRating.categoryRatings[category] = categoryRatings[category];
-        }
-      }
-    }
-
-    await existingRating.save();
-
-    // Update the rating in the ride document if it's a ride
-    if (existingRating.referenceType === "Ride") {
-      await Ride.findByIdAndUpdate(existingRating.referenceId, {
-        rating: existingRating.rating,
-        feedback: existingRating.review
-      });
-    }
-
-    // Recalculate driver's average rating
-    const driverId = existingRating.driverId;
-    const driverRatings = await Rating.find({
-      driverId,
-      status: "active"
-    });
-
-    const totalRatings = driverRatings.length;
-    const ratingSum = driverRatings.reduce((sum, r) => sum + r.rating, 0);
-    const averageRating = totalRatings > 0 ? (ratingSum / totalRatings).toFixed(1) : 0;
-
-    // Update driver's average rating in user model
-    await UserModel.findByIdAndUpdate(driverId, {
-      "driverRating.average": averageRating,
-      "driverRating.count": totalRatings,
-      "driverRating.lastUpdated": new Date()
-    });
-
-    res.status(200).json({
-      message: "Rating updated successfully",
-      rating: existingRating,
-      driverStats: {
-        averageRating: parseFloat(averageRating),
-        totalRatings
-      }
-    });
-
-  } catch (error) {
-    console.error("Error updating rating:", error);
-    res.status(500).json({ message: "Failed to update rating", error: error.message });
-  }
-};
-
-// Delete a rating
-export const deleteRating = async (req, res) => {
-  const { ratingId } = req.params;
-  const userId = req.user._id;
-
-  try {
-    // Find the rating
-    const rating = await Rating.findById(ratingId);
-
-    if (!rating) {
-      return res.status(404).json({ message: "Rating not found" });
-    }
-
-    // Check if the user is the owner of the rating
-    if (rating.userId.toString() !== userId.toString()) {
-      return res.status(403).json({ message: "You can only delete your own ratings" });
-    }
-
-    // Store driver ID before deletion for recalculation
-    const driverId = rating.driverId;
-    const referenceId = rating.referenceId;
-    const referenceType = rating.referenceType;
-
-    // Remove the rating
-    await Rating.findByIdAndDelete(ratingId);
-
-    // Remove the rating from the ride document if it's a ride
-    if (referenceType === "Ride") {
-      await Ride.findByIdAndUpdate(referenceId, {
-        $unset: { rating: "", feedback: "" }
-      });
-    }
-
-    // Recalculate driver's average rating
-    const driverRatings = await Rating.find({
-      driverId,
-      status: "active"
-    });
-
-    const totalRatings = driverRatings.length;
-    const ratingSum = driverRatings.reduce((sum, r) => sum + r.rating, 0);
-    const averageRating = totalRatings > 0 ? (ratingSum / totalRatings).toFixed(1) : 0;
-
-    // Update driver's average rating in user model
-    await UserModel.findByIdAndUpdate(driverId, {
-      "driverRating.average": averageRating,
-      "driverRating.count": totalRatings,
-      "driverRating.lastUpdated": new Date()
-    });
-
-    res.status(200).json({
-      message: "Rating deleted successfully",
-      driverStats: {
-        averageRating: parseFloat(averageRating),
-        totalRatings
-      }
-    });
-
-  } catch (error) {
-    console.error("Error deleting rating:", error);
-    res.status(500).json({ message: "Failed to delete rating", error: error.message });
-  }
-};
-
 // Admin: Flag or remove inappropriate ratings
+
 export const moderateRating = async (req, res) => {
   const { ratingId } = req.params;
   const { action, reason } = req.body;
@@ -472,67 +336,30 @@ export const moderateRating = async (req, res) => {
   try {
     // Find the rating
     const rating = await Rating.findById(ratingId);
-
     if (!rating) {
       return res.status(404).json({ message: "Rating not found" });
     }
 
-    // Validate action
-    if (!["flag", "remove", "restore"].includes(action)) {
-      return res.status(400).json({ message: "Invalid action. Use 'flag', 'remove', or 'restore'" });
-    }
-
-    // Update status based on action
     if (action === "flag") {
       rating.status = "flagged";
-    } else if (action === "remove") {
-      rating.status = "removed";
-    } else if (action === "restore") {
-      rating.status = "active";
+      rating.flagReason = reason || "Inappropriate content";
+    } else if (action === "delete") {
+      rating.status = "deleted";
+      rating.flagReason = reason || "Removed by admin";
+    } else {
+      return res.status(400).json({ message: "Invalid action. Must be 'flag' or 'delete'" });
     }
-
-    // Add moderation details
-    rating.moderationDetails = {
-      action,
-      reason,
-      moderatedBy: req.user._id,
-      moderatedAt: new Date()
-    };
 
     await rating.save();
 
-    // Recalculate driver's average rating
-    const driverId = rating.driverId;
-    const driverRatings = await Rating.find({
-      driverId,
-      status: "active"
-    });
-
-    const totalRatings = driverRatings.length;
-    const ratingSum = driverRatings.reduce((sum, r) => sum + r.rating, 0);
-    const averageRating = totalRatings > 0 ? (ratingSum / totalRatings).toFixed(1) : 0;
-
-    // Update driver's average rating in user model
-    await UserModel.findByIdAndUpdate(driverId, {
-      "driverRating.average": averageRating,
-      "driverRating.count": totalRatings,
-      "driverRating.lastUpdated": new Date()
-    });
-
-    res.status(200).json({
-      message: `Rating ${action}ed successfully`,
-      rating,
-      driverStats: {
-        averageRating: parseFloat(averageRating),
-        totalRatings
-      }
-    });
+    res.status(200).json({ message: `Rating ${action}ged successfully`, rating });
 
   } catch (error) {
     console.error("Error moderating rating:", error);
     res.status(500).json({ message: "Failed to moderate rating", error: error.message });
   }
 };
+
 
 // Get a driver's rating summary
 export const getDriverRatingSummary = async (req, res) => {
@@ -620,3 +447,6 @@ export const getDriverRatingSummary = async (req, res) => {
     res.status(500).json({ message: "Failed to fetch rating summary", error: error.message });
   }
 };
+
+
+

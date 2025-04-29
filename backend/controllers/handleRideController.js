@@ -645,6 +645,10 @@ export const getRideHistory = async (req, res) => {
 /**
  * GET ACTIVE RIDE
  */
+/**
+ * GET ACTIVE RIDE (ENHANCED)
+ * Enhanced to handle recently completed rides
+ */
 export const getActiveRide = async (req, res) => {
   try {
     const { userId, userType } = req.query;
@@ -673,21 +677,49 @@ export const getActiveRide = async (req, res) => {
       });
     }
 
+    // Get recently completed rides (within the last 15 minutes)
+    const recentlyCompletedCutoff = new Date();
+    recentlyCompletedCutoff.setMinutes(recentlyCompletedCutoff.getMinutes() - 15);
+
     let activeRide;
 
     if (userType === "passenger") {
+      // First try to find an ongoing ride
       activeRide = await Ride.findOne({
         passengerId: userId,
         status: { $in: ["requested", "accepted", "picked up"] },
       }).populate(
         "driverId",
-        "fullName username phone vehicleType numberPlate profileImage"
+        "fullName username phone vehicleType numberPlate profileImage currentLocation"
       );
+
+      // If no ongoing ride, look for recently completed ride
+      if (!activeRide) {
+        activeRide = await Ride.findOne({
+          passengerId: userId,
+          status: "completed",
+          updatedAt: { $gte: recentlyCompletedCutoff }
+        }).populate(
+          "driverId",
+          "fullName username phone vehicleType numberPlate profileImage currentLocation"
+        ).sort({ updatedAt: -1 });
+      }
     } else if (userType === "driver") {
+      // First try to find an ongoing ride
       activeRide = await Ride.findOne({
         driverId: userId,
         status: { $in: ["accepted", "picked up"] },
       }).populate("passengerId", "fullName username phone profileImage");
+
+      // If no ongoing ride, look for recently completed ride
+      if (!activeRide) {
+        activeRide = await Ride.findOne({
+          driverId: userId,
+          status: "completed",
+          updatedAt: { $gte: recentlyCompletedCutoff }
+        }).populate("passengerId", "fullName username phone profileImage")
+          .sort({ updatedAt: -1 });
+      }
     }
 
     if (!activeRide) {

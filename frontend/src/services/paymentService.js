@@ -2,6 +2,7 @@
 import axiosInstance from "../utils/axiosInstance";
 import formatError from "../utils/errorUtils";
 import { Base_Backend_Url } from "../../constant";
+import axios from "axios";
 
 /**
  * INITIATE a payment (with Khalti)
@@ -11,8 +12,8 @@ const initiatePayment = async (paymentData) => {
   try {
     console.log("Initiating payment with data:", paymentData);
 
-    const response = await axiosInstance.post(
-      `${Base_Backend_Url}/api/initiate`,
+    const response = await axios.post(
+      `${Base_Backend_Url}/api/payments/initiate`,
       paymentData,
       { withCredentials: true }
     );
@@ -38,8 +39,8 @@ const completeKhaltiPayment = async (queryParams) => {
     const params = new URLSearchParams(queryParams).toString();
 
     // Call the backend endpoint for completing Khalti payment
-    const response = await axiosInstance.get(
-      `${Base_Backend_Url}/api/completeKhaltiPayment?${params}`,
+    const response = await axiosI.get(
+      `${Base_Backend_Url}/api/payments/completeKhaltiPayment?${params}`,
       { withCredentials: true }
     );
 
@@ -203,32 +204,29 @@ const getAllPayments = async (filters = {}) => {
  * GET admin payment stats
  * GET /api/admin/paymentstats
  */
-const getAdminPaymentStats = async (filters = {}) => {
+export const getAdminPaymentStats = async (filters = {}) => {
   try {
-    console.log("Fetching admin payment stats with filters:", filters);
+    // Build query string from filters
+    const queryParams = new URLSearchParams(filters).toString();
 
-    // Convert filters to query string
-    const queryParams = new URLSearchParams();
-    Object.entries(filters).forEach(([key, value]) => {
-      if (value) queryParams.append(key, value);
-    });
+    // Ensure no trailing slash on base URL
+    const baseUrl = Base_Backend_Url.replace(/\/$/, "");
 
-    // Add trailing slash to Base_Backend_Url if not present
-    const baseUrl = Base_Backend_Url.endsWith("/")
-      ? Base_Backend_Url.slice(0, -1)
-      : Base_Backend_Url;
+    // Construct the full URL (note the /payments prefix)
+    const url = queryParams
+      ? `${baseUrl}/api/payments/admin/paymentstats?${queryParams}`
+      : `${baseUrl}/api/payments/admin/paymentstats`;
 
-    const queryString = queryParams.toString();
-    const url = queryString
-      ? `${baseUrl}/api/admin/paymentstats?${queryString}`
-      : `${baseUrl}/api/admin/paymentstats`;
+    console.log("Fdhbgh URL:", url);
 
-    const response = await axiosInstance.get(url, { withCredentials: true });
+    // Call the endpoint
+    const response = await axios.get(url, { withCredentials: true });
+
+    // Return the actual payload for Redux (the createResponse wrapper uses "Result")
     return response.data;
   } catch (error) {
     console.error("getAdminPaymentStats error:", error);
-    const formattedError = formatError(error);
-    throw formattedError;
+    throw formatError(error);
   }
 };
 

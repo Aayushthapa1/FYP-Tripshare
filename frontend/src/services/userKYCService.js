@@ -67,6 +67,7 @@ const getAllUsersKYC = async () => {
 const getPendingUserKYC = async () => {
     try {
         const response = await axiosInstance.get(`${Base_Backend_Url}/api/userkyc/pending`);
+        console.log("Pending KYC response:", response); // Debugging line
         return response.data; // { success: true, users: [...] }
     } catch (error) {
         const formattedError = formatError(error);

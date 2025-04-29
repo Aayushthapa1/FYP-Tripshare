@@ -22,7 +22,7 @@ import {
 } from "recharts";
 import { format } from "date-fns";
 import {
-  DollarSign,
+  // DollarSign,
   Calendar,
   Search,
   Filter,
@@ -302,7 +302,7 @@ const PaymentDashboard = ({ dashboardType = "admin" }) => {
           <div className="bg-gradient-to-br from-green-50 to-green-100 rounded-xl shadow-sm border border-green-200 p-6">
             <div className="flex items-center justify-between mb-4">
               <div className="bg-green-500 rounded-lg p-2 text-white">
-                <DollarSign className="w-6 h-6" />
+                {/* <DollarSign className="w-6 h-6" /> */}
               </div>
             </div>
             <h3 className="text-sm font-medium text-gray-600 mb-1">
@@ -816,7 +816,7 @@ const PaymentDashboard = ({ dashboardType = "admin" }) => {
               </label>
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <DollarSign className="h-4 w-4 text-gray-400" />
+                  {/* <DollarSign className="h-4 w-4 text-gray-400" /> */}
                 </div>
                 <select
                   name="method"

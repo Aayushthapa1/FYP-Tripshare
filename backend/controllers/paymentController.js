@@ -132,6 +132,7 @@ export const initiatePayment = async (req, res, next) => {
       customer_info: {
         name: req.user.name || req.user.fullName || "NoName",
         email: req.user.email || "NoEmail",
+        phone: req.user.phoneNumber || "NoPhone",
       },
     };
 
@@ -377,7 +378,6 @@ export const getPaymentDetails = async (req, res, next) => {
  */
 export const getAllPayments = async (req, res, next) => {
   try {
-    // Check if user is admin
     if (req.user.role !== "Admin") {
       return res.status(403).json(
         createResponse(403, false, [{ message: "Unauthorized: Admin access required" }])
@@ -387,7 +387,6 @@ export const getAllPayments = async (req, res, next) => {
     const { status, method, startDate, endDate, page = 1, limit = 20 } = req.query;
     const query = {};
 
-    // Build query filters
     if (status) query.status = status;
     if (method) query.paymentMethod = method;
 
@@ -398,20 +397,18 @@ export const getAllPayments = async (req, res, next) => {
       };
     }
 
-    // Calculate pagination
     const skip = (parseInt(page) - 1) * parseInt(limit);
-
-    // Get total count for pagination
     const totalCount = await Payment.countDocuments(query);
 
-    // Get paginated payments
     const payments = await Payment.find(query)
       .populate({
         path: "booking",
-        populate: { path: "trip" }
+        populate: {
+          path: "trip",
+          select: "departureLocation destinationLocation departureDate"
+        }
       })
       .populate("user", "fullName email phoneNumber")
-      .populate("tripId", "departureLocation destinationLocation departureDate")
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(parseInt(limit));
@@ -430,6 +427,7 @@ export const getAllPayments = async (req, res, next) => {
     next(error);
   }
 };
+
 
 /**
  * Get payments for a specific user (for user dashboard)
@@ -702,7 +700,6 @@ export const getDriverPayments = async (req, res, next) => {
  */
 export const getAdminPaymentStats = async (req, res, next) => {
   try {
-    // Check if user is admin
     if (req.user?.role !== "Admin") {
       return res.status(403).json(
         createResponse(403, false, [{ message: "Unauthorized: Admin access required" }])
@@ -719,7 +716,6 @@ export const getAdminPaymentStats = async (req, res, next) => {
       };
     }
 
-    // Get payments by status counts
     const [
       totalCount,
       completedCount,
@@ -734,26 +730,22 @@ export const getAdminPaymentStats = async (req, res, next) => {
       Payment.countDocuments({ ...dateQuery, status: "canceled" })
     ]);
 
-    // Get payments by method
     const methodCounts = await Payment.aggregate([
       { $match: dateQuery },
       { $group: { _id: "$paymentMethod", count: { $sum: 1 } } }
     ]);
 
     const paymentsByMethod = methodCounts.reduce((acc, curr) => {
-      acc[curr._id] = curr.count;
+      acc[curr._id || "Unknown"] = curr.count;
       return acc;
     }, {});
 
-    // Calculate total amount for completed payments
     const totalAmountResult = await Payment.aggregate([
       { $match: { ...dateQuery, status: "completed" } },
       { $group: { _id: null, total: { $sum: "$amount" } } }
     ]);
-
     const totalAmount = totalAmountResult.length > 0 ? totalAmountResult[0].total : 0;
 
-    // Group by day for chart
     const paymentsByDay = await Payment.aggregate([
       {
         $match: {
@@ -775,23 +767,15 @@ export const getAdminPaymentStats = async (req, res, next) => {
       amount: item.amount
     }));
 
-    // Get recent payments
     const recentPayments = await Payment.find({})
       .populate({
         path: "booking",
-        populate: [
-          {
-            path: "trip",
-            select: "departureLocation destinationLocation",
-          },
-          {
-            path: "user",
-            select: "fullName",
-          },
-        ],
+        populate: {
+          path: "trip",
+          select: "departureLocation destinationLocation"
+        }
       })
-      .populate("user", "fullName email")
-      .populate("tripId", "departureLocation destinationLocation")
+      .populate("user", "fullName email phoneNumber")
       .sort({ createdAt: -1 })
       .limit(10);
 

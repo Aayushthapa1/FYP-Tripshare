@@ -1,7 +1,11 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { useNavigate } from "react-router-dom";
-import { getActiveRide, updateRideStatus } from "../Slices/rideSlice";
+import {
+  getActiveRide,
+  updateRideStatus,
+  clearRecentlyCompleted,
+} from "../Slices/rideSlice";
 import { Toaster, toast } from "sonner";
 import {
   MapPin,
@@ -22,17 +26,13 @@ import {
   CheckSquare,
   Shield,
   Info,
-  SendHorizontal,
-  ArrowLeft,
   Menu,
   Home,
   UserCircle,
   History,
   Settings,
   LogOut,
-  PenSquare,
-  Image as ImageIcon,
-  X,
+  PartyPopper,
 } from "lucide-react";
 import socketService from "../socket/socketService";
 import { useSocket } from "../../components/socket/SocketProvider";
@@ -41,8 +41,11 @@ import Navbar from "../layout/Navbar";
 // Import Map components
 import MapContainer from "./MapContainer";
 import EnhancedMapSection from "./MapSection";
-import FixedChatComponent from "../chat/ChatComponent";
-// Import RatingModal component
+
+// Import the side chat modal
+import SideChatModal from "../chat/ChatComponent";
+
+// Import Rating Modal
 import RatingModal from "../rating/RatingModal";
 
 const RideStatus = () => {
@@ -51,12 +54,12 @@ const RideStatus = () => {
   const { connected } = useSocket();
 
   // Redux state
-  const { activeRide, loading, error } = useSelector((state) => state.ride);
+  const { activeRide, loading, error, recentlyCompleted } = useSelector(
+    (state) => state.ride
+  );
   const { user } = useSelector((state) => state.auth) || {};
 
   // Local state for UI
-  const [showRatingModal, setShowRatingModal] = useState(false);
-  const [completedRideData, setCompletedRideData] = useState(null);
   const [socketConnected, setSocketConnected] = useState(false);
   const [driverLocation, setDriverLocation] = useState(null);
   const [estimatedArrival, setEstimatedArrival] = useState(null);
@@ -75,80 +78,26 @@ const RideStatus = () => {
   const [showChat, setShowChat] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [manualRefreshing, setManualRefreshing] = useState(false);
-  const [completedShown, setCompletedShown] = useState(false);
+  const [showCompletionModal, setShowCompletionModal] = useState(false);
+  const [showRatingModal, setShowRatingModal] = useState(false);
 
   // Refs
   const timerRef = useRef(null);
   const mapRef = useRef(null);
-  const chatContainerRef = useRef(null);
   const refreshTimerRef = useRef(null);
-
-  const handleRideStatusUpdated = (data) => {
-    console.log("Ride status updated:", data);
-
-    // Update ride status
-    setRideStatus(data.newStatus);
-
-    // Update UI based on new status
-    if (data.newStatus === "picked up") {
-      toast.success("Your driver has arrived at your pickup location!");
-      setActiveStep(3); // Move to Picked Up step
-
-      // Start ride timer
-      if (timerRef.current) clearInterval(timerRef.current);
-      setRideTimer(0);
-      timerRef.current = setInterval(() => {
-        setRideTimer((prev) => prev + 1);
-      }, 1000);
-    } else if (data.newStatus === "completed") {
-      toast.success("Your ride has been completed!");
-      setActiveStep(4); // Move to Completed step
-      setCompletedShown(true);
-
-      // Store completed ride data for rating
-      setCompletedRideData({
-        referenceId: activeRide._id,
-        referenceType: "Ride",
-        driverName:
-          typeof activeRide.driverId === "object"
-            ? activeRide.driverId.fullName || "Driver"
-            : driverInfo?.name || "Driver",
-        driverImage:
-          typeof activeRide.driverId === "object"
-            ? activeRide.driverId.profileImage || null
-            : null,
-      });
-
-      // Show rating modal
-      setShowRatingModal(true);
-
-      // Stop ride timer
-      if (timerRef.current) {
-        clearInterval(timerRef.current);
-        timerRef.current = null;
-      }
-    } else if (data.newStatus === "canceled") {
-      toast.error(
-        `Ride canceled: ${data.cancelReason || "No reason provided"}`
-      );
-
-      // Stop timer if running
-      if (timerRef.current) {
-        clearInterval(timerRef.current);
-        timerRef.current = null;
-      }
-    }
-
-    // Refresh ride data
-    if (user && user._id) {
-      dispatch(getActiveRide({ userId: user._id, userType: "passenger" }));
-    }
-  };
 
   // Effect to sync socket connection state
   useEffect(() => {
     setSocketConnected(connected);
   }, [connected]);
+
+  // Monitor recentlyCompleted flag from redux
+  useEffect(() => {
+    if (recentlyCompleted && activeRide && activeRide.status === "completed") {
+      setShowCompletionModal(true);
+      setActiveStep(4); // Ensure we're at the completed step
+    }
+  }, [recentlyCompleted, activeRide]);
 
   // Effect for socket connection and event handling
   useEffect(() => {
@@ -231,24 +180,7 @@ const RideStatus = () => {
       } else if (data.newStatus === "completed") {
         toast.success("Your ride has been completed!");
         setActiveStep(4); // Move to Completed step
-        setCompletedShown(true);
-
-        // Store completed ride data for rating
-        setCompletedRideData({
-          referenceId: activeRide._id,
-          referenceType: "Ride",
-          driverName:
-            typeof activeRide.driverId === "object"
-              ? activeRide.driverId.fullName || "Driver"
-              : driverInfo?.name || "Driver",
-          driverImage:
-            typeof activeRide.driverId === "object"
-              ? activeRide.driverId.profileImage || null
-              : null,
-        });
-
-        // Show rating modal
-        setShowRatingModal(true);
+        setShowCompletionModal(true); // Show completion modal
 
         // Stop ride timer
         if (timerRef.current) {
@@ -289,15 +221,17 @@ const RideStatus = () => {
       }
     };
 
-    // Set up event listeners
-    socketService.socket.on("connect", handleConnect);
-    socketService.socket.on("disconnect", handleDisconnect);
-    socketService.socket.on("driver_accepted", handleDriverAccepted);
-    socketService.socket.on("ride_status_changed", handleRideStatusUpdated);
-    socketService.socket.on(
-      "driver_location_changed",
-      handleDriverLocationUpdated
-    );
+    // Set up event listeners if socket is available
+    if (socketService.socket) {
+      socketService.socket.on("connect", handleConnect);
+      socketService.socket.on("disconnect", handleDisconnect);
+      socketService.socket.on("driver_accepted", handleDriverAccepted);
+      socketService.socket.on("ride_status_changed", handleRideStatusUpdated);
+      socketService.socket.on(
+        "driver_location_changed",
+        handleDriverLocationUpdated
+      );
+    }
 
     // Set initial connection status
     setSocketConnected(socketService.connected);
@@ -309,18 +243,24 @@ const RideStatus = () => {
 
     // Clean up on unmount
     return () => {
-      socketService.socket.off("connect", handleConnect);
-      socketService.socket.off("disconnect", handleDisconnect);
-      socketService.socket.off("driver_accepted", handleDriverAccepted);
-      socketService.socket.off("ride_status_changed", handleRideStatusUpdated);
-      socketService.socket.off(
-        "driver_location_changed",
-        handleDriverLocationUpdated
-      );
+      // Safely remove event listeners if socket still exists
+      if (socketService.socket) {
+        socketService.socket.off("connect", handleConnect);
+        socketService.socket.off("disconnect", handleDisconnect);
+        socketService.socket.off("driver_accepted", handleDriverAccepted);
+        socketService.socket.off(
+          "ride_status_changed",
+          handleRideStatusUpdated
+        );
+        socketService.socket.off(
+          "driver_location_changed",
+          handleDriverLocationUpdated
+        );
 
-      // Leave ride room on unmount
-      if (activeRide && activeRide._id) {
-        socketService.leaveRideRoom(activeRide._id);
+        // Leave ride room on unmount if ride exists
+        if (activeRide && activeRide._id) {
+          socketService.leaveRideRoom(activeRide._id);
+        }
       }
 
       // Clear timer if running
@@ -334,6 +274,9 @@ const RideStatus = () => {
         clearTimeout(refreshTimerRef.current);
         refreshTimerRef.current = null;
       }
+
+      // Clear recently completed flag on unmount
+      dispatch(clearRecentlyCompleted());
     };
   }, [activeRide, user, dispatch, rideStatus, connected]);
 
@@ -368,115 +311,100 @@ const RideStatus = () => {
   useEffect(() => {
     if (!activeRide) return;
 
-    try {
-      // Override even if socket hasn't updated yet
-      if (activeRide.driverId && activeRide.status === "requested") {
-        // If we have a driver but state says requested, override to accepted
-        setIsRideAccepted(true);
-        setRideStatus("accepted");
-        setActiveStep(2);
-        setDriverOnRoute(true);
-      } else {
-        // Update ride status from backend
-        setRideStatus(activeRide.status);
+    // Override even if socket hasn't updated yet
+    if (activeRide.driverId && activeRide.status === "requested") {
+      // If we have a driver but state says requested, override to accepted
+      setIsRideAccepted(true);
+      setRideStatus("accepted");
+      setActiveStep(2);
+      setDriverOnRoute(true);
+    } else {
+      // Update ride status from backend
+      setRideStatus(activeRide.status);
 
-        // Update active step and other UI flags
-        switch (activeRide.status) {
-          case "requested":
-            setActiveStep(1);
-            setIsRideAccepted(false);
-            break;
-          case "accepted":
-            setActiveStep(2);
-            setDriverOnRoute(true);
-            setIsRideAccepted(true);
-            break;
-          case "picked up":
-            setActiveStep(3);
-            setIsRideAccepted(true);
-            break;
-          case "completed":
-            setActiveStep(4);
-            setIsRideAccepted(true);
-            setCompletedShown(true);
-
-            // Set completed ride data for rating if not already set
-            if (!completedRideData) {
-              setCompletedRideData({
-                referenceId: activeRide._id,
-                referenceType: "Ride",
-                driverName:
-                  typeof activeRide.driverId === "object"
-                    ? activeRide.driverId.fullName || "Driver"
-                    : driverInfo?.name || "Driver",
-                driverImage:
-                  typeof activeRide.driverId === "object"
-                    ? activeRide.driverId.profileImage || null
-                    : null,
-              });
-              setShowRatingModal(true);
-            }
-            break;
-          default:
-            setActiveStep(1);
-            setIsRideAccepted(false);
-        }
-      }
-
-      // Set driver info from backend if available
-      if (activeRide.driverId) {
-        // Handle both object and string IDs
-        const driverData =
-          typeof activeRide.driverId === "object"
-            ? activeRide.driverId
-            : { _id: activeRide.driverId };
-
-        // Extract driver info from active ride
-        setDriverInfo({
-          id:
-            typeof activeRide.driverId === "object"
-              ? activeRide.driverId._id
-              : activeRide.driverId,
-          name: driverData.fullName || driverData.username || "Driver",
-          phone: driverData.phone || driverData.phoneNumber,
-          vehicleType:
-            driverData.vehicleType || activeRide.vehicleType || "Car",
-          licensePlate: driverData.numberPlate || "",
-          rating: driverData.rating || 4.5,
-        });
-
-        // Set pickup and dropoff locations for map
-        if (activeRide.pickupLocation) {
-          const pickupLoc = {
-            lat: Number.parseFloat(activeRide.pickupLocation.latitude),
-            lng: Number.parseFloat(activeRide.pickupLocation.longitude),
-          };
-
-          // If no driver location yet, center map on pickup
-          if (!driverLocation) {
-            setMapCenter(pickupLoc);
+      // Update active step and other UI flags
+      switch (activeRide.status) {
+        case "requested":
+          setActiveStep(1);
+          setIsRideAccepted(false);
+          break;
+        case "accepted":
+          setActiveStep(2);
+          setDriverOnRoute(true);
+          setIsRideAccepted(true);
+          break;
+        case "picked up":
+          setActiveStep(3);
+          setIsRideAccepted(true);
+          break;
+        case "completed":
+          setActiveStep(4);
+          setIsRideAccepted(true);
+          // Show completion modal if it's a newly completed ride
+          if (recentlyCompleted && !showCompletionModal) {
+            setShowCompletionModal(true);
           }
-        }
-
-        // Set driver location if available from backend
-        if (driverData.currentLocation) {
-          const driverLoc = {
-            lat: Number.parseFloat(driverData.currentLocation.latitude),
-            lng: Number.parseFloat(driverData.currentLocation.longitude),
-          };
-          setDriverLocation(driverLoc);
-
-          // Center on driver location if in accepted status
-          if (activeRide.status === "accepted" || rideStatus === "accepted") {
-            setMapCenter(driverLoc);
-          }
-        }
+          break;
+        default:
+          setActiveStep(1);
+          setIsRideAccepted(false);
       }
-    } catch (error) {
-      console.error("Error processing ride data:", error);
-      // Handle the error gracefully without breaking the UI
     }
-  }, [activeRide, driverLocation, completedRideData, driverInfo]);
+
+    // Set driver info from backend if available
+    if (activeRide.driverId) {
+      const driverData =
+        typeof activeRide.driverId === "object"
+          ? activeRide.driverId
+          : { _id: activeRide.driverId };
+
+      // Extract driver info from active ride
+      setDriverInfo({
+        id:
+          typeof activeRide.driverId === "object"
+            ? activeRide.driverId._id
+            : activeRide.driverId,
+        name: driverData.fullName || driverData.username || "Driver",
+        phone: driverData.phone || driverData.phoneNumber,
+        vehicleType: driverData.vehicleType || activeRide.vehicleType || "Car",
+        licensePlate: driverData.numberPlate || "",
+        rating: driverData.rating || 4.5,
+      });
+
+      // Set pickup and dropoff locations for map
+      if (activeRide.pickupLocation) {
+        const pickupLoc = {
+          lat: Number.parseFloat(activeRide.pickupLocation.latitude),
+          lng: Number.parseFloat(activeRide.pickupLocation.longitude),
+        };
+
+        // If no driver location yet, center map on pickup
+        if (!driverLocation) {
+          setMapCenter(pickupLoc);
+        }
+      }
+
+      // Set driver location if available from backend
+      if (driverData.currentLocation) {
+        const driverLoc = {
+          lat: Number.parseFloat(driverData.currentLocation.latitude),
+          lng: Number.parseFloat(driverData.currentLocation.longitude),
+        };
+        setDriverLocation(driverLoc);
+
+        // Center on driver location if in accepted status
+        if (activeRide.status === "accepted" || rideStatus === "accepted") {
+          setMapCenter(driverLoc);
+        }
+      }
+    }
+  }, [
+    activeRide,
+    driverLocation,
+    activeStep,
+    recentlyCompleted,
+    showCompletionModal,
+  ]);
 
   // Calculate and fetch directions when pickup/dropoff locations change
   useEffect(() => {
@@ -583,7 +511,7 @@ const RideStatus = () => {
 
       if (result.success) {
         // Also emit through socket for real-time update
-        if (socketService.connected) {
+        if (socketService.connected && socketService.socket) {
           socketService.updateRideStatus({
             rideId: activeRide._id,
             previousStatus: activeRide.status,
@@ -711,12 +639,11 @@ const RideStatus = () => {
     setShowChat(!showChat);
   };
 
-  // Determine if chat should be enabled
-  const isChatEnabled = () => {
-    // Enable chat when ride is accepted or picked up
-    return (
-      isRideAccepted || rideStatus === "accepted" || rideStatus === "picked up"
-    );
+  // Show rating modal
+  const handleShowRating = () => {
+    console.log("Opening rating modal for ride:", activeRide?._id);
+    setShowRatingModal(true);
+    setShowCompletionModal(false);
   };
 
   // Render map with driver location
@@ -869,102 +796,6 @@ const RideStatus = () => {
     );
   };
 
-  // Chat component rendering
-  // Modified renderChatInterface function for RideStatus component
-  // Updated renderChatInterface function with better navigation
-  const renderChatInterface = () => {
-    if (!showChat || !activeRide) return null;
-
-    return (
-      <div className="fixed inset-0 z-40 bg-black bg-opacity-20 flex justify-end">
-        {/* Close overlay by clicking outside */}
-        <div className="flex-grow" onClick={toggleChat}></div>
-
-        {/* Chat modal */}
-        <div className="w-full md:w-1/2 lg:w-1/3 bg-white h-full shadow-xl flex flex-col animate-in slide-in-from-right">
-          <div className="bg-gradient-to-r from-blue-600 to-blue-500 text-white p-4 flex items-center">
-            <button
-              onClick={toggleChat}
-              className="mr-3 hover:bg-white hover:bg-opacity-10 p-2 rounded-full transition-colors"
-              aria-label="Go back"
-            >
-              <ArrowLeft className="w-6 h-6" />
-            </button>
-            <div className="flex-1">
-              <h2 className="font-semibold">
-                {typeof activeRide.driverId === "object"
-                  ? activeRide.driverId.fullName || "Driver"
-                  : driverInfo?.name || "Driver"}
-              </h2>
-              <p className="text-xs text-blue-100">
-                {activeRide.vehicleType || "Car"} •{" "}
-                {typeof activeRide.driverId === "object"
-                  ? activeRide.driverId.numberPlate || ""
-                  : driverInfo?.licensePlate || ""}
-              </p>
-            </div>
-
-            <div className="flex items-center gap-2">
-              {typeof activeRide.driverId === "object" &&
-                (activeRide.driverId.phone ||
-                  activeRide.driverId.phoneNumber) && (
-                  <a
-                    href={`tel:${
-                      activeRide.driverId.phone ||
-                      activeRide.driverId.phoneNumber
-                    }`}
-                    className="bg-white bg-opacity-20 p-2 rounded-full hover:bg-opacity-30 transition-colors"
-                    aria-label="Call driver"
-                  >
-                    <Phone className="w-5 h-5 text-white" />
-                  </a>
-                )}
-
-              <button
-                onClick={toggleChat}
-                className="bg-white bg-opacity-20 p-2 rounded-full hover:bg-opacity-30 transition-colors"
-                aria-label="Close chat"
-              >
-                <X className="w-5 h-5 text-white" />
-              </button>
-            </div>
-          </div>
-
-          {/* Navigation bar with close button for small screens */}
-          <div className="md:hidden bg-white border-b border-gray-200 px-4 py-2 flex items-center justify-between">
-            <button
-              onClick={toggleChat}
-              className="flex items-center text-blue-600"
-            >
-              <ArrowLeft className="w-4 h-4 mr-1" />
-              <span>Back to ride</span>
-            </button>
-            <button
-              onClick={toggleChat}
-              className="text-gray-500 hover:text-gray-700"
-            >
-              <X className="w-5 h-5" />
-            </button>
-          </div>
-
-          <div className="flex-1 overflow-hidden bg-gray-50">
-            <FixedChatComponent
-              rideId={activeRide._id}
-              recipientId={
-                typeof activeRide.driverId === "object"
-                  ? activeRide.driverId._id
-                  : activeRide.driverId
-              }
-              userId={user?._id}
-              userName={user?.fullName || "Passenger"}
-              isModal={true}
-            />
-          </div>
-        </div>
-      </div>
-    );
-  };
-
   // Mobile menu rendering
   const renderMobileMenu = () => {
     if (!isMobileMenuOpen) return null;
@@ -1017,18 +848,102 @@ const RideStatus = () => {
     );
   };
 
-  // Chat button component
-  const ChatButton = () => {
-    if (!isChatEnabled()) return null;
+  // Get the recipient name for chat modal
+  const getRecipientName = () => {
+    if (!activeRide || !activeRide.driverId) return "Driver";
+
+    if (typeof activeRide.driverId === "object") {
+      return (
+        activeRide.driverId.fullName || activeRide.driverId.userName || "Driver"
+      );
+    }
+
+    return driverInfo?.name || "Driver";
+  };
+
+  // Get the recipient ID for chat
+  const getRecipientId = () => {
+    if (!activeRide || !activeRide.driverId) return null;
+
+    if (typeof activeRide.driverId === "object") {
+      return activeRide.driverId._id;
+    }
+
+    return activeRide.driverId;
+  };
+
+  // Get driver image for rating
+  const getDriverImage = () => {
+    if (!activeRide || !activeRide.driverId) return null;
+
+    if (
+      typeof activeRide.driverId === "object" &&
+      activeRide.driverId.profileImage
+    ) {
+      return activeRide.driverId.profileImage;
+    }
+
+    return null;
+  };
+
+  // Handle closing the completion modal and cleanup
+  const handleCompletionModalClose = () => {
+    setShowCompletionModal(false);
+    dispatch(clearRecentlyCompleted());
+  };
+
+  // Render Completion Success Modal
+  const renderCompletionModal = () => {
+    if (!showCompletionModal) return null;
 
     return (
-      <button
-        onClick={toggleChat}
-        className="flex items-center justify-center py-3 bg-white rounded-xl border border-gray-200 hover:bg-blue-500 hover:text-white hover:border-blue-500 transition-all shadow-sm w-full"
-      >
-        <MessageSquare className="w-5 h-5 mr-2" />
-        <span className="font-medium">Message Driver</span>
-      </button>
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black bg-opacity-60 backdrop-blur-sm">
+        <div className="bg-white rounded-2xl shadow-xl max-w-md w-full animate-in fade-in duration-300">
+          <div className="p-6 text-center">
+            <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+              <PartyPopper className="w-10 h-10 text-green-500" />
+            </div>
+
+            <h2 className="text-2xl font-bold text-gray-800 mb-3">
+              Ride Completed Successfully!
+            </h2>
+
+            <p className="text-gray-600 mb-6">
+              Congratulations on your successful trip completion! Thank you for
+              choosing our service. We hope you had a pleasant journey and look
+              forward to serving you again soon.
+            </p>
+
+            {activeRide && activeRide.fare && (
+              <div className="mb-6 p-3 bg-green-50 border border-green-100 rounded-xl inline-block">
+                <p className="text-green-800 font-medium flex items-center justify-center">
+                  <DollarSign className="w-5 h-5 mr-2" />
+                  Total Fare: NPR {activeRide.fare}
+                </p>
+              </div>
+            )}
+
+            <div className="flex flex-col sm:flex-row gap-3 mt-6">
+              <button
+                onClick={handleShowRating}
+                className="flex-1 px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors shadow-md font-medium"
+              >
+                Rate your Ride
+              </button>
+
+              <button
+                onClick={() => {
+                  handleCompletionModalClose();
+                  navigate("/");
+                }}
+                className="flex-1 px-6 py-3 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors font-medium"
+              >
+                Go Home
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
     );
   };
 
@@ -1039,8 +954,31 @@ const RideStatus = () => {
       {/* Mobile Menu */}
       {renderMobileMenu()}
 
-      {/* Chat Interface */}
-      {renderChatInterface()}
+      {/* Side Chat Modal */}
+      <SideChatModal
+        isOpen={showChat}
+        onClose={() => setShowChat(false)}
+        rideId={activeRide?._id}
+        recipientId={getRecipientId()}
+        recipientName={getRecipientName()}
+        userId={user?._id}
+        userName={user?.fullName || user?.userName}
+      />
+
+      {/* Rating Modal - Include directly in render for better control */}
+      {showRatingModal && activeRide && activeRide._id && (
+        <RatingModal
+          isOpen={showRatingModal}
+          onClose={() => setShowRatingModal(false)}
+          referenceType="Ride"
+          referenceId={activeRide._id}
+          driverName={getRecipientName()}
+          driverImage={getDriverImage()}
+        />
+      )}
+
+      {/* Completion Success Modal */}
+      {renderCompletionModal()}
 
       {/* Navigation Bar - Using the original Navbar component */}
       <Navbar />
@@ -1081,11 +1019,7 @@ const RideStatus = () => {
         </div>
 
         {/* Main content */}
-        <div
-          className={`${
-            showChat ? "opacity-0 pointer-events-none" : "opacity-100"
-          } transition-opacity duration-300`}
-        >
+        <div className="transition-opacity duration-300">
           <div className="bg-white rounded-2xl shadow-xl overflow-hidden mb-6">
             {/* Header */}
             <div className="bg-gradient-to-r from-blue-600 to-blue-500 text-white p-6">
@@ -1214,6 +1148,14 @@ const RideStatus = () => {
                         Trip time: {formatRideTime()}
                       </div>
                     )}
+
+                    {/* Show tracking info for ride in progress */}
+                    {rideStatus === "picked up" && (
+                      <div className="mt-3 text-blue-600 font-medium flex items-center bg-blue-50 p-3 rounded-xl border border-blue-100">
+                        <Navigation className="w-5 h-5 mr-3" />
+                        <span>Tracking ride to your destination...</span>
+                      </div>
+                    )}
                   </div>
 
                   {/* Ride Details */}
@@ -1318,7 +1260,8 @@ const RideStatus = () => {
                   {/* Driver Details (if ride is accepted or picked up) */}
                   {((activeRide.driverId &&
                     (rideStatus === "accepted" ||
-                      rideStatus === "picked up")) ||
+                      rideStatus === "picked up" ||
+                      rideStatus === "completed")) ||
                     (activeRide.driverId && isRideAccepted)) && (
                     <div className="bg-gradient-to-br from-blue-50 to-white rounded-xl p-6 mb-6 shadow-md border border-blue-100">
                       <h3 className="font-semibold text-gray-800 mb-5 flex items-center text-lg">
@@ -1328,11 +1271,12 @@ const RideStatus = () => {
 
                       <div className="flex items-center mb-6">
                         <div className="w-20 h-20 bg-white rounded-full flex items-center justify-center border-2 border-blue-200 shadow-md">
-                          {activeRide.driverId &&
-                          typeof activeRide.driverId === "object" &&
-                          activeRide.driverId.profileImage ? (
+                          {activeRide.driverId.profileImage ? (
                             <img
-                              src={activeRide.driverId.profileImage}
+                              src={
+                                activeRide.driverId.profileImage ||
+                                "/placeholder.svg"
+                              }
                               alt="Driver"
                               className="w-20 h-20 rounded-full object-cover"
                             />
@@ -1372,29 +1316,39 @@ const RideStatus = () => {
                         </div>
                       </div>
 
-                      <div className="grid grid-cols-1 gap-4">
-                        {/* Phone */}
-                        {(typeof activeRide.driverId === "object"
-                          ? activeRide.driverId.phone ||
-                            activeRide.driverId.phoneNumber
-                          : driverInfo?.phone) && (
-                          <a
-                            href={`tel:${
-                              typeof activeRide.driverId === "object"
-                                ? activeRide.driverId.phone ||
-                                  activeRide.driverId.phoneNumber
-                                : driverInfo?.phone
-                            }`}
+                      {/* Only show contact buttons if ride is in-progress */}
+                      {(rideStatus === "accepted" ||
+                        rideStatus === "picked up") && (
+                        <div className="grid grid-cols-2 gap-4">
+                          {/* Phone */}
+                          {(typeof activeRide.driverId === "object"
+                            ? activeRide.driverId.phone ||
+                              activeRide.driverId.phoneNumber
+                            : driverInfo?.phone) && (
+                            <a
+                              href={`tel:${
+                                typeof activeRide.driverId === "object"
+                                  ? activeRide.driverId.phone ||
+                                    activeRide.driverId.phoneNumber
+                                  : driverInfo?.phone
+                              }`}
+                              className="flex items-center justify-center py-3 bg-white rounded-xl border border-gray-200 hover:bg-blue-500 hover:text-white hover:border-blue-500 transition-all shadow-sm"
+                            >
+                              <Phone className="w-5 h-5 mr-2" />
+                              <span className="font-medium">Call Driver</span>
+                            </a>
+                          )}
+
+                          {/* Message - show for both accepted and picked up status */}
+                          <button
+                            onClick={toggleChat}
                             className="flex items-center justify-center py-3 bg-white rounded-xl border border-gray-200 hover:bg-blue-500 hover:text-white hover:border-blue-500 transition-all shadow-sm"
                           >
-                            <Phone className="w-5 h-5 mr-2" />
-                            <span className="font-medium">Call Driver</span>
-                          </a>
-                        )}
-
-                        {/* Chat button - now shown as soon as driver accepts */}
-                        <ChatButton />
-                      </div>
+                            <MessageSquare className="w-5 h-5 mr-2" />
+                            <span className="font-medium">Message</span>
+                          </button>
+                        </div>
+                      )}
 
                       {/* Vehicle Details */}
                       {(typeof activeRide.driverId === "object"
@@ -1435,24 +1389,26 @@ const RideStatus = () => {
                         </div>
                       )}
 
-                      {/* Safety tip */}
-                      <div className="mt-5 bg-blue-50 p-4 rounded-xl border border-blue-100 flex items-start">
-                        <Shield className="w-5 h-5 text-blue-500 mt-0.5 mr-3 flex-shrink-0" />
-                        <p className="text-sm text-gray-600">
-                          For your safety, please verify your driver's identity
-                          and license plate before starting your trip
-                        </p>
-                      </div>
+                      {/* Safety tip - only show during active rides */}
+                      {(rideStatus === "accepted" ||
+                        rideStatus === "picked up") && (
+                        <div className="mt-5 bg-blue-50 p-4 rounded-xl border border-blue-100 flex items-start">
+                          <Shield className="w-5 h-5 text-blue-500 mt-0.5 mr-3 flex-shrink-0" />
+                          <p className="text-sm text-gray-600">
+                            For your safety, please verify your driver's
+                            identity and license plate before starting your trip
+                          </p>
+                        </div>
+                      )}
                     </div>
                   )}
 
                   {/* Action Buttons */}
                   <div className="mt-8">
-                    {/* Show "Cancel Ride" if status is requested, accepted, or picked up */}
+                    {/* Show "Cancel Ride" only if status is requested or accepted (not picked up) */}
                     {(rideStatus === "requested" ||
-                      rideStatus === "accepted" ||
-                      rideStatus === "picked up" ||
-                      isRideAccepted) && (
+                      (rideStatus === "accepted" &&
+                        !activeRide.status === "picked up")) && (
                       <button
                         onClick={() => setShowCancelConfirm(true)}
                         className="w-full px-4 py-4 bg-red-500 text-white rounded-xl hover:bg-red-600 transition-colors flex items-center justify-center font-medium shadow-md"
@@ -1462,9 +1418,19 @@ const RideStatus = () => {
                       </button>
                     )}
 
-                    {/* Show "Request New Ride" if status is completed, canceled, or rejected */}
-                    {(rideStatus === "completed" ||
-                      rideStatus === "canceled" ||
+                    {/* Show "Rate Your Ride" if completed but not in modal */}
+                    {rideStatus === "completed" && !showCompletionModal && (
+                      <button
+                        onClick={handleShowRating}
+                        className="w-full px-4 py-4 bg-blue-500 text-white rounded-xl hover:bg-blue-600 transition-colors flex items-center justify-center font-medium shadow-md"
+                      >
+                        <Star className="w-5 h-5 mr-2" />
+                        Rate Your Ride
+                      </button>
+                    )}
+
+                    {/* Show "Request New Ride" if status is canceled or rejected */}
+                    {(rideStatus === "canceled" ||
                       rideStatus === "rejected") && (
                       <button
                         onClick={() => navigate("/requestride")}
@@ -1538,18 +1504,6 @@ const RideStatus = () => {
             </div>
           </div>
         </div>
-      )}
-
-      {/* Rating Modal - Now outside of the cancel confirm modal */}
-      {completedRideData && showRatingModal && (
-        <RatingModal
-          isOpen={showRatingModal}
-          onClose={() => setShowRatingModal(false)}
-          referenceType={completedRideData.referenceType}
-          referenceId={completedRideData.referenceId}
-          driverName={completedRideData.driverName}
-          driverImage={completedRideData.driverImage}
-        />
       )}
     </div>
   );

@@ -69,7 +69,7 @@ export default function HeroSection() {
   };
 
   return (
-    <section className="relative min-h-[90vh] md:min-h-screen flex items-center justify-center overflow-hidden">
+    <section className="relative min-h-[90vh] md:min-h-screen flex items-center justify-center overflow-hidden z-0">
       {/* Background with optimized loading */}
       <div className="absolute inset-0 z-0">
         <div

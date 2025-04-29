@@ -25,7 +25,7 @@ export const initiatePayment = createAsyncThunk(
             const result = await paymentService.initiatePayment(paymentData);
             console.log("Payment initiation result:", result);
 
-            if (!result.success) {
+            if (!result.IsSuccess) {
                 return rejectWithValue({
                     message: result.message || "Payment initiation failed",
                     errors: result.errors || []

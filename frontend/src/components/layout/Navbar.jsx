@@ -18,6 +18,7 @@ import {
   CreditCard,
   Settings,
   Home,
+  Star,
 } from "lucide-react";
 import { toast, Toaster } from "sonner";
 import { useNavigate } from "react-router-dom";
@@ -31,7 +32,6 @@ import NavLinks from "./NavLinks";
 import MobileMenu from "./MobileMenu";
 import SearchBar from "./SearchBar";
 import ProfileModal from "../auth/ProfilePage.jsx";
-import UserKycModal from "../driver/UserKYCModal";
 import DriverKycModal from "../driver/DriverKYCModal.jsx";
 import Button from "../button.jsx";
 import NotificationCenter from "../socket/notificationDropdown.jsx";
@@ -67,8 +67,7 @@ export default function Navbar() {
   // Profile modal
   const [showProfileModal, setShowProfileModal] = useState(false);
 
-  // KYC modals - ensure they're properly managed
-  const [showUserKycModal, setShowUserKycModal] = useState(false);
+  // KYC modals - only for driver KYC now
   const [showDriverKycModal, setShowDriverKycModal] = useState(false);
 
   // Calculate the total unique notifications with proper validation
@@ -331,9 +330,9 @@ export default function Navbar() {
     navigate("/"); // redirect to home
   };
 
-  // Handle opening KYC modals based on role and prevent opening if already verified
+  // Handle opening KYC based on role and prevent opening if already verified
   const handleOpenKycModal = useCallback(() => {
-    // Don't open KYC modal if already verified
+    // Don't open KYC if already verified
     if (kycStatus === "verified") {
       toast.info("Your KYC is already verified");
       return;
@@ -348,11 +347,13 @@ export default function Navbar() {
     }
 
     if (userRole === "driver") {
+      // Still use modal for driver KYC
       setShowDriverKycModal(true);
     } else {
-      setShowUserKycModal(true);
+      // Navigate to the user KYC page instead of showing modal
+      navigate("/userkyc");
     }
-  }, [userRole, kycStatus]);
+  }, [userRole, kycStatus, navigate]);
 
   // Generate a notification message based on KYC status
   const notificationMessage = useMemo(() => {
@@ -559,22 +560,12 @@ export default function Navbar() {
                           <button
                             onClick={() => {
                               setIsUserMenuOpen(false);
-                              handleNavigate("/tripForm");
+                              handleNavigate("/my-ratings");
                             }}
                             className="flex w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 hover:text-green-600 text-left transition-colors items-center"
                           >
-                            <Plus className="h-4 w-4 mr-2.5 text-gray-400" />
-                            <span>Publish Trip</span>
-                          </button>
-                          <button
-                            onClick={() => {
-                              setIsUserMenuOpen(false);
-                              handleNavigate("/driverridestatus");
-                            }}
-                            className="flex w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 hover:text-green-600 text-left transition-colors items-center"
-                          >
-                            <Car className="h-4 w-4 mr-2.5 text-gray-400" />
-                            <span>Active Rides</span>
+                            <Star className="h-4 w-4 mr-2.5 text-gray-400" />
+                            <span>My Ratings</span>
                           </button>
                         </>
                       ) : (
@@ -715,16 +706,7 @@ export default function Navbar() {
         />
       )}
 
-      {/* User KYC Modal */}
-      {isAuthenticated && (
-        <UserKycModal
-          isOpen={showUserKycModal}
-          onClose={() => setShowUserKycModal(false)}
-          userId={user?._id}
-        />
-      )}
-
-      {/* Driver KYC Modal */}
+      {/* Driver KYC Modal - Only keeping driver modal, user KYC is now a page */}
       {isAuthenticated && (
         <DriverKycModal
           isOpen={showDriverKycModal}

@@ -1,3 +1,4 @@
+// models/ChatMessage.js
 import mongoose from "mongoose";
 
 const chatMessageSchema = new mongoose.Schema(
@@ -26,14 +27,6 @@ const chatMessageSchema = new mongoose.Schema(
       type: String,
       required: true,
       trim: true,
-      minlength: [1, "Message cannot be empty"],
-      maxlength: [1000, "Message cannot exceed 1000 characters"],
-      validate: {
-        validator: function (v) {
-          return v.trim().length > 0;
-        },
-        message: "Message content cannot be empty"
-      }
     },
     status: {
       type: String,

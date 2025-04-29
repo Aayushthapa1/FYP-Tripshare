@@ -1,7 +1,8 @@
 import React, { useEffect, useRef } from "react";
 import RatingForm from "./RatingForm";
 import { X } from "lucide-react";
-import { Toaster, toast } from "sonner";
+import { Toaster } from "sonner";
+import { useNavigate } from "react-router-dom";
 
 const RatingModal = ({
   isOpen,
@@ -10,8 +11,12 @@ const RatingModal = ({
   referenceId,
   driverName,
   driverImage,
+  driverId,
+  categoryRatings,
+  onRatingSubmit,
 }) => {
   const modalRef = useRef(null);
+  const navigate = useNavigate();
 
   if (!isOpen) return null;
 
@@ -33,9 +38,33 @@ const RatingModal = ({
   };
 
   const handleSuccessfulRating = () => {
-    toast.success("Thanks for your feedback!");
+    // Call the callback function if provided
+    if (onRatingSubmit) {
+      onRatingSubmit(true);
+    }
+
+    // Close the modal
     onClose();
+
+    // If the reference type is a completed Ride, navigate to home
+    if (referenceType === "Ride") {
+      // Add a small delay to ensure modal closes properly
+      const timer = setTimeout(() => {
+        navigate("/");
+      }, 500);
+
+      // Clean up the timer if the component unmounts
+      return () => clearTimeout(timer);
+    }
   };
+
+  console.log("RatingModal rendering with props:", {
+    referenceType,
+    referenceId,
+    driverName,
+    driverImage,
+    driverId,
+  });
 
   return (
     <div
@@ -76,9 +105,12 @@ const RatingModal = ({
             referenceId={referenceId}
             driverName={driverName}
             driverImage={driverImage}
+            driverId={driverId}
             isModal={true}
             onClose={onClose}
             onSuccess={handleSuccessfulRating}
+           
+            categoryRatings={categoryRatings}
           />
         </div>
       </div>

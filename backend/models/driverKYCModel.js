@@ -1,138 +1,87 @@
-import mongoose from "mongoose";
-import validator from "validator";
+import mongoose from 'mongoose';
 
-const DriverSchema = new mongoose.Schema(
-  {
-    // Personal Information
-    fullName: {
-      type: String,
-      required: [true, "Full name is required"],
-      trim: true,
-    },
-    address: {
-      type: String,
-      required: [true, "Address is required"],
-      trim: true,
-    },
-    email: {
-      type: String,
-      required: [true, "Email is required"],
-      trim: true,
-      lowercase: true,
-      validate: [validator.isEmail, "Please provide a valid email"],
-    },
-    phone: {
-      type: String,
-    },
-    gender: {
-      type: String,
-      enum: ["Male", "Female", "Other"],
-      required: [true, "Gender is required"],
-    },
-    dob: {
-      type: Date,
-      required: [true, "Date of birth is required"],
-    },
-    citizenshipNumber: {
-      type: String,
-      required: [true, "Citizenship number is required"],
-      trim: true,
-    },
-    photo: {
-      type: String,
-      required: [true, "Photo is required"],
-    },
-
-    // License Information
-    licenseNumber: {
-      type: String,
-      required: [true, "License number is required"],
-      trim: true,
-    },
-    licenseExpiryDate: {
-      type: Date,
-      required: [true, "License expiry date is required"],
-    },
-    frontPhoto: {
-      type: String,
-      required: [true, "Front photo of license is required"],
-    },
-    backPhoto: {
-      type: String,
-      required: [true, "Back photo of license is required"],
-    },
-
-    // Vehicle Information (optional)
-    vehicleType: {
-      type: String,
-      enum: ["Car", "Bike", "Electric", "Truck", "Auto"],
-    },
-    numberPlate: {
-      type: String,
-      trim: true,
-      uppercase: true,
-    },
-    vehiclePhoto: {
-      type: String,
-    },
-
-    // KYC Status
-    status: {
-      type: String,
-      enum: ["pending", "verified", "rejected", "needs_resubmission"],
-      default: "pending",
-    },
-    rejectionReason: {
-      type: String,
-    },
-    verifiedAt: {
-      type: Date,
-    },
-    reviewedBy: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "Admin",
-    },
-
-    // Reference to User
-    user: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "User",
-      required: [true, "User reference is required"],
-    },
+const DriverKYCSchema = new mongoose.Schema({
+  userId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    required: [true, 'User ID is required'],
   },
-  {
-    timestamps: true,
-    toJSON: { virtuals: true },
-    toObject: { virtuals: true },
-  }
-);
+  gender: {
+    type: String,
+    enum: ['male', 'female', 'other'],
+    required: [true, 'Gender is required'],
+  },
+  citizenshipNumber: {
+    type: String,
+    required: [true, 'Citizenship number is required'],
+    unique: true,
+  },
+  citizenshipFront: {
+    type: String,
+    required: [true, 'Front photo of citizenship is required'],
+  },
+  citizenshipBack: {
+    type: String,
+    required: [true, 'Back photo of citizenship is required'],
+  },
+  // Driver's License Information
+  licenseNumber: {
+    type: String,
+    required: [true, 'License number is required'],
+    unique: true,
+  },
+  licenseFront: {
+    type: String,
+    required: [true, 'Front photo of license is required'],
+  },
+  licenseBack: {
+    type: String,
+    required: [true, 'Back photo of license is required'],
+  },
+  licenseExpiryDate: {
+    type: Date,
+    required: [true, 'License expiry date is required'],
+  },
+  // Vehicle Information
+  vehicleType: {
+    type: String,
+    required: [true, 'Vehicle type is required'],
+    enum: ['bike', 'car', 'van', 'truck'],
+  },
+  vehicleModel: {
+    type: String,
+    required: [true, 'Vehicle model is required'],
+  },
 
-// Virtual for age calculation
-DriverSchema.virtual("age").get(function () {
-  if (!this.dob) return null;
-  const today = new Date();
-  const birthDate = new Date(this.dob);
-  let age = today.getFullYear() - birthDate.getFullYear();
-  const m = today.getMonth() - birthDate.getMonth();
-  if (m < 0 || (m === 0 && today.getDate() < birthDate.getDate())) {
-    age--;
-  }
-  return age;
+  vehicleYear: {
+    type: Number,
+    required: [true, 'Vehicle year is required'],
+  },
+
+  vehiclePhoto: {
+    type: String,
+    required: [true, 'Vehicle photo is required'],
+  },
+  kycStatus: {
+    type: String,
+    enum: ['not_submitted', 'pending', 'verified', 'rejected', 'needs_resubmission'],
+    default: 'pending',
+  },
+  kycSubmittedAt: {
+    type: Date,
+    default: Date.now,
+  },
+  kycVerifiedAt: {
+    type: Date,
+  },
+  kycRejectionReason: {
+    type: String,
+  },
+  createdAt: {
+    type: Date,
+    default: Date.now,
+  },
 });
-
-// If status changes to verified, set verifiedAt
-DriverSchema.pre("save", function (next) {
-  if (this.isModified("status")) {
-    if (this.status === "verified") {
-      this.verifiedAt = new Date();
-    }
-  }
-  next();
-});
-
-// Indexes
-DriverSchema.index({ status: 1 });
-DriverSchema.index({ user: 1 });
-
-const DriverModel = mongoose.model("Driver", DriverSchema);
-export default DriverModel;
+// Check if model exists before creating a new one
+const DriverKYC = mongoose.models.DriverKYC || mongoose.model('DriverKYC', DriverKYCSchema);
+export default DriverKYC;

@@ -585,7 +585,7 @@ const RideBooking = () => {
         }
       })
       .catch((err) => {
-        toast.error(`Error requesting ride: ${err}`);
+        toast.error(`You already have an active ride.Cannot request another one.`);
         setSearchingDrivers(false);
       });
   }, [
@@ -778,7 +778,6 @@ const RideBooking = () => {
   return (
     <>
       <Navbar />
-      <Toaster richColors />
 
       <div className="container mx-auto px-4 py-6 max-w-4xl">
         <h1 className="text-2xl font-bold mb-6">Book a Ride</h1>

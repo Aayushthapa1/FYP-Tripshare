@@ -12,6 +12,8 @@ const initialState = {
   error: null,
   message: null,
   pendingRides: [],
+  // Track if a ride was recently completed to show the completion modal
+  recentlyCompleted: false,
 };
 
 /** 1) Driver posts a ride */
@@ -43,9 +45,18 @@ export const requestRide = createAsyncThunk(
 /** 3) Update ride status */
 export const updateRideStatus = createAsyncThunk(
   "ride/updateRideStatus",
-  async (statusData, { rejectWithValue }) => {
+  async (statusData, { rejectWithValue, dispatch, getState }) => {
     try {
       const response = await rideService.updateRideStatus(statusData);
+
+      // If status was updated to completed, set our flag for recently completed
+      if (response.success && statusData.status === "completed") {
+        // Flag this ride as recently completed to trigger the completion modal
+        setTimeout(() => {
+          dispatch(clearRecentlyCompleted());
+        }, 60000); // Clear the flag after 1 minute
+      }
+
       return response;
     } catch (error) {
       return rejectWithValue(error.message);
@@ -69,9 +80,19 @@ export const getRideHistory = createAsyncThunk(
 /** 5) Get active ride */
 export const getActiveRide = createAsyncThunk(
   "ride/getActiveRide",
-  async (params, { rejectWithValue }) => {
+  async (params, { rejectWithValue, getState }) => {
     try {
       const response = await rideService.getActiveRide(params);
+
+      // Check if ride is completed but we haven't shown the completion modal yet
+      const state = getState();
+      if (response.success &&
+        response.data.status === "completed" &&
+        !state.ride.recentlyCompleted) {
+        // Mark ride as recently completed to trigger modal
+        // This is handled separately in the reducer
+      }
+
       return response;
     } catch (error) {
       return rejectWithValue(error.message);
@@ -140,6 +161,9 @@ const rideSlice = createSlice({
     clearRideMessage: (state) => {
       state.message = null;
     },
+    clearRecentlyCompleted: (state) => {
+      state.recentlyCompleted = false;
+    },
     resetRideState: (state) => {
       state.currentRide = null;
       state.rideHistory = [];
@@ -148,6 +172,7 @@ const rideSlice = createSlice({
       state.loading = false;
       state.error = null;
       state.message = null;
+      state.recentlyCompleted = false;
     },
   },
   extraReducers: (builder) => {
@@ -203,6 +228,12 @@ const rideSlice = createSlice({
           // updated ride in action.payload.data
           state.currentRide = action.payload.data;
           state.message = `Ride status updated to ${action.payload.data.status}`;
+
+          // If status is now completed, update our active ride and set flag
+          if (action.payload.data.status === "completed") {
+            state.activeRide = action.payload.data;
+            state.recentlyCompleted = true;
+          }
         } else {
           state.error = action.payload.message || "Failed to update ride status";
         }
@@ -240,6 +271,14 @@ const rideSlice = createSlice({
         state.loading = false;
         if (action.payload.success) {
           state.activeRide = action.payload.data;
+
+          // If ride was completed, flag it to show the completion modal
+          if (action.payload.data && action.payload.data.status === "completed") {
+            // Only set to true if it's not already completed (first time seeing it)
+            if (!state.recentlyCompleted) {
+              state.recentlyCompleted = true;
+            }
+          }
         } else {
           // Possibly a 404 if no active ride
           state.error = action.payload.message || "No active ride found";
@@ -328,10 +367,15 @@ const rideSlice = createSlice({
         state.loading = false;
         state.error = action.payload;
       });
-      
+
   },
 });
 
-export const { clearRideError, clearRideMessage, resetRideState } = rideSlice.actions;
+export const {
+  clearRideError,
+  clearRideMessage,
+  clearRecentlyCompleted,
+  resetRideState
+} = rideSlice.actions;
 
 export default rideSlice.reducer;

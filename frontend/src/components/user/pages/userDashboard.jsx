@@ -30,7 +30,7 @@ import { fetchMyBookings, getBookingDetails } from "../../Slices/bookingSlice";
 import {
   getUserPayments,
   getPaymentDetails,
-  clearPaymentError,
+  // clearPaymentError,
 } from "../../Slices/paymentSlice";
 import NotificationCenter from "../../socket/notificationDropdown";
 import {

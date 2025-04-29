@@ -1,36 +1,31 @@
 import express from "express";
 import {
-  createDriver,
-  getDrivers,
-  getDriverById,
-  getDriverByUser,
-  updateDriver,
-  deleteDriver,
-  updateDriverStatus,
+    submitDriverKYC,
+    getDriverKYCStatus,
+    updateDriverKYCStatus,
+    getAllDriversWithKYC,
+    getPendingDriverKYC,
+    getVerifiedDriverKYC,
 } from "../controllers/driverKYCController.js";
-
-import { upload } from "../config/fileUpload.js";
 
 const router = express.Router();
 
-// Multer config: parse multiple fields for photos
-const driverUpload = upload.fields([
-  { name: "photo", maxCount: 1 },
-  { name: "frontPhoto", maxCount: 1 },
-  { name: "backPhoto", maxCount: 1 },
-  { name: "vehiclePhoto", maxCount: 1 },
-]);
+// 1) Submit/Update KYC
+router.post("/submitkycdriver/:userId", submitDriverKYC);
 
-// Driver routes
-router.post("/create",  createDriver);
-router.get("/user/:userId", getDriverByUser);
-router.put("/update/:id", driverUpload, updateDriver);
+// 2) Single driver's KYC status
+router.get("/getdriverkycstatus/:userId", getDriverKYCStatus);
 
-// Admin routes
-router.get("/all", getDrivers); // fetch all KYC
-router.get("/:id", getDriverById);
-router.put("/:id/status", updateDriverStatus);
-router.delete("/delete/:id", deleteDriver);
+// 3) Admin: get ALL KYC (any status)
+router.get("/getalldriverkyc", getAllDriversWithKYC);
+
+// 4) Admin: get only pending KYC requests
+router.get("/getpendingdriverkyc", getPendingDriverKYC);
+
+// 5) Admin: get only verified KYC
+router.get("/getverifieddriverkyc", getVerifiedDriverKYC);
+
+// 6) Admin: verify/reject driver KYC
+router.put("/kycverifydriver/:userId", updateDriverKYCStatus);
 
 export default router;
-  

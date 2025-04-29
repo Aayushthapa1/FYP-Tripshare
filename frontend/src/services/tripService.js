@@ -144,6 +144,22 @@ export const getDriverTripStats = async (params) => {
   }
 };
 
+
+
+const getAdminTripAnalytics = async (params = {}) => {
+  try {
+    const response = await axiosInstance.get("/api/trips/admin/analytics", {
+      params
+    });
+    const data = handleResponse(response);
+    console.log("Admin trip analytics response:", data);
+    return data.Result?.analytics || {};
+  } catch (error) {
+    console.error("Admin trip analytics error:", error);
+    throw handleError(error);
+  }
+};
+
 /** CLEAN UP EXPIRED TRIPS (DELETE /api/trips/cleanup) */
 export const cleanupExpiredTrips = async () => {
   try {
@@ -165,5 +181,6 @@ export default {
   searchTrips,
   getDriverTrips,
   getDriverTripStats,
+  getAdminTripAnalytics,
   cleanupExpiredTrips
 };

@@ -1,485 +1,459 @@
-import mongoose from "mongoose";
-import DriverModel from "../models/driverKYCModel.js";
+import User from "../models/userModel.js";
+import DriverKYCModel from "../models/driverKYCModel.js";
 import { uploadToCloudinary } from "../config/cloudinaryConfig.js";
 
-
-export const createDriver = async (req, res) => {
-  const session = await mongoose.startSession();
-  session.startTransaction();
-
-  try {
-    // Check for required fields
-    const requiredFields = [
-      "fullName",
-      "address",
-      "email",
-      "gender",
-      "dob",
-      "citizenshipNumber",
-      "licenseNumber",
-      "licenseExpiryDate",
-      "user", // the user ID
-    ];
-
-    const missingFields = requiredFields.filter((field) => !req.body[field]);
-    if (missingFields.length > 0) {
-      return res.status(400).json({
-        success: false,
-        message: `Missing required fields: ${missingFields.join(", ")}`,
-      });
-    }
-
-    // Check if user already has a KYC submission
-    const existingDriver = await DriverModel.findOne({
-      user: req.body.user,
-    }).session(session);
-
-    if (existingDriver) {
-      // If the driver record is found, we don't create a second record.
-      return res.status(400).json({
-        success: false,
-        message:
-          "User already has a KYC submission. If it was rejected or needs resubmission, please use the update route instead.",
-      });
-    }
-
-    // Construct driverData from req.body
-    const driverData = { ...req.body };
-
-    // If there are uploaded files, push them to Cloudinary
-    if (req.files) {
-      // personal photo
-      if (req.files.photo) {
-        const photoUrl = await uploadToCloudinary(req.files.photo[0].path);
-        driverData.photo = photoUrl;
-      }
-      // license front
-      if (req.files.frontPhoto) {
-        const frontPhotoUrl = await uploadToCloudinary(
-          req.files.frontPhoto[0].path
-        );
-        driverData.frontPhoto = frontPhotoUrl;
-      }
-      // license back
-      if (req.files.backPhoto) {
-        const backPhotoUrl = await uploadToCloudinary(
-          req.files.backPhoto[0].path
-        );
-        driverData.backPhoto = backPhotoUrl;
-      }
-      // optional vehicle photo
-      if (req.files.vehiclePhoto) {
-        const vehiclePhotoUrl = await uploadToCloudinary(
-          req.files.vehiclePhoto[0].path
-        );
-        driverData.vehiclePhoto = vehiclePhotoUrl;
-      }
-    }
-
-    // Ensure we have photo, frontPhoto, backPhoto
-    if (!driverData.photo || !driverData.frontPhoto || !driverData.backPhoto) {
-      return res.status(400).json({
-        success: false,
-        message:
-          "Required photos are missing (photo, frontPhoto, backPhoto). All are required.",
-      });
-    }
-
-    // Create new driver doc
-    const newDriver = new DriverModel({
-      ...driverData,
-      status: "pending",
-    });
-
-    const savedDriver = await newDriver.save({ session });
-
-    await session.commitTransaction();
-    session.endSession();
-
-    return res.status(201).json({
-      success: true,
-      message: "KYC submission created successfully",
-      data: savedDriver,
-    });
-  } catch (error) {
-    await session.abortTransaction();
-    session.endSession();
-
-    if (error.code === 11000) {
-      // Duplicate key error (e.g. same licenseNumber, etc.)
-      const field = Object.keys(error.keyPattern)[0];
-      return res.status(400).json({
-        success: false,
-        message: `${field} already exists. Please provide a unique value.`,
-      });
-    }
-
-    return res.status(500).json({
-      success: false,
-      message: "Failed to create KYC submission",
-      error: error.message,
-    });
-  }
-};
-
 /**
- * Get all driver KYC submissions with filtering and pagination
- * @route GET /api/drivers/all
- * @access Private (Admin)
+ * SUBMIT DRIVER KYC (Personal Info + License + Vehicle + Photos)
  */
-export const getDrivers = async (req, res) => {
+export const submitDriverKYC = async (req, res) => {
   try {
-    const { status, sort, page = 1, limit = 10 } = req.query;
+    console.log("submitDriverKYC request body:", req.body);
+    console.log("submitDriverKYC request files:", req.files);
+    console.log("submitDriverKYC request params:", req.params);
+    console.log("submitDriverKYC request query:", req.query);
 
-    // Build filter
-    const filter = {};
-    if (status) filter.status = status;
-
-    // count total docs
-    const total = await DriverModel.countDocuments(filter);
-
-    // build sort
-    let sortOption = { createdAt: -1 };
-    if (sort) {
-      const [field, order] = sort.split(":");
-      sortOption = { [field]: order === "desc" ? -1 : 1 };
+    // Convert gender to lowercase
+    if (req.body.gender) {
+      req.body.gender = req.body.gender.toLowerCase();
     }
 
-    // fetch
-    const drivers = await DriverModel.find(filter)
-      .populate("user", "name email phone")
-      .populate("reviewedBy", "name email")
-      .sort(sortOption)
-      .skip((page - 1) * limit)
-      .limit(parseInt(limit));
+    // 1) Determine userId from param/body/query
+    let userId = req.params.userId;
+    if (!userId && req.body) {
+      userId = req.body.userId || req.body.userID || req.body.userid || req.body.user_id;
+    }
+    if (!userId && req.query) {
+      userId = req.query.userId || req.query.userID || req.query.user_id;
+    }
+
+    if (!userId) {
+      return res.status(400).json({
+        success: false,
+        message: "userId is required",
+      });
+    }
+
+    // 2) Find the user
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: "User not found",
+      });
+    }
+
+    // 3) Verify email matches the user's email, if provided
+    if (req.body.email && req.body.email !== user.email) {
+      return res.status(403).json({
+        success: false,
+        message: "The email provided does not match your account email",
+      });
+    }
+
+    // 4) Verify user role is driver
+    if (user.role !== "driver") {
+      return res.status(403).json({
+        success: false,
+        message: "Only users with driver role can submit driver KYC",
+      });
+    }
+
+    // 5) Upload citizenship photos
+    let citizenshipFrontUrl = "";
+    if (req.files && req.files.citizenshipFront) {
+      citizenshipFrontUrl = await uploadToCloudinary(req.files.citizenshipFront.tempFilePath);
+    } else {
+      return res.status(400).json({
+        success: false,
+        message: "Citizenship front photo is required",
+      });
+    }
+
+    let citizenshipBackUrl = "";
+    if (req.files && req.files.citizenshipBack) {
+      citizenshipBackUrl = await uploadToCloudinary(req.files.citizenshipBack.tempFilePath);
+    } else {
+      return res.status(400).json({
+        success: false,
+        message: "Citizenship back photo is required",
+      });
+    }
+
+    // 6) Upload license photos
+    let licenseFrontUrl = "";
+    if (req.files && req.files.licenseFront) {
+      licenseFrontUrl = await uploadToCloudinary(req.files.licenseFront.tempFilePath);
+    } else {
+      return res.status(400).json({
+        success: false,
+        message: "License front photo is required",
+      });
+    }
+
+    let licenseBackUrl = "";
+    if (req.files && req.files.licenseBack) {
+      licenseBackUrl = await uploadToCloudinary(req.files.licenseBack.tempFilePath);
+    } else {
+      return res.status(400).json({
+        success: false,
+        message: "License back photo is required",
+      });
+    }
+
+    // 7) Upload vehicle photo
+    let vehiclePhotoUrl = "";
+    if (req.files && req.files.vehiclePhoto) {
+      vehiclePhotoUrl = await uploadToCloudinary(req.files.vehiclePhoto.tempFilePath);
+    } else {
+      return res.status(400).json({
+        success: false,
+        message: "Vehicle photo is required",
+      });
+    }
+
+    // 8) Check if KYC already exists for this driver
+    let driverKYC = await DriverKYCModel.findOne({ userId });
+
+    if (driverKYC) {
+      // Update existing KYC (re-submission case or normal updates)
+      driverKYC.gender = req.body.gender || driverKYC.gender;
+      driverKYC.citizenshipNumber = req.body.citizenshipNumber || driverKYC.citizenshipNumber;
+      driverKYC.citizenshipFront = citizenshipFrontUrl || driverKYC.citizenshipFront;
+      driverKYC.citizenshipBack = citizenshipBackUrl || driverKYC.citizenshipBack;
+
+      // License information
+      driverKYC.licenseNumber = req.body.licenseNumber || driverKYC.licenseNumber;
+      driverKYC.licenseFront = licenseFrontUrl || driverKYC.licenseFront;
+      driverKYC.licenseBack = licenseBackUrl || driverKYC.licenseBack;
+      driverKYC.licenseExpiryDate = req.body.licenseExpiryDate || driverKYC.licenseExpiryDate;
+
+      // Vehicle information
+      driverKYC.vehicleType = req.body.vehicleType || driverKYC.vehicleType;
+      driverKYC.vehicleModel = req.body.vehicleModel || driverKYC.vehicleModel;
+      driverKYC.vehicleYear = req.body.vehicleYear || driverKYC.vehicleYear;
+      driverKYC.vehiclePhoto = vehiclePhotoUrl || driverKYC.vehiclePhoto;
+
+      // Reset status to pending, meaning driver has re-submitted
+      driverKYC.kycStatus = "pending";
+      driverKYC.kycSubmittedAt = new Date();
+      driverKYC.kycRejectionReason = null;
+    } else {
+      // Create new KYC
+      driverKYC = new DriverKYCModel({
+        userId,
+        gender: req.body.gender,
+        citizenshipNumber: req.body.citizenshipNumber,
+        citizenshipFront: citizenshipFrontUrl,
+        citizenshipBack: citizenshipBackUrl,
+
+        // License information
+        licenseNumber: req.body.licenseNumber,
+        licenseFront: licenseFrontUrl,
+        licenseBack: licenseBackUrl,
+        licenseExpiryDate: req.body.licenseExpiryDate,
+
+        // Vehicle information
+        vehicleType: req.body.vehicleType,
+        vehicleModel: req.body.vehicleModel,
+        vehicleYear: req.body.vehicleYear,
+        vehiclePhoto: vehiclePhotoUrl,
+
+        kycStatus: "pending",
+        kycSubmittedAt: new Date(),
+      });
+    }
+
+    await driverKYC.save();
+
+    // 9) Update user's personal fields
+    if (req.body.fullName) {
+      user.fullName = req.body.fullName;
+    }
+    if (req.body.address) {
+      user.address = req.body.address;
+    }
+    if (req.body.dob) {
+      user.dob = req.body.dob;
+    }
+    await user.save();
+
+    // 10) Emit a real-time event that driver submitted KYC (optional)
+    if (typeof io !== "undefined") {
+      io.emit("driver_kyc_submitted", {
+        userId: user._id,
+        kycStatus: driverKYC.kycStatus,
+        message: "Driver KYC information submitted",
+      });
+    }
 
     return res.status(200).json({
       success: true,
-      count: drivers.length,
-      total,
-      pagination: {
-        page: parseInt(page),
-        limit: parseInt(limit),
-        totalPages: Math.ceil(total / limit),
+      message: "Driver KYC information submitted successfully",
+      user: {
+        _id: user._id,
+        userName: user.userName,
+        email: user.email,
+        fullName: user.fullName,
+        kycStatus: driverKYC.kycStatus,
       },
-      data: drivers,
     });
   } catch (error) {
+    console.error("Error submitting driver KYC:", error);
     return res.status(500).json({
       success: false,
-      message: "Failed to fetch KYC submissions",
+      message: "Failed to submit driver KYC information",
       error: error.message,
     });
   }
 };
 
 /**
- * Get a single driver KYC submission by ID
- * @route GET /api/drivers/:id
- * @access Private (Admin/Driver)
+ * GET DRIVER KYC STATUS
  */
-export const getDriverById = async (req, res) => {
+export const getDriverKYCStatus = async (req, res) => {
   try {
-    if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
-      return res.status(400).json({
+    const { userId } = req.params;
+
+    // Find the user
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({
         success: false,
-        message: "Invalid ID format",
+        message: "User not found",
       });
     }
 
-    const driver = await DriverModel.findById(req.params.id)
-      .populate("user", "name email phone")
-      .populate("reviewedBy", "name email");
-
-    if (!driver) {
-      return res.status(404).json({
+    // Verify user is a driver
+    if (user.role !== "driver") {
+      return res.status(403).json({
         success: false,
-        message: "KYC submission not found",
+        message: "This endpoint is only for users with driver role",
+      });
+    }
+
+    // Find the KYC information
+    const driverKYC = await DriverKYCModel.findOne({ userId });
+    if (!driverKYC) {
+      return res.status(200).json({
+        success: true,
+        kycStatus: "not_submitted",
+        user: {
+          _id: user._id,
+          userName: user.userName,
+          email: user.email,
+          fullName: user.fullName,
+        },
       });
     }
 
     return res.status(200).json({
       success: true,
-      data: driver,
+      kycStatus: driverKYC.kycStatus,
+      kycRejectionReason: driverKYC.kycRejectionReason,
+      user: {
+        _id: user._id,
+        userName: user.userName,
+        email: user.email,
+        fullName: user.fullName,
+      },
     });
   } catch (error) {
+    console.error("Error fetching driver KYC status:", error);
     return res.status(500).json({
       success: false,
-      message: "Failed to fetch KYC submission",
+      message: "Failed to fetch driver KYC status",
       error: error.message,
     });
   }
 };
 
 /**
- * Get driver KYC submission by user ID
- * @route GET /api/drivers/user/:userId
- * @access Private (Admin/Driver)
+ * UPDATE DRIVER KYC STATUS (FOR ADMIN)
  */
-export const getDriverByUser = async (req, res) => {
+export const updateDriverKYCStatus = async (req, res) => {
   try {
-    const userId = req.params.userId;
-
-    if (!mongoose.Types.ObjectId.isValid(userId)) {
-      return res.status(400).json({
-        success: false,
-        message: "Invalid user ID format",
-      });
-    }
-
-    const driver = await DriverModel.findOne({ user: userId }).populate(
-      "reviewedBy",
-      "name email"
-    );
-
-    if (!driver) {
-      return res.status(404).json({
-        success: false,
-        message: "No KYC submission found for this user",
-      });
-    }
-
-    return res.status(200).json({
-      success: true,
-      data: driver,
-    });
-  } catch (error) {
-    return res.status(500).json({
-      success: false,
-      message: "Failed to fetch KYC status",
-      error: error.message,
-    });
-  }
-};
-
-/**
- * Update a driver KYC submission
- * @route PUT /api/drivers/update/:id
- * @access Private (Driver)
- *
- * - Only allowed if current status is "pending", "needs_resubmission", or "rejected".
- * - Any updates cause the record to return to "pending" (clearing the rejection reason).
- */
-export const updateDriver = async (req, res) => {
-  const session = await mongoose.startSession();
-  session.startTransaction();
-
-  try {
-    if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
-      return res.status(400).json({
-        success: false,
-        message: "Invalid ID format",
-      });
-    }
-
-    const driver = await DriverModel.findById(req.params.id).session(session);
-    if (!driver) {
-      return res.status(404).json({
-        success: false,
-        message: "KYC submission not found",
-      });
-    }
-
-    // Only allowed if status is pending, needs_resubmission, or rejected
-    if (!["pending", "needs_resubmission", "rejected"].includes(driver.status)) {
-      return res.status(400).json({
-        success: false,
-        message: `Cannot update KYC when status is '${driver.status}'`,
-      });
-    }
-
-    // We'll copy from req.body
-    const updateData = { ...req.body };
-
-    // Prevent direct changes to status
-    if (updateData.status) {
-      delete updateData.status;
-    }
-
-    // If new files, upload them
-    if (req.files) {
-      if (req.files.photo) {
-        const photoUrl = await uploadToCloudinary(req.files.photo[0].path);
-        updateData.photo = photoUrl;
-      }
-      if (req.files.frontPhoto) {
-        const frontUrl = await uploadToCloudinary(
-          req.files.frontPhoto[0].path
-        );
-        updateData.frontPhoto = frontUrl;
-      }
-      if (req.files.backPhoto) {
-        const backUrl = await uploadToCloudinary(req.files.backPhoto[0].path);
-        updateData.backPhoto = backUrl;
-      }
-      if (req.files.vehiclePhoto) {
-        const vehicleUrl = await uploadToCloudinary(
-          req.files.vehiclePhoto[0].path
-        );
-        updateData.vehiclePhoto = vehicleUrl;
-      }
-    }
-
-    // Force status back to "pending" and clear rejection reason
-    updateData.status = "pending";
-    updateData.rejectionReason = undefined;
-
-    const updatedDriver = await DriverModel.findByIdAndUpdate(
-      req.params.id,
-      { $set: updateData },
-      { new: true, runValidators: true, session }
-    );
-
-    await session.commitTransaction();
-    session.endSession();
-
-    return res.status(200).json({
-      success: true,
-      message: "KYC information updated successfully",
-      data: updatedDriver,
-    });
-  } catch (error) {
-    await session.abortTransaction();
-    session.endSession();
-
-    if (error.code === 11000) {
-      // Duplicate key error
-      const field = Object.keys(error.keyPattern)[0];
-      return res.status(400).json({
-        success: false,
-        message: `${field} already exists. Provide a unique value.`,
-      });
-    }
-
-    return res.status(500).json({
-      success: false,
-      message: "Failed to update KYC information",
-      error: error.message,
-    });
-  }
-};
-
-/**
- * Update driver KYC status (admin action)
- * @route PATCH /api/drivers/:id/status
- * @access Private (Admin)
- *
- * - Admin can set status to "pending", "verified", "rejected", or "needs_resubmission"
- * - Rejection reason is required if status is "rejected" or "needs_resubmission"
- */
-export const updateDriverStatus = async (req, res) => {
-  const session = await mongoose.startSession();
-  session.startTransaction();
-
-  try {
+    const { userId } = req.params;
     const { status, rejectionReason } = req.body;
-    const adminId = req.adminId; // from auth middleware
 
-    if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
-      return res.status(400).json({
-        success: false,
-        message: "Invalid ID format",
-      });
-    }
-
-    if (!["pending", "verified", "rejected", "needs_resubmission"].includes(status)) {
+    // Validate status
+    const validStatuses = ["pending", "verified", "rejected"];
+    if (!validStatuses.includes(status)) {
       return res.status(400).json({
         success: false,
         message: "Invalid status value",
       });
     }
 
-    if (["rejected", "needs_resubmission"].includes(status) && !rejectionReason) {
-      return res.status(400).json({
-        success: false,
-        message: "Rejection reason is required for this status",
-      });
-    }
-
-    const updateData = {
-      status,
-      reviewedBy: adminId,
-      rejectionReason: ["rejected", "needs_resubmission"].includes(status)
-        ? rejectionReason
-        : undefined,
-      verifiedAt: status === "verified" ? new Date() : undefined,
-    };
-
-    const updatedDriver = await DriverModel.findByIdAndUpdate(
-      req.params.id,
-      updateData,
-      { new: true, runValidators: true, session }
-    );
-
-    if (!updatedDriver) {
+    // Find user by ID
+    const user = await User.findById(userId);
+    if (!user) {
       return res.status(404).json({
         success: false,
-        message: "KYC submission not found",
+        message: "User not found",
       });
     }
 
-    await session.commitTransaction();
-    session.endSession();
+    // Verify user is a driver
+    if (user.role !== "driver") {
+      return res.status(403).json({
+        success: false,
+        message: "This operation is only for users with driver role",
+      });
+    }
+
+    // Find KYC information
+    const driverKYC = await DriverKYCModel.findOne({ userId });
+    if (!driverKYC) {
+      return res.status(404).json({
+        success: false,
+        message: "KYC information not found for this driver",
+      });
+    }
+
+    // Update status
+    driverKYC.kycStatus = status;
+
+    // If rejected, store rejection reason
+    if (status === "rejected") {
+      if (!rejectionReason) {
+        return res.status(400).json({
+          success: false,
+          message: "Rejection reason is required when rejecting KYC",
+        });
+      }
+      driverKYC.kycRejectionReason = rejectionReason;
+    } else {
+      driverKYC.kycRejectionReason = null;
+    }
+
+    // Add verification timestamp if verified
+    if (status === "verified") {
+      driverKYC.kycVerifiedAt = new Date();
+    }
+
+    await driverKYC.save();
+
+    // Emit a real-time event (optional)
+    if (typeof io !== "undefined") {
+      io.emit("driver_kyc_status_updated", {
+        userId: user._id,
+        newStatus: status,
+        message: `Driver KYC status updated to ${status}`,
+      });
+    }
 
     return res.status(200).json({
       success: true,
-      message: "KYC status updated successfully",
-      data: updatedDriver,
+      message: `Driver KYC status updated to ${status}`,
+      user: {
+        _id: user._id,
+        userName: user.userName,
+        email: user.email,
+        fullName: user.fullName,
+        kycStatus: driverKYC.kycStatus,
+      },
     });
   } catch (error) {
-    await session.abortTransaction();
-    session.endSession();
-
+    console.error("Error updating driver KYC status:", error);
     return res.status(500).json({
       success: false,
-      message: "Failed to update KYC status",
+      message: "Failed to update driver KYC status",
       error: error.message,
     });
   }
 };
 
 /**
- * Delete a driver KYC submission
- * @route DELETE /api/drivers/delete/:id
- * @access Private (Admin)
+ * GET ALL DRIVERS WITH KYC (ANY STATUS)
  */
-export const deleteDriver = async (req, res) => {
-  const session = await mongoose.startSession();
-  session.startTransaction();
-
+export const getAllDriversWithKYC = async (req, res) => {
   try {
-    if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
-      return res.status(400).json({
-        success: false,
-        message: "Invalid ID format",
-      });
-    }
+    const allKycList = await DriverKYCModel.find().populate("userId");
 
-    // Check if driver exists
-    const driver = await DriverModel.findById(req.params.id).session(session);
-    if (!driver) {
-      return res.status(404).json({
-        success: false,
-        message: "KYC submission not found",
-      });
-    }
-
-    await DriverModel.findByIdAndDelete(req.params.id).session(session);
-
-    await session.commitTransaction();
-    session.endSession();
+    const drivers = allKycList
+      .filter(kyc => kyc.userId && kyc.userId.role === "driver")
+      .map((kyc) => ({
+        _id: kyc.userId._id,
+        fullName: kyc.userId.fullName,
+        email: kyc.userId.email,
+        kycStatus: kyc.kycStatus,
+        vehicleType: kyc.vehicleType,
+        vehicleModel: kyc.vehicleModel,
+      }));
 
     return res.status(200).json({
       success: true,
-      message: "KYC record deleted successfully",
+      drivers,
     });
   } catch (error) {
-    await session.abortTransaction();
-    session.endSession();
-
+    console.error("Error fetching all drivers KYC:", error);
     return res.status(500).json({
       success: false,
-      message: "Failed to delete KYC record",
+      message: "Failed to fetch all drivers with KYC",
+      error: error.message,
+    });
+  }
+};
+
+/**
+ * GET ALL PENDING DRIVER KYC
+ */
+export const getPendingDriverKYC = async (req, res) => {
+  try {
+    const pendingList = await DriverKYCModel.find({ kycStatus: "pending" }).populate("userId");
+
+    const drivers = pendingList
+      .filter(kyc => kyc.userId && kyc.userId.role === "driver")
+      .map((kyc) => ({
+        _id: kyc.userId._id,
+        fullName: kyc.userId.fullName,
+        email: kyc.userId.email,
+        kycStatus: kyc.kycStatus,
+        vehicleType: kyc.vehicleType,
+        vehicleModel: kyc.vehicleModel,
+      }));
+
+    return res.status(200).json({
+      success: true,
+      drivers,
+    });
+  } catch (error) {
+    console.error("Error fetching pending driver KYC:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to fetch pending driver KYC",
+      error: error.message,
+    });
+  }
+};
+
+/**
+ * GET ALL VERIFIED DRIVER KYC
+ */
+export const getVerifiedDriverKYC = async (req, res) => {
+  try {
+    const verifiedList = await DriverKYCModel.find({ kycStatus: "verified" }).populate("userId");
+
+    const drivers = verifiedList
+      .filter(kyc => kyc.userId && kyc.userId.role === "driver")
+      .map((kyc) => ({
+        _id: kyc.userId._id,
+        fullName: kyc.userId.fullName,
+        email: kyc.userId.email,
+        kycStatus: kyc.kycStatus,
+        vehicleType: kyc.vehicleType,
+        vehicleModel: kyc.vehicleModel,
+      }));
+
+    return res.status(200).json({
+      success: true,
+      drivers,
+    });
+  } catch (error) {
+    console.error("Error fetching verified driver KYC:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to fetch verified driver KYC",
       error: error.message,
     });
   }

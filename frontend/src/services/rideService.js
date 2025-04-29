@@ -74,7 +74,7 @@ const getRideHistory = async (params) => {
 
 /** 
  * GET /api/rides/activeride 
- * Get the active ride (if any) for a user
+ * Get the active ride or recently completed ride (within last 15 minutes) for a user
  * query params: { userId, userType }
  */
 const getActiveRide = async (params) => {
@@ -85,6 +85,15 @@ const getActiveRide = async (params) => {
     );
     return response.data;
   } catch (error) {
+    // Enhanced error handling for active ride queries
+    if (error.response && error.response.status === 404) {
+      // Return a formatted error object for 404s
+      return {
+        success: false,
+        message: "No active or recent ride found",
+        data: null
+      };
+    }
     throw formatError(error);
   }
 };

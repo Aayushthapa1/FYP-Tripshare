@@ -110,7 +110,7 @@ export const updateTrip = async (req, res, next) => {
     if (trip.driver._id.toString() !== driverId.toString()) {
       return res
         .status(403)
-        .json(createResponse(403, false, [{ message: "Not authorized" }]));
+        .json(createResponse(403, false, [{ message: "Not authorized to update.Not associated with this trip" }]));
     }
 
     // optionally block direct driver overrides
@@ -528,21 +528,16 @@ export const getDriverTripStats = async (req, res, next) => {
 };
 
 
-/**
- * Get comprehensive trip analytics for admin dashboard
- * This function provides detailed insights on trips organized by user types,
- * booking patterns, and platform usage statistics
- */
 export const getAdminTripAnalytics = async (req, res, next) => {
   try {
-    // Verify admin authorization
-    if (req.user.role !== 'Admin') {
-      return res
-        .status(403)
-        .json(createResponse(403, false, [{ message: "Not authorized. Admin access required." }]));
+    // Admin role verification
+    if (!req.user || req.user.role !== 'Admin') {
+      return res.status(403).json(
+        createResponse(403, false, [{ message: "Unauthorized access" }])
+      );
     }
 
-    // Parse query parameters for filtering
+    // Destructure query params
     const {
       startDate,
       endDate,
@@ -552,7 +547,7 @@ export const getAdminTripAnalytics = async (req, res, next) => {
       groupBy = 'userType'
     } = req.query;
 
-    // Build date filter based on provided dates or period
+    // Date filter setup
     let dateFilter = {};
     const now = new Date();
 
@@ -564,63 +559,41 @@ export const getAdminTripAnalytics = async (req, res, next) => {
         }
       };
     } else {
-      switch (period) {
-        case 'week':
-          const lastWeek = new Date(now);
-          lastWeek.setDate(now.getDate() - 7);
-          dateFilter = { departureDate: { $gte: lastWeek } };
-          break;
-        case 'month':
-          const lastMonth = new Date(now);
-          lastMonth.setMonth(now.getMonth() - 1);
-          dateFilter = { departureDate: { $gte: lastMonth } };
-          break;
-        case 'quarter':
-          const lastQuarter = new Date(now);
-          lastQuarter.setMonth(now.getMonth() - 3);
-          dateFilter = { departureDate: { $gte: lastQuarter } };
-          break;
-        case 'year':
-          const lastYear = new Date(now);
-          lastYear.setFullYear(now.getFullYear() - 1);
-          dateFilter = { departureDate: { $gte: lastYear } };
-          break;
-        default:
-          const last30Days = new Date(now);
-          last30Days.setDate(now.getDate() - 30);
-          dateFilter = { departureDate: { $gte: last30Days } };
-      }
+      const periods = {
+        week: 7,
+        month: 30,
+        quarter: 90,
+        year: 365
+      };
+      const days = periods[period] || 30;
+      const pastDate = new Date(now.setDate(now.getDate() - days));
+      dateFilter = { departureDate: { $gte: pastDate } };
     }
 
-    // Add status filter if provided
-    let statusFilter = {};
-    if (status) {
-      statusFilter = { status };
-    }
+    // Status filter
+    const statusFilter = status ? { status } : {};
 
-    // Combine all filters
+    // Final trip filter
     const tripFilter = { ...dateFilter, ...statusFilter };
 
-    // Fetch trips and related bookings with filters
+    // Fetch trips
     const trips = await Trip.find(tripFilter);
-
-    // Extract trip IDs for booking queries
     const tripIds = trips.map(trip => trip._id);
 
-    // Find all bookings for these trips
+    // Fetch bookings with user populated
     const bookings = await Booking.find({ trip: { $in: tripIds } })
       .populate({
-        path: 'passenger',
-        select: 'fullName email role preferences phoneNumber'
+        path: 'user',
+        select: 'fullName email role phoneNumber'
       });
 
-    // Initialize response object
+    // Initialize analytics object
     const analytics = {
       summary: {
         totalTrips: trips.length,
         totalBookings: bookings.length,
-        averageOccupancyRate: 0,
         totalRevenue: 0,
+        averageOccupancyRate: 0,
         activeDrivers: new Set(),
         activePassengers: new Set()
       },
@@ -638,29 +611,24 @@ export const getAdminTripAnalytics = async (req, res, next) => {
       detailedBreakdown: []
     };
 
-    // Calculate summary statistics
+    // Counters
     let totalSeats = 0;
     let totalBookedSeats = 0;
-    let totalRevenue = 0;
+    let routePopularity = {};
+    let passengerBookingCounts = {};
 
-    // Process each trip
+    // Process trips
     trips.forEach(trip => {
-      // Count by status
-      if (!analytics.tripsByStatus[trip.status]) {
-        analytics.tripsByStatus[trip.status] = 0;
-      }
-      analytics.tripsByStatus[trip.status]++;
-
-      // Track active drivers
       analytics.summary.activeDrivers.add(trip.driver._id.toString());
 
-      // Calculate seats and revenue
+      // Count status
+      analytics.tripsByStatus[trip.status] = (analytics.tripsByStatus[trip.status] || 0) + 1;
+
       totalSeats += trip.availableSeats;
       const bookedSeats = trip.bookedSeats ? trip.bookedSeats.length : 0;
       totalBookedSeats += bookedSeats;
-      totalRevenue += trip.price * bookedSeats;
+      analytics.summary.totalRevenue += trip.price * bookedSeats;
 
-      // Collect trip data by driver type (we'd need to get driver's role if available)
       analytics.tripsByUserType.driver.push({
         tripId: trip._id,
         driverId: trip.driver._id,
@@ -672,74 +640,72 @@ export const getAdminTripAnalytics = async (req, res, next) => {
         price: trip.price,
         availableSeats: trip.availableSeats,
         bookedSeats: bookedSeats,
-        status: trip.status,
-        revenue: trip.price * bookedSeats
+        revenue: trip.price * bookedSeats,
+        status: trip.status
       });
     });
 
     // Process bookings
-    const passengerBookingCounts = {};
-    const routePopularity = {};
-
     bookings.forEach(booking => {
-      // Count unique passengers
-      analytics.summary.activePassengers.add(booking.passenger._id.toString());
+      if (booking.user) {
+        analytics.summary.activePassengers.add(booking.user._id.toString());
 
-      // Track passenger booking frequency
-      const passengerId = booking.passenger._id.toString();
-      if (!passengerBookingCounts[passengerId]) {
-        passengerBookingCounts[passengerId] = 0;
-      }
-      passengerBookingCounts[passengerId]++;
+        passengerBookingCounts[booking.user._id] = (passengerBookingCounts[booking.user._id] || 0) + 1;
 
-      // Find the associated trip
-      const trip = trips.find(t => t._id.toString() === booking.trip.toString());
-      if (trip) {
-        // Track route popularity
-        const routeKey = `${trip.departureLocation} → ${trip.destinationLocation}`;
-        if (!routePopularity[routeKey]) {
-          routePopularity[routeKey] = {
-            route: routeKey,
-            count: 0,
-            revenue: 0,
+        const trip = trips.find(t => t._id.toString() === booking.trip.toString());
+
+        if (trip) {
+          const routeKey = `${trip.departureLocation} → ${trip.destinationLocation}`;
+          if (!routePopularity[routeKey]) {
+            routePopularity[routeKey] = {
+              route: routeKey,
+              count: 0,
+              revenue: 0
+            };
+          }
+          routePopularity[routeKey].count++;
+          routePopularity[routeKey].revenue += trip.price;
+
+          analytics.tripsByUserType.passenger.push({
+            bookingId: booking._id,
+            tripId: trip._id,
+            passengerId: booking.user._id,
+            passengerName: booking.user.fullName,
+            passengerRole: booking.user.role,
             departureLocation: trip.departureLocation,
-            destinationLocation: trip.destinationLocation
-          };
+            destinationLocation: trip.destinationLocation,
+            departureDate: trip.departureDate,
+            departureTime: trip.departureTime,
+            price: trip.price,
+            status: booking.status,
+            bookedAt: booking.createdAt
+          });
         }
-        routePopularity[routeKey].count++;
-        routePopularity[routeKey].revenue += trip.price;
-
-        // Collect booking data by passenger
-        analytics.tripsByUserType.passenger.push({
-          bookingId: booking._id,
-          tripId: trip._id,
-          passengerId: booking.passenger._id,
-          passengerName: booking.passenger.fullName,
-          passengerRole: booking.passenger.role,
-          departureLocation: trip.departureLocation,
-          destinationLocation: trip.destinationLocation,
-          departureDate: trip.departureDate,
-          departureTime: trip.departureTime,
-          price: trip.price,
-          status: booking.status,
-          bookedAt: booking.createdAt
-        });
       }
     });
 
-    // Calculate occupancy rate
-    analytics.summary.averageOccupancyRate = totalSeats > 0
-      ? (totalBookedSeats / totalSeats) * 100
-      : 0;
+    // Calculate averages
+    analytics.summary.averageOccupancyRate = totalSeats > 0 ? (totalBookedSeats / totalSeats) * 100 : 0;
 
-    analytics.summary.totalRevenue = totalRevenue;
+    // Booking trends
+    if (bookings.length > 0) {
+      const bookingsByDate = {};
+      bookings.forEach(booking => {
+        const dateKey = new Date(booking.createdAt).toISOString().split('T')[0];
+        bookingsByDate[dateKey] = (bookingsByDate[dateKey] || 0) + 1;
+      });
+      analytics.bookingTrends = Object.entries(bookingsByDate)
+        .map(([date, count]) => ({ date, count }))
+        .sort((a, b) => new Date(a.date) - new Date(b.date));
+    }
 
-    // Convert Sets to counts
-    analytics.summary.activeDrivers = analytics.summary.activeDrivers.size;
-    analytics.summary.activePassengers = analytics.summary.activePassengers.size;
+    // Route popularity
+    analytics.popularRoutes = Object.values(routePopularity)
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 10);
 
-    // Determine new vs returning users
-    for (const [passengerId, count] of Object.entries(passengerBookingCounts)) {
+    // New vs Returning users
+    for (const [userId, count] of Object.entries(passengerBookingCounts)) {
       if (count === 1) {
         analytics.userSegmentation.newUsers++;
       } else {
@@ -747,35 +713,10 @@ export const getAdminTripAnalytics = async (req, res, next) => {
       }
     }
 
-    // Sort and limit popular routes
-    analytics.popularRoutes = Object.values(routePopularity)
-      .sort((a, b) => b.count - a.count)
-      .slice(0, 10);
-
-    // Generate booking trends (by day)
-    if (bookings.length > 0) {
-      // Group bookings by day
-      const bookingsByDay = {};
-      bookings.forEach(booking => {
-        const dateKey = new Date(booking.createdAt).toISOString().split('T')[0];
-        if (!bookingsByDay[dateKey]) {
-          bookingsByDay[dateKey] = 0;
-        }
-        bookingsByDay[dateKey]++;
-      });
-
-      // Convert to array and sort by date
-      analytics.bookingTrends = Object.entries(bookingsByDay)
-        .map(([date, count]) => ({ date, count }))
-        .sort((a, b) => new Date(a.date) - new Date(b.date));
-    }
-
-    // Create detailed breakdown based on groupBy parameter
+    // Detailed breakdown
     if (groupBy === 'userType') {
-      // Already provided in tripsByUserType
       analytics.detailedBreakdown = analytics.tripsByUserType;
     } else if (groupBy === 'status') {
-      // Group by trip status
       const statusBreakdown = {};
       trips.forEach(trip => {
         if (!statusBreakdown[trip.status]) {
@@ -794,96 +735,28 @@ export const getAdminTripAnalytics = async (req, res, next) => {
       });
       analytics.detailedBreakdown = statusBreakdown;
     } else if (groupBy === 'route') {
-      // Use route popularity data
       analytics.detailedBreakdown = analytics.popularRoutes;
     }
 
-    // Additional user type specific analytics if requested
+    // Add userType specific analytics if needed
     if (userType) {
-      const userTypeFilter = { role: userType };
-      const userCount = await User.countDocuments(userTypeFilter);
-
-      let userActivityData = [];
-
-      if (userType === 'driver') {
-        // For drivers, get trip creation statistics
-        userActivityData = await Trip.aggregate([
-          { $match: { ...dateFilter } },
-          {
-            $group: {
-              _id: "$driver._id",
-              driverName: { $first: "$driver.name" },
-              tripCount: { $sum: 1 },
-              totalRevenue: { $sum: { $multiply: ["$price", { $size: { $ifNull: ["$bookedSeats", []] } }] } },
-              averageOccupancy: {
-                $avg: {
-                  $cond: [
-                    { $eq: ["$availableSeats", 0] },
-                    0,
-                    {
-                      $multiply: [
-                        { $divide: [{ $size: { $ifNull: ["$bookedSeats", []] } }, "$availableSeats"] },
-                        100
-                      ]
-                    }
-                  ]
-                }
-              }
-            }
-          },
-          { $sort: { tripCount: -1 } }
-        ]);
-      } else if (userType === 'user' || userType === 'passenger') {
-        // For passengers, get booking statistics
-        userActivityData = await Booking.aggregate([
-          { $match: { ...dateFilter } },
-          {
-            $lookup: {
-              from: "users",
-              localField: "passenger",
-              foreignField: "_id",
-              as: "passengerInfo"
-            }
-          },
-          { $unwind: "$passengerInfo" },
-          { $match: { "passengerInfo.role": userType } },
-          {
-            $group: {
-              _id: "$passenger",
-              passengerName: { $first: "$passengerInfo.fullName" },
-              bookingCount: { $sum: 1 },
-              completedTrips: {
-                $sum: {
-                  $cond: [{ $eq: ["$status", "completed"] }, 1, 0]
-                }
-              },
-              cancelledTrips: {
-                $sum: {
-                  $cond: [{ $eq: ["$status", "cancelled"] }, 1, 0]
-                }
-              }
-            }
-          },
-          { $sort: { bookingCount: -1 } }
-        ]);
-      }
-
+      const totalUsers = await User.countDocuments({ role: userType });
       analytics.userTypeSpecific = {
         userType,
-        totalUsers: userCount,
-        activeUsers: userType === 'driver' ? analytics.summary.activeDrivers : analytics.summary.activePassengers,
-        activityData: userActivityData
+        totalUsers,
+        activeUsers: userType === 'driver' ? analytics.summary.activeDrivers.size : analytics.summary.activePassengers.size,
+        activityData: [] // Optional: You can add advanced aggregation later
       };
     }
 
-    return res.status(200).json(
-      createResponse(200, true, [], { analytics })
-    );
+    return res.status(200).json(createResponse(200, true, [], { analytics }));
+
   } catch (error) {
     console.error("Error in getAdminTripAnalytics:", error);
     next(error);
   }
 };
+
 /**
  * Clean up expired trips with no bookings
  * This endpoint automatically removes trips that have passed their departure date and have no bookings
