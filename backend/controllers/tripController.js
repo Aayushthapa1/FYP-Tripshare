@@ -1,4 +1,4 @@
-import Trip from "../models/TripModel.js";
+import Trip from "../models/tripModel.js";
 import User from "../models/userModel.js";
 import Booking from "../models/bookingModel.js"; // Added import for Booking model
 import mongoose from "mongoose"; // Added import for transactions
@@ -765,72 +765,72 @@ export const cleanupExpiredTrips = async (req, res, next) => {
   try {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-    
+
     // Find trips that have passed their departure date and have no bookings
     const expiredTripsQuery = {
       departureDate: { $lt: today },
       status: { $nin: ["completed", "cancelled"] } // Only clean up trips that aren't already completed or cancelled
     };
-    
+
     // Use a transaction to ensure data consistency
     const session = await mongoose.startSession();
     session.startTransaction();
-    
+
     try {
       // Find all expired trips
       const expiredTrips = await Trip.find(expiredTripsQuery).session(session);
-      
+
       if (!expiredTrips || expiredTrips.length === 0) {
         await session.commitTransaction();
         session.endSession();
-        
+
         return res.status(200).json(
-          createResponse(200, true, [], { 
-            message: "No expired trips to clean up", 
-            removedCount: 0 
+          createResponse(200, true, [], {
+            message: "No expired trips to clean up",
+            removedCount: 0
           })
         );
       }
-      
+
       // Get trip IDs
       const expiredTripIds = expiredTrips.map(trip => trip._id);
-      
+
       // Find trips with bookings
       const tripsWithBookings = await Booking.distinct("trip", {
         trip: { $in: expiredTripIds }
       }).session(session);
-      
+
       // Convert to Set for faster lookups
       const tripsWithBookingsSet = new Set(tripsWithBookings.map(id => id.toString()));
-      
+
       // Filter trips without bookings for deletion
-      const tripsToDelete = expiredTrips.filter(trip => 
+      const tripsToDelete = expiredTrips.filter(trip =>
         !tripsWithBookingsSet.has(trip._id.toString())
       );
-      
-      const tripsToMarkCompleted = expiredTrips.filter(trip => 
+
+      const tripsToMarkCompleted = expiredTrips.filter(trip =>
         tripsWithBookingsSet.has(trip._id.toString())
       );
-      
+
       let deletedCount = 0;
       let markedCompletedCount = 0;
-      
+
       // Delete trips without bookings
       if (tripsToDelete.length > 0) {
         const deleteIds = tripsToDelete.map(trip => trip._id);
-        const result = await Trip.deleteMany({ 
-          _id: { $in: deleteIds } 
+        const result = await Trip.deleteMany({
+          _id: { $in: deleteIds }
         }).session(session);
-        
+
         deletedCount = result.deletedCount;
       }
-      
+
       // Mark trips with bookings as completed
       if (tripsToMarkCompleted.length > 0) {
         const updateIds = tripsToMarkCompleted.map(trip => trip._id);
         const result = await Trip.updateMany(
           { _id: { $in: updateIds } },
-          { 
+          {
             status: "completed",
             completionDetails: {
               completedAt: new Date(),
@@ -838,24 +838,24 @@ export const cleanupExpiredTrips = async (req, res, next) => {
             }
           }
         ).session(session);
-        
+
         markedCompletedCount = result.modifiedCount;
-        
+
         // Also mark all pending bookings for these trips as completed
         await Booking.updateMany(
-          { 
+          {
             trip: { $in: updateIds },
             status: { $in: ["pending", "booked"] }
           },
           { status: "completed" }
         ).session(session);
       }
-      
+
       await session.commitTransaction();
       session.endSession();
-      
+
       return res.status(200).json(
-        createResponse(200, true, [], { 
+        createResponse(200, true, [], {
           message: `Clean-up successful: ${deletedCount} expired trips deleted, ${markedCompletedCount} trips marked as completed`,
           removedCount: deletedCount,
           completedCount: markedCompletedCount,

@@ -103,7 +103,7 @@ function Footer() {
                 className="flex items-center group text-sm hover:text-green-400 transition-colors"
               >
                 <Phone className="h-4 w-4 mr-2 text-green-500" />
-                +980 736 0833
+                +977- 9807360833
               </a>
             </div>
 

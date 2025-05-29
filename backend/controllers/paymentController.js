@@ -3,7 +3,7 @@ import Booking from "../models/bookingModel.js";
 import { createResponse } from "../utils/responseHelper.js";
 import axios from "axios";
 import _config from "../utils/config.js";
-import Trip from "../models/TripModel.js";
+import Trip from "../models/tripModel.js";
 import User from "../models/userModel.js";
 import mongoose from "mongoose";
 

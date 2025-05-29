@@ -190,3 +190,94 @@ export function passwordResetSuccessTemplate({ name, loginUrl = "https://yourtri
     </html>
   `
 }
+
+
+// Create a new template for KYC status notifications
+export function kycStatusUpdateTemplate({ name, status, rejectionReason, loginUrl = "https://yourtripshare.com/login" }) {
+  const currentYear = new Date().getFullYear()
+  const isVerified = status === "verified"
+
+  return `
+    <!DOCTYPE html>
+    <html lang="en">
+      <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>KYC ${isVerified ? 'Verification Successful' : 'Verification Rejected'} - TripShare</title>
+      </head>
+      <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; margin: 0; padding: 0; background-color: #f5f5f5; color: #1f2937; line-height: 1.6; -webkit-font-smoothing: antialiased;">
+        <div style="max-width: 580px; margin: 24px auto; background-color: #ffffff; border-radius: 12px; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08); overflow: hidden;">
+          <!-- Header with Logo -->
+          <div style="padding: 24px; text-align: center; border-bottom: 1px solid #e5e7eb;">
+            <img src="${LOGO_URL}" alt="TripShare" style="height: 40px; width: auto; display: inline-block;" />
+          </div>
+          
+          <!-- Hero Section -->
+          <div style="background-color: #1c1c1c; background-image: linear-gradient(rgba(0, 0, 0, 0.7), rgba(0, 0, 0, 0.7)), url('${isVerified ? 'https://images.unsplash.com/photo-1469854523086-cc02fe5d8800' : 'https://images.unsplash.com/photo-1464037866556-6812c9d1c72e'}?ixlib=rb-4.0.3&auto=format&fit=crop&w=1000&q=80'); background-size: cover; background-position: center; padding: 48px 24px; text-align: center;">
+            <h1 style="color: #ffffff; margin: 0; font-size: 32px; font-weight: 700; letter-spacing: -0.02em;">KYC ${isVerified ? 'Verification Successful' : 'Verification Rejected'}</h1>
+            <p style="color: ${isVerified ? '#4ade80' : '#ef4444'}; margin: 12px 0 0; font-size: 18px; font-weight: 500;">
+              ${isVerified ? 'Your account is now verified' : 'Please review and resubmit'}
+            </p>
+          </div>
+          
+          <!-- Content -->
+          <div style="padding: 36px 32px;">
+            <p style="font-size: 20px; font-weight: 600; margin-bottom: 16px; color: #1f2937;">Hello, ${name}</p>
+            
+            ${isVerified ?
+      `<p style="margin-bottom: 20px; color: #4b5563; font-size: 16px; line-height: 1.7;">
+                Great news! Your KYC verification for TripShare has been <strong>approved</strong>.
+              </p>
+              <p style="margin-bottom: 20px; color: #4b5563; font-size: 16px; line-height: 1.7;">
+                You now have full access to all TripShare features and services.
+              </p>
+              
+              <!-- Info Box -->
+              <div style="background-color: #f0fdf4; border-radius: 8px; padding: 20px; margin-bottom: 28px; border-left: 4px solid #4ade80;">
+                <p style="font-size: 15px; color: #166534; margin: 0;">
+                  <strong>Verified Status:</strong> You can now participate in all activities on the platform.
+                </p>
+              </div>`
+      :
+      `<p style="margin-bottom: 20px; color: #4b5563; font-size: 16px; line-height: 1.7;">
+                We regret to inform you that your KYC verification for TripShare has been <strong>rejected</strong>.
+              </p>
+              
+              <!-- Rejection Reason Box -->
+              <div style="background-color: #fef2f2; border-radius: 8px; padding: 20px; margin-bottom: 28px; border-left: 4px solid #ef4444;">
+                <p style="font-size: 15px; color: #991b1b; margin: 0 0 10px 0;">
+                  <strong>Reason for Rejection:</strong>
+                </p>
+                <p style="font-size: 15px; color: #991b1b; margin: 0;">
+                  ${rejectionReason}
+                </p>
+              </div>
+              
+              <p style="margin-bottom: 20px; color: #4b5563; font-size: 16px; line-height: 1.7;">
+                Please review the rejection reason and resubmit your KYC information with the necessary corrections.
+              </p>`
+    }
+            
+            <!-- Button -->
+            <div style="text-align: center; margin: 32px 0;">
+              <a href="${loginUrl}" style="display: inline-block; background-color: ${isVerified ? '#4ade80' : '#3b82f6'}; color: ${isVerified ? '#1c1c1c' : '#ffffff'}; padding: 14px 32px; text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 16px; transition: all 0.2s ease; box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);">
+                ${isVerified ? 'Access Your Account' : 'Resubmit KYC'}
+              </a>
+            </div>
+            
+            <p style="margin-bottom: 20px; color: #4b5563; font-size: 16px; line-height: 1.7;">
+              If you have any questions or need assistance, our support team is always here to help.
+            </p>
+          </div>
+          
+          <!-- Footer -->
+          <div style="background-color: #1c1c1c; padding: 28px; text-align: center; border-top: 1px solid #333;">
+            <p style="margin: 4px 0; font-size: 14px; color: #e5e7eb;">Safe travels,</p>
+            <p style="margin: 4px 0; font-size: 14px; color: #e5e7eb;">The TripShare Team</p>
+            <p style="margin: 12px 0 4px; font-size: 14px; color: #9ca3af;">&copy; ${currentYear} TripShare. All rights reserved.</p>
+          </div>
+        </div>
+      </body>
+    </html>
+  `
+}

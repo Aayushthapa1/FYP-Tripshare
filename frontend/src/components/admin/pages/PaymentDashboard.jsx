@@ -22,7 +22,6 @@ import {
 } from "recharts";
 import { format } from "date-fns";
 import {
-  // DollarSign,
   Calendar,
   Search,
   Filter,
@@ -38,6 +37,7 @@ import {
   Car,
   CreditCard,
   Wallet,
+  DollarSign,
 } from "lucide-react";
 
 const COLORS = ["#3B82F6", "#10B981", "#F59E0B", "#EF4444"];
@@ -58,6 +58,17 @@ const PaymentDashboard = ({ dashboardType = "admin" }) => {
     loading,
     statsLoading,
   } = useSelector((state) => state.payment);
+
+  // For debugging - always useful for tracking data flow
+  console.log("Redux Payment State:", {
+    adminStats,
+    recentPayments: recentPayments || [],
+    payments: payments || [],
+    userPayments: userPayments || [],
+    driverPayments: driverPayments || [],
+    loading,
+    statsLoading,
+  });
 
   const [dateRange, setDateRange] = useState({
     startDate: format(
@@ -85,25 +96,127 @@ const PaymentDashboard = ({ dashboardType = "admin" }) => {
       ? userPaymentStats
       : driverPaymentStats;
 
-  // Get the correct payments list based on dashboard type
-  const paymentsList =
-    dashboardType === "admin"
-      ? payments
-      : dashboardType === "user"
-      ? userPayments
-      : driverPayments;
+  // Get the correct payments list based on dashboard type and make sure it's an array
+  const paymentsList = React.useMemo(() => {
+    console.log("Calculating paymentsList for", dashboardType);
 
-  // Fetch appropriate payment data on component mount
-  useEffect(() => {
     if (dashboardType === "admin") {
-      dispatch(getAdminPaymentStats(dateRange));
-      dispatch(getAllPayments({ ...filters, sortField, sortDirection }));
+      // First priority: use payments array if available
+      if (Array.isArray(payments) && payments.length > 0) {
+        console.log("Using payments array with", payments.length, "items");
+        return payments;
+      }
+
+      // Second priority: use recentPayments if available
+      if (Array.isArray(recentPayments) && recentPayments.length > 0) {
+        console.log(
+          "Using recentPayments array with",
+          recentPayments.length,
+          "items"
+        );
+        return recentPayments;
+      }
+
+      // Fallback
+      console.log("No payment data available for admin dashboard");
+      return [];
     } else if (dashboardType === "user") {
-      dispatch(getUserPayments({ ...filters }));
-    } else if (dashboardType === "driver") {
-      dispatch(getDriverPayments({ ...filters }));
+      if (Array.isArray(userPayments) && userPayments.length > 0) {
+        console.log(
+          "Using userPayments array with",
+          userPayments.length,
+          "items"
+        );
+        return userPayments;
+      }
+      return [];
+    } else {
+      // driver
+      if (Array.isArray(driverPayments) && driverPayments.length > 0) {
+        console.log(
+          "Using driverPayments array with",
+          driverPayments.length,
+          "items"
+        );
+        return driverPayments;
+      }
+      return [];
     }
+  }, [dashboardType, payments, recentPayments, userPayments, driverPayments]);
+
+  // Initial data fetch on component mount
+  useEffect(() => {
+    const fetchInitialData = async () => {
+      try {
+        if (dashboardType === "admin") {
+          console.log("Fetching initial admin stats and payments");
+
+          // First fetch the admin stats which includes recentPayments
+          const statsResult = await dispatch(
+            getAdminPaymentStats(dateRange)
+          ).unwrap();
+          console.log("Admin stats fetch result:", statsResult);
+
+          // Then fetch all payments
+          const paymentsResult = await dispatch(
+            getAllPayments({
+              sortField,
+              sortDirection,
+            })
+          ).unwrap();
+          console.log("Admin payments fetch result:", paymentsResult);
+        } else if (dashboardType === "user") {
+          await dispatch(getUserPayments({})).unwrap();
+        } else if (dashboardType === "driver") {
+          await dispatch(getDriverPayments({})).unwrap();
+        }
+      } catch (error) {
+        console.error("Error fetching initial data:", error);
+      }
+    };
+
+    fetchInitialData();
   }, [dispatch, dashboardType]);
+
+  // Effect to handle filter changes
+  useEffect(() => {
+    const applyCurrentFilters = async () => {
+      if (
+        !filters.status &&
+        !filters.method &&
+        !filters.startDate &&
+        !filters.endDate
+      ) {
+        // Skip if no filters are applied
+        return;
+      }
+
+      console.log("Applying filters:", filters);
+      try {
+        if (dashboardType === "admin") {
+          await dispatch(
+            getAllPayments({
+              ...filters,
+              sortField,
+              sortDirection,
+            })
+          ).unwrap();
+        } else if (dashboardType === "user") {
+          await dispatch(getUserPayments(filters)).unwrap();
+        } else if (dashboardType === "driver") {
+          await dispatch(getDriverPayments(filters)).unwrap();
+        }
+      } catch (error) {
+        console.error("Error applying filters:", error);
+      }
+    };
+
+    // Only run this effect when filters are explicitly applied by the user
+    // Not on initial component mount
+    if (filters._applied) {
+      applyCurrentFilters();
+    }
+  }, [dispatch, dashboardType, filters, sortField, sortDirection]);
 
   const handleFilterChange = (e) => {
     const { name, value } = e.target;
@@ -115,13 +228,10 @@ const PaymentDashboard = ({ dashboardType = "admin" }) => {
 
   // Apply filters based on dashboard type
   const applyFilters = () => {
-    if (dashboardType === "admin") {
-      dispatch(getAllPayments({ ...filters, sortField, sortDirection }));
-    } else if (dashboardType === "user") {
-      dispatch(getUserPayments(filters));
-    } else if (dashboardType === "driver") {
-      dispatch(getDriverPayments(filters));
-    }
+    setFilters((prev) => ({
+      ...prev,
+      _applied: true, // Mark filters as explicitly applied
+    }));
   };
 
   const handleDateRangeChange = (e) => {
@@ -231,13 +341,8 @@ const PaymentDashboard = ({ dashboardType = "admin" }) => {
   const getChartData = () => {
     if (!stats) return [];
 
-    if (dashboardType === "admin") {
-      return stats.chartData || [];
-    } else if (dashboardType === "driver") {
-      return stats.chartData || [];
-    } else if (dashboardType === "user") {
-      // If user stats has chartData format it properly
-      return stats.chartData || [];
+    if (stats.chartData) {
+      return stats.chartData;
     }
 
     return [];
@@ -249,6 +354,141 @@ const PaymentDashboard = ({ dashboardType = "admin" }) => {
       <ArrowUp className="w-4 h-4 ml-1" />
     ) : (
       <ArrowDown className="w-4 h-4 ml-1" />
+    );
+  };
+
+  const renderPaymentList = () => {
+    if (loading) {
+      return (
+        <div className="flex justify-center items-center h-32">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+        </div>
+      );
+    }
+
+    if (!Array.isArray(paymentsList) || paymentsList.length === 0) {
+      return (
+        <div className="text-center py-8 bg-gray-50 rounded-lg">
+          <p className="text-gray-500">
+            {dashboardType === "admin"
+              ? "No recent payments found"
+              : dashboardType === "driver"
+              ? "No earnings data found"
+              : "No transaction history found"}
+          </p>
+        </div>
+      );
+    }
+
+    return (
+      <div className="overflow-x-auto">
+        <table className="min-w-full divide-y divide-gray-200 rounded-lg overflow-hidden">
+          <thead className="bg-gray-50">
+            <tr>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                ID
+              </th>
+              {dashboardType === "admin" && (
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  User
+                </th>
+              )}
+              {dashboardType === "driver" && (
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Passenger
+                </th>
+              )}
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                Amount
+              </th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                Method
+              </th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                Status
+              </th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                Date
+              </th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                Actions
+              </th>
+            </tr>
+          </thead>
+          <tbody className="bg-white divide-y divide-gray-200">
+            {paymentsList.map((payment) => (
+              <tr
+                key={payment._id || `payment-${Math.random()}`}
+                className="hover:bg-gray-50 transition-colors"
+              >
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                  {payment._id ? payment._id.substring(0, 8) + "..." : "N/A"}
+                </td>
+                {(dashboardType === "admin" || dashboardType === "driver") && (
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <div className="flex items-center">
+                      <div className="flex-shrink-0 h-8 w-8 rounded-full bg-gray-200 flex items-center justify-center text-gray-600">
+                        {dashboardType === "admin"
+                          ? (payment.user?.fullName || "?").charAt(0)
+                          : (payment.booking?.user?.fullName || "?").charAt(0)}
+                      </div>
+                      <div className="ml-3">
+                        <p className="text-sm font-medium text-gray-900">
+                          {dashboardType === "admin"
+                            ? payment.user?.fullName || "N/A"
+                            : payment.booking?.user?.fullName || "N/A"}
+                        </p>
+                      </div>
+                    </div>
+                  </td>
+                )}
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 font-medium">
+                  Rs. {payment.amount ? payment.amount.toFixed(2) : "0.00"}
+                </td>
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 capitalize">
+                  {payment.paymentMethod || "N/A"}
+                </td>
+                <td className="px-6 py-4 whitespace-nowrap">
+                  <span
+                    className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full 
+                    ${
+                      payment.status === "completed"
+                        ? "bg-green-100 text-green-800"
+                        : payment.status === "pending"
+                        ? "bg-yellow-100 text-yellow-800"
+                        : "bg-red-100 text-red-800"
+                    }`}
+                  >
+                    {payment.status || "unknown"}
+                  </span>
+                </td>
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                  {payment.createdAt
+                    ? new Date(payment.createdAt).toLocaleDateString()
+                    : "N/A"}
+                </td>
+                <td className="px-6 py-4 whitespace-nowrap text-right text-sm">
+                  <button
+                    onClick={() => {
+                      const path =
+                        dashboardType === "admin"
+                          ? `/admin/payments/${payment._id}`
+                          : dashboardType === "driver"
+                          ? `/driver/payments/${payment._id}`
+                          : `/payments/${payment._id}`;
+                      navigate(path);
+                    }}
+                    className="text-blue-600 hover:text-blue-900 inline-flex items-center"
+                  >
+                    <Eye className="w-4 h-4 mr-1" />
+                    View
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     );
   };
 
@@ -302,7 +542,7 @@ const PaymentDashboard = ({ dashboardType = "admin" }) => {
           <div className="bg-gradient-to-br from-green-50 to-green-100 rounded-xl shadow-sm border border-green-200 p-6">
             <div className="flex items-center justify-between mb-4">
               <div className="bg-green-500 rounded-lg p-2 text-white">
-                {/* <DollarSign className="w-6 h-6" /> */}
+                <DollarSign className="w-6 h-6" />
               </div>
             </div>
             <h3 className="text-sm font-medium text-gray-600 mb-1">
@@ -362,9 +602,7 @@ const PaymentDashboard = ({ dashboardType = "admin" }) => {
                 : dashboardType === "driver"
                 ? `Rs. ${
                     stats?.totalTrips > 0
-                      ? Math.round(
-                          stats?.totalEarnings / stats?.totalTrips
-                        ).toFixed(2)
+                      ? (stats?.totalEarnings / stats?.totalTrips).toFixed(2)
                       : "0.00"
                   }`
                 : dashboardType === "admin"
@@ -450,10 +688,7 @@ const PaymentDashboard = ({ dashboardType = "admin" }) => {
                     </linearGradient>
                   </defs>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                  <XAxis
-                    dataKey={dashboardType === "driver" ? "date" : "date"}
-                    tickLine={false}
-                  />
+                  <XAxis dataKey="date" tickLine={false} />
                   <YAxis tickLine={false} axisLine={false} />
                   <Tooltip
                     formatter={(value) => [
@@ -464,7 +699,7 @@ const PaymentDashboard = ({ dashboardType = "admin" }) => {
                   <Legend />
                   <Line
                     type="monotone"
-                    dataKey={dashboardType === "driver" ? "amount" : "amount"}
+                    dataKey="amount"
                     name={dashboardType === "driver" ? "Earnings" : "Revenue"}
                     stroke="#6366F1"
                     strokeWidth={2}
@@ -556,7 +791,10 @@ const PaymentDashboard = ({ dashboardType = "admin" }) => {
                     className="bg-blue-600 h-4 rounded-full"
                     style={{
                       width: `${
-                        (stats.completedPayments / stats.totalBookings) * 100
+                        stats.totalBookings > 0
+                          ? (stats.completedPayments / stats.totalBookings) *
+                            100
+                          : 0
                       }%`,
                     }}
                   ></div>
@@ -566,10 +804,12 @@ const PaymentDashboard = ({ dashboardType = "admin" }) => {
                     {stats.completedPayments} Completed
                   </span>
                   <span className="text-gray-600 text-sm">
-                    {(
-                      (stats.completedPayments / stats.totalBookings) *
-                      100
-                    ).toFixed(1)}
+                    {stats.totalBookings > 0
+                      ? (
+                          (stats.completedPayments / stats.totalBookings) *
+                          100
+                        ).toFixed(1)
+                      : 0}
                     % Completion Rate
                   </span>
                 </div>
@@ -651,132 +891,16 @@ const PaymentDashboard = ({ dashboardType = "admin" }) => {
           )}
         </div>
 
+        {/* Debug info - helpful during development */}
+        <div className="mb-4 p-2 bg-yellow-50 rounded border border-yellow-200">
+          <p className="text-sm text-yellow-800">
+            Dashboard Type: {dashboardType} | Data Length:{" "}
+            {paymentsList?.length || 0} | Loading: {loading ? "Yes" : "No"}
+          </p>
+        </div>
+
         {/* Payments Table Display */}
-        {loading ? (
-          <div className="flex justify-center items-center h-32">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-          </div>
-        ) : paymentsList && paymentsList.length > 0 ? (
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200 rounded-lg overflow-hidden">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    ID
-                  </th>
-                  {dashboardType === "admin" && (
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      User
-                    </th>
-                  )}
-                  {dashboardType === "driver" && (
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Passenger
-                    </th>
-                  )}
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Amount
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Method
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Status
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Date
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Actions
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {paymentsList.map((payment) => (
-                  <tr
-                    key={payment._id}
-                    className="hover:bg-gray-50 transition-colors"
-                  >
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {payment._id.substring(0, 8)}...
-                    </td>
-                    {(dashboardType === "admin" ||
-                      dashboardType === "driver") && (
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="flex items-center">
-                          <div className="flex-shrink-0 h-8 w-8 rounded-full bg-gray-200 flex items-center justify-center text-gray-600">
-                            {dashboardType === "admin"
-                              ? (payment.user?.fullName || "?").charAt(0)
-                              : (payment.booking?.user?.fullName || "?").charAt(
-                                  0
-                                )}
-                          </div>
-                          <div className="ml-3">
-                            <p className="text-sm font-medium text-gray-900">
-                              {dashboardType === "admin"
-                                ? payment.user?.fullName || "N/A"
-                                : payment.booking?.user?.fullName || "N/A"}
-                            </p>
-                          </div>
-                        </div>
-                      </td>
-                    )}
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 font-medium">
-                      Rs. {payment.amount.toFixed(2)}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 capitalize">
-                      {payment.paymentMethod}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span
-                        className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full 
-                        ${
-                          payment.status === "completed"
-                            ? "bg-green-100 text-green-800"
-                            : payment.status === "pending"
-                            ? "bg-yellow-100 text-yellow-800"
-                            : "bg-red-100 text-red-800"
-                        }`}
-                      >
-                        {payment.status}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {new Date(payment.createdAt).toLocaleDateString()}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm">
-                      <button
-                        onClick={() => {
-                          const path =
-                            dashboardType === "admin"
-                              ? `/admin/payments/${payment._id}`
-                              : dashboardType === "driver"
-                              ? `/driver/payments/${payment._id}`
-                              : `/payments/${payment._id}`;
-                          navigate(path);
-                        }}
-                        className="text-blue-600 hover:text-blue-900 inline-flex items-center"
-                      >
-                        <Eye className="w-4 h-4 mr-1" />
-                        View
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        ) : (
-          <div className="text-center py-8 bg-gray-50 rounded-lg">
-            <p className="text-gray-500">
-              {dashboardType === "admin"
-                ? "No recent payments found"
-                : dashboardType === "driver"
-                ? "No earnings data found"
-                : "No transaction history found"}
-            </p>
-          </div>
-        )}
+        {renderPaymentList()}
       </div>
 
       {/* Filters Section - Only for Admin */}
@@ -816,7 +940,7 @@ const PaymentDashboard = ({ dashboardType = "admin" }) => {
               </label>
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  {/* <DollarSign className="h-4 w-4 text-gray-400" /> */}
+                  <CreditCard className="h-4 w-4 text-gray-400" />
                 </div>
                 <select
                   name="method"
@@ -881,7 +1005,7 @@ const PaymentDashboard = ({ dashboardType = "admin" }) => {
             <div className="flex justify-center items-center py-12">
               <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
             </div>
-          ) : payments?.length > 0 ? (
+          ) : Array.isArray(payments) && payments.length > 0 ? (
             <div className="overflow-x-auto rounded-lg border border-gray-200">
               <table className="min-w-full divide-y divide-gray-200">
                 <thead className="bg-gray-50">
@@ -935,25 +1059,28 @@ const PaymentDashboard = ({ dashboardType = "admin" }) => {
                 <tbody className="bg-white divide-y divide-gray-200">
                   {payments.map((payment) => (
                     <tr
-                      key={payment._id}
+                      key={payment._id || `payment-${Math.random()}`}
                       className="hover:bg-gray-50 transition-colors"
                     >
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {payment._id.substring(0, 8)}...
+                        {payment._id
+                          ? payment._id.substring(0, 8) + "..."
+                          : "N/A"}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                         {payment.user?.fullName || "N/A"}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                         {payment.booking
-                          ? payment.booking._id.substring(0, 8) + "..."
+                          ? payment.booking._id?.substring(0, 8) + "..."
                           : "N/A"}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                        Rs. {payment.amount.toFixed(2)}
+                        Rs.{" "}
+                        {payment.amount ? payment.amount.toFixed(2) : "0.00"}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 capitalize">
-                        {payment.paymentMethod}
+                        {payment.paymentMethod || "N/A"}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <span
@@ -966,11 +1093,13 @@ const PaymentDashboard = ({ dashboardType = "admin" }) => {
                               : "bg-red-100 text-red-800"
                           }`}
                         >
-                          {payment.status}
+                          {payment.status || "unknown"}
                         </span>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {new Date(payment.createdAt).toLocaleDateString()}
+                        {payment.createdAt
+                          ? new Date(payment.createdAt).toLocaleDateString()
+                          : "N/A"}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-right text-sm">
                         <button

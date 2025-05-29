@@ -26,6 +26,7 @@ const createBooking = async ({ tripId, seats, paymentMethod }) => {
     return response.data;
   } catch (error) {
     console.error("createBooking error:", error);
+    // For all other errors, use your standard error formatter
     const formattedError = formatError(error);
     throw formattedError;
   }

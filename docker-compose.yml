@@ -1,0 +1,53 @@
+version: "3.8"
+
+services:
+  # ────────── MongoDB (Local DB) ──────────
+  mongo:
+    image: mongo
+    container_name: tripshare-mongo
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo_data:/data/db
+    networks:
+      - tripshare-network
+    restart: unless-stopped
+
+  # ────────── Backend API (Node.js + Express) ──────────
+  api:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: tripshare-api
+    ports:
+      - "3301:3301"
+    env_file:
+      - ./backend/.env
+    depends_on:
+      - mongo
+    networks:
+      - tripshare-network
+    restart: unless-stopped
+
+  # ────────── Frontend (React) ──────────
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: tripshare-frontend
+    ports:
+      - "80:80"
+    env_file:
+      - ./frontend/.env
+    depends_on:
+      - api
+    networks:
+      - tripshare-network
+    restart: unless-stopped
+
+volumes:
+  mongo_data:
+
+networks:
+  tripshare-network:
+    driver: bridge

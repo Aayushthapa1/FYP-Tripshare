@@ -33,6 +33,9 @@ const TripForm = () => {
   // Pull the relevant parts from your Redux store
   const { loading, error, success } = useSelector((state) => state.trip);
 
+  // Get the driver KYC status from Redux store
+  const { kycStatus } = useSelector((state) => state.driverKYC);
+
   // Track whether the form has been modified
   const [isFormDirty, setIsFormDirty] = useState(false);
 
@@ -200,12 +203,9 @@ const TripForm = () => {
         description:
           "Your trip has been created successfully and is now visible to potential passengers.",
         icon: <CheckCircle className="text-green-500" size={18} />,
-
       });
 
-      setTimeout(() => {
-        
-      }, 8000);
+      setTimeout(() => {}, 8000);
 
       // Clear out slice state so we don't re-trigger
       dispatch(resetTripState());
@@ -560,6 +560,16 @@ const TripForm = () => {
   const showTripConfirmation = (e) => {
     e.preventDefault();
     if (loading) return;
+
+    // Check if KYC is verified before proceeding
+    if (kycStatus !== "verified") {
+      toast.error("KYC Verification Required", {
+        description: "Please submit your KYC for creating trips.",
+        icon: <AlertTriangle className="text-red-500" size={18} />,
+        duration: 5000,
+      });
+      return; // Prevent form submission if KYC is not verified
+    }
 
     if (validateForm()) {
       // Check time validity

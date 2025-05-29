@@ -16,7 +16,7 @@ import {
   ChevronLeft,
   BarChart3,
   Route,
-  DollarSign,
+  Banknote,
   ChevronRight,
   Settings,
   Star,
@@ -37,8 +37,7 @@ import {
 // Import section components
 import DashboardOverview from "./sections/DashboardOverview";
 import StatisticsSection from "./sections/StatisticsSection";
-import UpcomingRidesSection from "./sections/UpcomingRidesSection";
-import CompletedRidesSection from "./sections/CompletedRideSection";
+
 import EarningsSection from "./sections/EarningsSection";
 import MyBookingsSection from "./sections/MyBookingsSection";
 import MyRatings from "./sections/MyRatings.jsx";
@@ -430,45 +429,9 @@ export default function DriverDashboard() {
                 )}
               </button>
 
-              <button
-                onClick={() => setActiveSection("upcoming")}
-                className={`flex items-center ${
-                  collapsed ? "justify-center" : ""
-                } space-x-3 p-3 rounded-lg transition-all duration-200
-                 ${
-                   activeSection === "upcoming"
-                     ? "bg-green-50 text-green-600 font-medium dark:bg-green-900/30 dark:text-green-400"
-                     : "text-slate-700 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-700/50"
-                 }`}
-              >
-                <Calendar className="w-5 h-5 flex-shrink-0" />
-                <span className={`${collapsed ? "md:hidden" : ""}`}>
-                  Upcoming Rides
-                </span>
-                {activeSection === "upcoming" && !collapsed && (
-                  <ChevronRight className="w-4 h-4 ml-auto text-green-600 dark:text-green-400" />
-                )}
-              </button>
+             
 
-              <button
-                onClick={() => setActiveSection("completed-rides")}
-                className={`flex items-center ${
-                  collapsed ? "justify-center" : ""
-                } space-x-3 p-3 rounded-lg transition-all duration-200
-                 ${
-                   activeSection === "completed-rides"
-                     ? "bg-green-50 text-green-600 font-medium dark:bg-green-900/30 dark:text-green-400"
-                     : "text-slate-700 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-700/50"
-                 }`}
-              >
-                <Car className="w-5 h-5 flex-shrink-0" />
-                <span className={`${collapsed ? "md:hidden" : ""}`}>
-                  Completed Rides
-                </span>
-                {activeSection === "completed-rides" && !collapsed && (
-                  <ChevronRight className="w-4 h-4 ml-auto text-green-600 dark:text-green-400" />
-                )}
-              </button>
+            
 
               <button
                 onClick={() => setActiveSection("earnings")}
@@ -481,7 +444,7 @@ export default function DriverDashboard() {
                      : "text-slate-700 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-700/50"
                  }`}
               >
-                <DollarSign className="w-5 h-5 flex-shrink-0" />
+                <Banknote className="w-5 h-5 flex-shrink-0" />
                 <span className={`${collapsed ? "md:hidden" : ""}`}>
                   Earnings
                 </span>
@@ -490,7 +453,7 @@ export default function DriverDashboard() {
                 )}
               </button>
 
-              <button
+              {/* <button
                 onClick={() => setActiveSection("notifications")}
                 className={`flex items-center ${
                   collapsed ? "justify-center" : ""
@@ -508,7 +471,7 @@ export default function DriverDashboard() {
                 {activeSection === "notifications" && !collapsed && (
                   <ChevronRight className="w-4 h-4 ml-auto text-green-600 dark:text-green-400" />
                 )}
-              </button>
+              </button> */}
 
               <button
                 onClick={() => setActiveSection("manage-bookings")}
@@ -660,106 +623,12 @@ export default function DriverDashboard() {
                 <StatisticsSection {...sectionProps} />
               )}
               {activeSection === "myratings" && <MyRatings {...sectionProps} />}
-              {activeSection === "upcoming" && (
-                <UpcomingRidesSection {...sectionProps} />
-              )}
-              {activeSection === "completed-rides" && (
-                <CompletedRidesSection {...sectionProps} />
-              )}
+              
               {activeSection === "earnings" && (
                 <EarningsSection {...sectionProps} />
               )}
               {activeSection === "manage-bookings" && (
                 <MyBookingsSection {...sectionProps} />
-              )}
-              {activeSection === "notifications" && (
-                <div className="space-y-6">
-                  <div className="bg-white dark:bg-slate-800 rounded-xl shadow-md border border-slate-100 dark:border-slate-700 overflow-hidden">
-                    <div className="border-b border-slate-200 dark:border-slate-700 p-6">
-                      <h2 className="text-xl font-semibold text-slate-800 dark:text-white">
-                        Notifications
-                      </h2>
-                      <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
-                        Stay updated with your ride requests and system alerts
-                      </p>
-                    </div>
-                    <div className="p-6">
-                      <div className="mb-4 flex justify-between items-center">
-                        <div className="flex space-x-4">
-                          <button className="px-4 py-2 text-sm font-medium border-b-2 border-green-500 text-green-600 dark:text-green-400">
-                            All
-                          </button>
-                          <button className="px-4 py-2 text-sm font-medium text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-300">
-                            Unread
-                          </button>
-                        </div>
-                        <button className="text-sm font-medium text-green-600 hover:text-green-700 dark:text-green-400 dark:hover:text-green-300">
-                          Mark all as read
-                        </button>
-                      </div>
-
-                      {/* Sample notifications - replace with actual data */}
-                      <div className="space-y-4">
-                        <div className="flex items-start gap-4 p-4 rounded-lg bg-green-50 dark:bg-green-900/20 border border-green-100 dark:border-green-900/30">
-                          <div className="mt-1 flex-shrink-0 rounded-full p-2 bg-green-100 text-green-600 dark:bg-green-900/50 dark:text-green-400">
-                            <Bell className="h-4 w-4" />
-                          </div>
-                          <div className="flex-1">
-                            <p className="font-medium text-slate-800 dark:text-white">
-                              New ride request
-                            </p>
-                            <p className="text-sm text-slate-600 dark:text-slate-300 mt-1">
-                              You have a new ride request from John Doe for
-                              tomorrow at 9:00 AM.
-                            </p>
-                            <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-                              5 minutes ago
-                            </p>
-                          </div>
-                          <button className="text-sm text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-300">
-                            Mark as read
-                          </button>
-                        </div>
-
-                        <div className="flex items-start gap-4 p-4 rounded-lg border border-slate-200 dark:border-slate-700">
-                          <div className="mt-1 flex-shrink-0 rounded-full p-2 bg-slate-100 text-slate-500 dark:bg-slate-700 dark:text-slate-400">
-                            <DollarSign className="h-4 w-4" />
-                          </div>
-                          <div className="flex-1">
-                            <p className="text-slate-700 dark:text-slate-300">
-                              Payment received
-                            </p>
-                            <p className="text-sm text-slate-600 dark:text-slate-400 mt-1">
-                              You received a payment of $25.50 for your ride
-                              with Sarah Williams.
-                            </p>
-                            <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-                              Yesterday at 3:45 PM
-                            </p>
-                          </div>
-                        </div>
-
-                        <div className="flex items-start gap-4 p-4 rounded-lg border border-slate-200 dark:border-slate-700">
-                          <div className="mt-1 flex-shrink-0 rounded-full p-2 bg-slate-100 text-slate-500 dark:bg-slate-700 dark:text-slate-400">
-                            <Star className="h-4 w-4" />
-                          </div>
-                          <div className="flex-1">
-                            <p className="text-slate-700 dark:text-slate-300">
-                              New rating received
-                            </p>
-                            <p className="text-sm text-slate-600 dark:text-slate-400 mt-1">
-                              Michael Brown gave you a 5-star rating for your
-                              ride.
-                            </p>
-                            <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-                              2 days ago
-                            </p>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
               )}
             </main>
           </div>

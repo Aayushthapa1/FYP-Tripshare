@@ -144,9 +144,8 @@ export const getDriverTripStats = async (params) => {
   }
 };
 
-
-
-const getAdminTripAnalytics = async (params = {}) => {
+/** GET ADMIN TRIP ANALYTICS (GET /api/trips/admin/analytics) */
+export const getAdminTripAnalytics = async (params = {}) => {
   try {
     const response = await axiosInstance.get("/api/trips/admin/analytics", {
       params

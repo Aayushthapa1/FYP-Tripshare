@@ -8,13 +8,12 @@ import {
 import { useDispatch, useSelector } from "react-redux";
 import Navbar from "./components/layout/Navbar";
 import Footer from "./components/layout/Footer";
-import ProfileModal from "./components/auth/ProfilePage.jsx";
 
 // Ride
 import RideBooking from "./components/ride/UserRideBooking.jsx";
 import RideStatus from "./components/ride/UserRideStatus.jsx";
 import DriverRideStatus from "./components/ride/DriverRideStatus.jsx";
-import DriverDashboard from "./components/driver/DriverDashboard.jsx";
+import DriverDashboard from "./components/driver/driverDashboard.jsx";
 
 // Socket Provider
 import { SocketProvider } from "./components/socket/SocketProvider.jsx";
@@ -28,7 +27,7 @@ import HelpCenter from "./components/home/HelpCenter";
 import ScrollToTopButton from "./components/scrollToTop";
 
 // Admin
-import AdminLayout from "./components/admin/components/AdminLayout";
+import AdminLayout from "./components/admin/components/adminLayout.jsx";
 import AdminProfile from "./components/admin/components/adminProfile.jsx";
 import AdminDashboard from "./components/admin/pages/AdminDashboard.jsx";
 import ManageUsers from "./components/admin/pages/ManageUsers";
@@ -36,6 +35,7 @@ import ManageRides from "./components/admin/pages/ManageRides";
 import PaymentDashboard from "./components/admin/pages/PaymentDashboard.jsx";
 import AdminSettings from "./components/admin/pages/AdminSettings";
 import AdminKYCRequests from "./components/admin/pages/KycVerification.jsx";
+import ModerateRatingsAdmin from "./components/admin/pages/ModerateRating.jsx";
 
 // User
 import UserLayout from "./components/pages/UserLayout";
@@ -151,7 +151,12 @@ function App() {
             path="/driverkyc"
             element={
               <CheckAuth role="driver">
-                <DriverKycModal />
+                <>
+                  <Navbar />
+                  <div className="pt-16 min-h-screen">
+                    <DriverKycModal isOpen={true} />
+                  </div>
+                </>
               </CheckAuth>
             }
           />
@@ -159,7 +164,12 @@ function App() {
             path="/userkyc"
             element={
               <CheckAuth role="user">
-                <UserKycModal />
+                <>
+                  <Navbar />
+                  <div className="pt-16 min-h-screen">
+                    <UserKycModal isOpen={true} />
+                  </div>
+                </>
               </CheckAuth>
             }
           />
@@ -202,7 +212,7 @@ function App() {
 
           {/* Payment routes - accessible to all authenticated users */}
           <Route
-            path="/payment-success"
+            path="/paymentsuccess"
             element={
               <CheckAuth>
                 <PaymentSuccess />
@@ -210,7 +220,7 @@ function App() {
             }
           />
           <Route
-            path="/payment-failed"
+            path="/payment-fail"
             element={
               <CheckAuth>
                 <PaymentFailed />
@@ -220,16 +230,6 @@ function App() {
 
           {/* Public route for contact */}
           <Route path="/contact" element={<HelpCenter />} />
-
-          {/* Profile - accessible to all authenticated users */}
-          <Route
-            path="/profile/:userId"
-            element={
-              <CheckAuth>
-                <ProfileModal />
-              </CheckAuth>
-            }
-          />
 
           {/* Trips - accessible by both users and drivers */}
           <Route
@@ -243,7 +243,7 @@ function App() {
           <Route
             path="/tripform"
             element={
-              <CheckAuth role={[ "driver"]}>
+              <CheckAuth role={["driver"]}>
                 <TripForm />
               </CheckAuth>
             }
@@ -333,6 +333,7 @@ function App() {
             <Route path="settings" element={<AdminSettings />} />
             <Route path="profile" element={<AdminProfile />} />
             <Route path="kyc" element={<AdminKYCRequests />} />
+            <Route path="ratings" element={<ModerateRatingsAdmin />} />
           </Route>
 
           {/* User Layout Routes (Role-specific) */}

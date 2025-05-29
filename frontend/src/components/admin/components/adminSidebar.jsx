@@ -230,7 +230,7 @@ function AdminSidebar({ isOpen, onClose }) {
           </NavLink>
 
           <NavLink
-            to="/admin/notifications"
+            to="/admin/ratings"
             className={({ isActive }) =>
               `flex items-center ${
                 collapsed ? "md:justify-center" : ""
@@ -244,7 +244,7 @@ function AdminSidebar({ isOpen, onClose }) {
           >
             <Bell className="w-5 h-5 flex-shrink-0" />
             <span className={`${collapsed ? "md:hidden" : ""}`}>
-              Notifications
+              Ratings
             </span>
           </NavLink>
         </nav>

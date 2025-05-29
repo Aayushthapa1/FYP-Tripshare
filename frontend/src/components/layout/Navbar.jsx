@@ -1,7 +1,6 @@
-"use client";
-
-import { useState, useEffect, useCallback, useMemo } from "react";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { useDispatch, useSelector } from "react-redux";
+import { useLocation, useNavigate } from "react-router-dom";
 import {
   Bell,
   AlertCircle,
@@ -21,10 +20,11 @@ import {
   Star,
 } from "lucide-react";
 import { toast, Toaster } from "sonner";
-import { useNavigate } from "react-router-dom";
 
 import { getUserKYCStatus } from "../Slices/userKYCSlice";
+import { getDriverKYCStatus } from "../Slices/driverKYCSlice";
 import { logoutUser } from "../Slices/authSlice";
+import { fetchDriverRatingSummary } from "../Slices/ratingSlice"; // Add this import
 import socketService from "../socket/socketService.js";
 
 // Components
@@ -39,6 +39,10 @@ import NotificationCenter from "../socket/notificationDropdown.jsx";
 export default function Navbar() {
   const dispatch = useDispatch();
   const navigate = useNavigate();
+  const location = useLocation();
+
+  // Check if we're on the driver KYC page to prevent duplicate rendering
+  const isOnDriverKycPage = location.pathname === "/driverkyc";
 
   // ----- Redux: auth state -----
   const { user } = useSelector((state) => state.auth) || {};
@@ -46,8 +50,19 @@ export default function Navbar() {
   const userRole = user?.role || "user";
   const userName = user?.fullName || user?.userName || "User";
 
-  // ----- Redux: userKYC state -----
-  const { kycStatus } = useSelector((state) => state.userKYC) || {};
+  // ----- Redux: KYC states -----
+  const { kycStatus: userKycStatus } =
+    useSelector((state) => state.userKYC) || {};
+  const { kycStatus: driverKycStatus } =
+    useSelector((state) => state.driverKYC) || {};
+
+  // ----- Redux: Rating state -----
+  const { driverSummary } = useSelector((state) => state.rating) || {};
+  const averageRating = driverSummary?.driverInfo?.averageRating || 0;
+  const formattedRating = averageRating.toFixed(1);
+
+  // Determine which KYC status to use based on role
+  const kycStatus = userRole === "driver" ? driverKycStatus : userKycStatus;
 
   // ----- Redux: notification state -----
   const { notifications = [] } = useSelector((state) => state.notification) || {
@@ -196,16 +211,23 @@ export default function Navbar() {
     return () => window.removeEventListener("scroll", handleScroll);
   }, []);
 
-  // ----- 3) Get user KYC status if authenticated -----
+  // ----- 3) Get user KYC status and ratings if authenticated -----
   useEffect(() => {
     if (isAuthenticated && user?._id) {
-      dispatch(getUserKYCStatus(user._id));
+      if (userRole === "driver") {
+        dispatch(getDriverKYCStatus(user._id));
+        // Fetch driver rating summary
+        dispatch(fetchDriverRatingSummary(user._id));
+      } else {
+        dispatch(getUserKYCStatus(user._id));
+      }
     }
-  }, [isAuthenticated, user, dispatch]);
+  }, [isAuthenticated, user, dispatch, userRole]);
 
-  // ----- 4) Animate the bell icon if KYC is pending or not submitted -----
+  // ----- 4) Animate the bell icon if KYC is rejected or not submitted -----
   useEffect(() => {
-    if (kycStatus === "pending" || kycStatus === "not_submitted") {
+    // Only blink for not_submitted or rejected status
+    if (kycStatus === "not_submitted" || kycStatus === "rejected") {
       setIsBlinking(true);
       const blinkInterval = setInterval(() => {
         setIsBlinking((prev) => !prev);
@@ -225,29 +247,70 @@ export default function Navbar() {
     [navigate]
   );
 
+  // Handle opening KYC based on role and prevent opening if already verified
+  const handleOpenKycModal = useCallback(() => {
+    // Don't open KYC if already verified
+    if (kycStatus === "verified") {
+      toast.info("Your KYC is already verified");
+      return;
+    }
+
+    // Only allow editing if status is rejected or not submitted
+    if (kycStatus === "pending") {
+      toast.info(
+        "Your KYC is pending verification. You cannot edit it at this time."
+      );
+      return;
+    }
+
+    if (userRole === "driver") {
+      // For driver KYC, navigate to dedicated page instead of showing modal
+      navigate("/driverkyc");
+    } else {
+      // Navigate to the user KYC page
+      navigate("/userkyc");
+    }
+  }, [userRole, kycStatus, navigate]);
+
   // Role-based content rendering
   const renderRoleBasedNavItems = useCallback(() => {
     if (!isAuthenticated) return null;
 
     if (userRole === "driver") {
-      return (
-        <div className="hidden md:flex space-x-3">
-          <button
-            onClick={() => handleNavigate("/driverridestatus")}
-            className="flex items-center h-9 px-4 rounded-md bg-green-500 text-white font-medium text-sm hover:bg-green-600 transition-all duration-200"
-          >
-            <Car className="h-4 w-4 mr-2" />
-            <span>Active Rides</span>
-          </button>
-          <button
-            onClick={() => handleNavigate("/tripForm")}
-            className="flex items-center h-9 px-4 rounded-md border border-green-500 text-green-600 font-medium text-sm hover:bg-green-50 transition-all duration-200"
-          >
-            <Plus className="h-4 w-4 mr-2" />
-            <span>Publish Trip</span>
-          </button>
-        </div>
-      );
+      // Only show driver ride buttons if KYC is verified
+      if (kycStatus === "verified") {
+        return (
+          <div className="hidden md:flex space-x-3">
+            <button
+              onClick={() => handleNavigate("/driverridestatus")}
+              className="flex items-center h-9 px-4 rounded-md bg-green-500 text-white font-medium text-sm hover:bg-green-600 transition-all duration-200"
+            >
+              <Car className="h-4 w-4 mr-2" />
+              <span>Active Rides</span>
+            </button>
+            <button
+              onClick={() => handleNavigate("/tripForm")}
+              className="flex items-center h-9 px-4 rounded-md border border-green-500 text-green-600 font-medium text-sm hover:bg-green-50 transition-all duration-200"
+            >
+              <Plus className="h-4 w-4 mr-2" />
+              <span>Publish Trip</span>
+            </button>
+          </div>
+        );
+      } else {
+        // For drivers with unverified KYC, show message button to complete KYC
+        return (
+          <div className="hidden md:flex">
+            <button
+              onClick={() => handleOpenKycModal()}
+              className="flex items-center h-9 px-4 rounded-md bg-amber-500 text-white font-medium text-sm hover:bg-amber-600 transition-all duration-200"
+            >
+              <AlertCircle className="h-4 w-4 mr-2" />
+              <span>Complete KYC Verification</span>
+            </button>
+          </div>
+        );
+      }
     } else {
       // Regular user role
       return (
@@ -269,7 +332,13 @@ export default function Navbar() {
         </div>
       );
     }
-  }, [isAuthenticated, userRole, handleNavigate]);
+  }, [
+    isAuthenticated,
+    userRole,
+    kycStatus,
+    handleNavigate,
+    handleOpenKycModal,
+  ]);
 
   // Confirm Logout Toast
   const confirmLogout = useCallback(() => {
@@ -329,31 +398,6 @@ export default function Navbar() {
     setIsUserMenuOpen(false);
     navigate("/"); // redirect to home
   };
-
-  // Handle opening KYC based on role and prevent opening if already verified
-  const handleOpenKycModal = useCallback(() => {
-    // Don't open KYC if already verified
-    if (kycStatus === "verified") {
-      toast.info("Your KYC is already verified");
-      return;
-    }
-
-    // Only allow editing if status is rejected or not submitted
-    if (kycStatus === "pending") {
-      toast.info(
-        "Your KYC is pending verification. You cannot edit it at this time."
-      );
-      return;
-    }
-
-    if (userRole === "driver") {
-      // Still use modal for driver KYC
-      setShowDriverKycModal(true);
-    } else {
-      // Navigate to the user KYC page instead of showing modal
-      navigate("/userkyc");
-    }
-  }, [userRole, kycStatus, navigate]);
 
   // Generate a notification message based on KYC status
   const notificationMessage = useMemo(() => {
@@ -483,15 +527,20 @@ export default function Navbar() {
                   className={`flex items-center p-2 rounded-full ${
                     isBlinking
                       ? "animate-pulse bg-amber-50"
+                      : kycStatus === "pending"
+                      ? "bg-yellow-50"
                       : "hover:bg-gray-100"
                   } transition-colors`}
                   title={notificationMessage}
                 >
-                  <AlertCircle
-                    className={`h-5 w-5 ${
-                      isBlinking ? "text-amber-500" : "text-gray-600"
-                    }`}
-                  />
+                  {kycStatus === "pending" ? (
+                    <AlertCircle className="h-5 w-5 text-yellow-500" />
+                  ) : isBlinking ? (
+                    <AlertCircle className="h-5 w-5 text-amber-500" />
+                  ) : (
+                    <AlertCircle className="h-5 w-5 text-gray-600" />
+                  )}
+                  {/* Indicator dot */}
                   <span className="absolute -top-0.5 -right-0.5 h-2 w-2 rounded-full bg-red-500 ring-1 ring-white"></span>
                 </button>
               </div>
@@ -562,35 +611,23 @@ export default function Navbar() {
                               setIsUserMenuOpen(false);
                               handleNavigate("/my-ratings");
                             }}
-                            className="flex w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 hover:text-green-600 text-left transition-colors items-center"
+                            className="flex w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 hover:text-green-600 text-left transition-colors items-center justify-between"
                           >
-                            <Star className="h-4 w-4 mr-2.5 text-gray-400" />
-                            <span>My Ratings</span>
+                            <div className="flex items-center">
+                              <Star className="h-4 w-4 mr-2.5 text-gray-400" />
+                              <span>My Ratings</span>
+                            </div>
+                            {/* Show rating badge */}
+                            <div className="flex items-center px-2 py-0.5 rounded-full bg-green-100 text-green-800">
+                              <Star className="h-3 w-3 text-yellow-500 mr-1" />
+                              <span className="text-xs font-medium">
+                                {formattedRating}
+                              </span>
+                            </div>
                           </button>
                         </>
                       ) : (
-                        <>
-                          <button
-                            onClick={() => {
-                              setIsUserMenuOpen(false);
-                              handleNavigate("/requestride");
-                            }}
-                            className="flex w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 hover:text-green-600 text-left transition-colors items-center"
-                          >
-                            <Car className="h-4 w-4 mr-2.5 text-gray-400" />
-                            <span>Request Ride</span>
-                          </button>
-                          <button
-                            onClick={() => {
-                              setIsUserMenuOpen(false);
-                              handleNavigate("/ridestatus");
-                            }}
-                            className="flex w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 hover:text-green-600 text-left transition-colors items-center"
-                          >
-                            <Clock className="h-4 w-4 mr-2.5 text-gray-400" />
-                            <span>My Rides</span>
-                          </button>
-                        </>
+                        <></>
                       )}
                     </div>
 
@@ -599,7 +636,28 @@ export default function Navbar() {
 
                     {/* KYC Status */}
                     <div className="py-1">
-                      {kycStatus !== "verified" ? (
+                      {kycStatus === "verified" ? (
+                        <div className="flex items-center w-full px-4 py-2 text-sm text-green-600">
+                          <CheckCircle className="h-4 w-4 mr-2.5" />
+                          <span>Verified</span>
+                        </div>
+                      ) : kycStatus === "pending" ? (
+                        <div className="flex items-center w-full px-4 py-2 text-sm text-yellow-600">
+                          <AlertCircle className="h-4 w-4 mr-2.5 text-yellow-500" />
+                          <span>Pending Verification</span>
+                        </div>
+                      ) : kycStatus === "rejected" ? (
+                        <button
+                          onClick={() => {
+                            setIsUserMenuOpen(false);
+                            handleOpenKycModal();
+                          }}
+                          className="flex w-full px-4 py-2 text-sm text-red-600 hover:bg-red-50 hover:text-red-700 text-left transition-colors items-center"
+                        >
+                          <AlertCircle className="h-4 w-4 mr-2.5 text-red-500" />
+                          <span>Rejected - Update KYC</span>
+                        </button>
+                      ) : (
                         <button
                           onClick={() => {
                             setIsUserMenuOpen(false);
@@ -610,11 +668,6 @@ export default function Navbar() {
                           <AlertCircle className="h-4 w-4 mr-2.5 text-gray-400" />
                           <span>KYC Verification</span>
                         </button>
-                      ) : (
-                        <div className="flex items-center w-full px-4 py-2 text-sm text-green-600">
-                          <CheckCircle className="h-4 w-4 mr-2.5" />
-                          <span>Verified</span>
-                        </div>
                       )}
                     </div>
 
@@ -695,6 +748,7 @@ export default function Navbar() {
         }}
         kycStatus={kycStatus}
         navigateToDashboard={navigateToDashboard}
+        driverRating={formattedRating} // Pass rating to mobile menu
       />
 
       {/* Profile Modal */}
@@ -706,8 +760,8 @@ export default function Navbar() {
         />
       )}
 
-      {/* Driver KYC Modal - Only keeping driver modal, user KYC is now a page */}
-      {isAuthenticated && (
+      {/* Driver KYC Modal - ONLY render if we're not on the driver KYC page */}
+      {isAuthenticated && !isOnDriverKycPage && (
         <DriverKycModal
           isOpen={showDriverKycModal}
           onClose={() => setShowDriverKycModal(false)}

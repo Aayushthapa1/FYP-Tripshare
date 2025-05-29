@@ -7,7 +7,7 @@
 export const getTrafficCondition = async (origin, destination) => {
     try {
         // Make request to Google Maps Directions API
-        // Note: You need to replace YOUR_API_KEY with your actual Google Maps API key
+       
         const response = await fetch(
             `https://maps.googleapis.com/maps/api/directions/json?origin=${origin.lat},${origin.lng}&destination=${destination.lat},${destination.lng}&departure_time=now&traffic_model=best_guess&key=AIzaSyAfVD-fFk1aa4yy4YFesrLIXhxwNHhQtxU`
         );
@@ -60,19 +60,19 @@ export const calculateFareWithTraffic = (distKm, vehicleType, trafficCondition =
     // Set base rates by vehicle type
     switch (vehicleType) {
         case "Bike":
-            baseFare = 50;
+            baseFare = 10;
             ratePerKm = 15;
             break;
         case "Car":
-            baseFare = 100;
+            baseFare = 30;
             ratePerKm = 30;
             break;
         case "Electric":
-            baseFare = 80;
+            baseFare = 25;
             ratePerKm = 25;
             break;
         default:
-            baseFare = 100;
+            baseFare = 10;
             ratePerKm = 30;
     }
     

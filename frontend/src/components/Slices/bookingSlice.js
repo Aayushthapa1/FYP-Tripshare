@@ -22,6 +22,7 @@ export const createBooking = createAsyncThunk(
       const result = await bookingService.createBooking({ tripId, seats, paymentMethod });
       return result;
     } catch (err) {
+      
       return rejectWithValue(err.message);
     }
   }
@@ -78,9 +79,9 @@ export const fetchDriverPendingBookings = createAsyncThunk(
   async (_, { rejectWithValue }) => {
     try {
 
-const result =  await bookingService.getDriverPendingBookings();
-console.log("the result is", result)
-return result?.Result;
+      const result = await bookingService.getDriverPendingBookings();
+      console.log("the result is", result)
+      return result?.Result;
     } catch (err) {
       return rejectWithValue(err.message);
     }
@@ -92,7 +93,7 @@ export const fetchDriverBookings = createAsyncThunk(
   "booking/getDriverBookings",
   async (_, { rejectWithValue }) => {
     try {
-      const result =await bookingService.getDriverBookings();
+      const result = await bookingService.getDriverBookings();
       return result.Result
     } catch (err) {
       return rejectWithValue(err.message);

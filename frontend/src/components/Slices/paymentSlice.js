@@ -1,4 +1,4 @@
-// paymentSlice.js
+// paymentSlice.js - Updated to correctly handle API response format
 import { createSlice, createAsyncThunk } from "@reduxjs/toolkit";
 import paymentService from "../../services/paymentService";
 
@@ -25,14 +25,16 @@ export const initiatePayment = createAsyncThunk(
             const result = await paymentService.initiatePayment(paymentData);
             console.log("Payment initiation result:", result);
 
-            if (!result.IsSuccess) {
+            // Check if the response indicates success
+            if (!result.IsSuccess && result.StatusCode !== 200) {
                 return rejectWithValue({
-                    message: result.message || "Payment initiation failed",
-                    errors: result.errors || []
+                    message: result.ErrorMessage || "Payment initiation failed",
+                    errors: result.ErrorMessage || []
                 });
             }
 
-            return result.data;
+            // Return the data from the response
+            return result.Result
         } catch (error) {
             console.error("Payment initiation error:", error);
             return rejectWithValue({
@@ -69,14 +71,14 @@ export const completeKhaltiPayment = createAsyncThunk(
 
             // Note: This endpoint redirects in the backend, so we may not get a typical response
             // We'll handle the redirect in the UI based on the URL after redirect
-            if (!result.success && result.data) {
+            if (!result.IsSuccess && result.StatusCode !== 200) {
                 return rejectWithValue({
-                    message: result.message || "Failed to complete payment",
-                    errors: result.errors || []
+                    message: result.ErrorMessage || "Failed to complete payment",
+                    errors: result.ErrorMessage || []
                 });
             }
 
-            return result.data;
+            return result.Result || result.data || result;
         } catch (error) {
             console.error("Complete Khalti payment error:", error);
             return rejectWithValue({
@@ -104,14 +106,14 @@ export const checkKhaltiPaymentStatus = createAsyncThunk(
 
             const result = await paymentService.checkKhaltiPaymentStatus(queryParams);
 
-            if (!result.success) {
+            if (!result.IsSuccess && result.StatusCode !== 200) {
                 return rejectWithValue({
-                    message: result.message || "Failed to check payment status",
-                    errors: result.errors || []
+                    message: result.ErrorMessage || "Failed to check payment status",
+                    errors: result.ErrorMessage || []
                 });
             }
 
-            return result.data;
+            return result.Result || result.data || result;
         } catch (error) {
             console.error("Payment status check error:", error);
             return rejectWithValue({
@@ -134,9 +136,16 @@ export const getPaymentDetails = createAsyncThunk(
             }
 
             const result = await paymentService.getPaymentDetails(paymentId);
+            console.log("Payment details result:", result);
 
-           console.log("Payment details result:", result);
-            return result.Result;
+            if (!result.IsSuccess && result.StatusCode !== 200) {
+                return rejectWithValue({
+                    message: result.ErrorMessage || "Failed to get payment details",
+                    errors: result.ErrorMessage || []
+                });
+            }
+
+            return result.Result || result.data || result;
         } catch (error) {
             console.error("Get payment details error:", error);
             return rejectWithValue({
@@ -160,14 +169,14 @@ export const getPaymentStatusByBooking = createAsyncThunk(
 
             const result = await paymentService.getPaymentStatusByBooking(bookingId);
 
-            if (!result.success) {
+            if (!result.IsSuccess && result.StatusCode !== 200) {
                 return rejectWithValue({
-                    message: result.message || "Failed to get payment status",
-                    errors: result.errors || []
+                    message: result.ErrorMessage || "Failed to get payment status",
+                    errors: result.ErrorMessage || []
                 });
             }
 
-            return result.data;
+            return result.Result || result.data || result;
         } catch (error) {
             console.error("Get payment status error:", error);
             return rejectWithValue({
@@ -186,15 +195,16 @@ export const getAllPayments = createAsyncThunk(
             console.log("Fetching all payments with filters:", filters);
 
             const result = await paymentService.getAllPayments(filters);
+            console.log("Get all payments result:", result);
 
-            if (!result.success) {
+            if (!result.IsSuccess && result.StatusCode !== 200) {
                 return rejectWithValue({
-                    message: result.message || "Failed to get payments",
-                    errors: result.errors || []
+                    message: result.ErrorMessage || "Failed to get payments",
+                    errors: result.ErrorMessage || []
                 });
             }
 
-            return result.data;
+            return result.Result || result.data || result;
         } catch (error) {
             console.error("Get all payments error:", error);
             return rejectWithValue({
@@ -215,9 +225,14 @@ export const getUserPayments = createAsyncThunk(
             const result = await paymentService.getUserPayments(filters);
             console.log("User payments result:", result);
 
-           
+            if (!result.IsSuccess && result.StatusCode !== 200) {
+                return rejectWithValue({
+                    message: result.ErrorMessage || "Failed to get user payments",
+                    errors: result.ErrorMessage || []
+                });
+            }
 
-            return result.Result;
+            return result.Result || result.data || result;
         } catch (error) {
             console.error("Get user payments error:", error);
             return rejectWithValue({
@@ -238,9 +253,14 @@ export const getDriverPayments = createAsyncThunk(
             const result = await paymentService.getDriverPayments(filters);
             console.log("Driver payments result:", result);
 
-           
+            if (!result.IsSuccess && result.StatusCode !== 200) {
+                return rejectWithValue({
+                    message: result.ErrorMessage || "Failed to get driver payments",
+                    errors: result.ErrorMessage || []
+                });
+            }
 
-            return result.Result;
+            return result.Result || result.data || result;
         } catch (error) {
             console.error("Get driver payments error:", error);
             return rejectWithValue({
@@ -259,15 +279,17 @@ export const getAdminPaymentStats = createAsyncThunk(
             console.log("Fetching admin payment stats with filters:", filters);
 
             const result = await paymentService.getAdminPaymentStats(filters);
+            console.log("Admin payment stats result:", result);
 
-            if (!result.success) {
+            // Check using the correct property names from your API
+            if (!result.IsSuccess && result.StatusCode !== 200) {
                 return rejectWithValue({
-                    message: result.message || "Failed to get admin payment stats",
-                    errors: result.errors || []
+                    message: result.ErrorMessage || "Failed to get admin payment stats",
+                    errors: result.ErrorMessage || []
                 });
             }
 
-            return result.data;
+            return result.Result || result.data || result;
         } catch (error) {
             console.error("Get admin payment stats error:", error);
             return rejectWithValue({
@@ -517,6 +539,8 @@ const paymentSlice = createSlice({
             })
             .addCase(getAllPayments.fulfilled, (state, action) => {
                 state.loading = false;
+                // Make sure we're accessing the correct property structure
+                console.log("getAllPayments fulfilled with payload:", action.payload);
                 state.payments = action.payload.payments || [];
 
                 // Store pagination if provided
@@ -588,8 +612,14 @@ const paymentSlice = createSlice({
             })
             .addCase(getAdminPaymentStats.fulfilled, (state, action) => {
                 state.statsLoading = false;
+
+                // Log what we received to debug the payload structure
+                console.log("getAdminPaymentStats fulfilled with payload:", action.payload);
+
+                // Extract stats and recentPayments based on your API response structure
                 state.adminStats = action.payload.stats || null;
                 state.recentPayments = action.payload.recentPayments || [];
+
                 state.lastAction = Date.now();
             })
             .addCase(getAdminPaymentStats.rejected, (state, action) => {

@@ -404,7 +404,7 @@ export default function UserDashboard() {
   // Get payment amount with formatting
   const getPaymentAmount = (payment) => {
     if (!payment || typeof payment.amount !== "number") return "N/A";
-    return `$${payment.amount.toFixed(2)}`;
+    return `Rs. ${payment.amount.toFixed()}`;
   };
 
   // If not authenticated, don't render the dashboard
@@ -528,8 +528,6 @@ export default function UserDashboard() {
                 )}
               </button>
 
-             
-
               <button
                 onClick={() => setActiveSection("bookings")}
                 className={`flex items-center ${
@@ -550,8 +548,6 @@ export default function UserDashboard() {
                 )}
               </button>
 
-              
-
               <button
                 onClick={() => setActiveSection("payments")}
                 className={`flex items-center ${
@@ -568,53 +564,6 @@ export default function UserDashboard() {
                   Payment History
                 </span>
                 {activeSection === "payments" && !collapsed && (
-                  <ChevronRight className="w-4 h-4 ml-auto text-green-600 dark:text-green-400" />
-                )}
-              </button>
-
-              <button
-                onClick={() => setActiveSection("notifications")}
-                className={`flex items-center ${
-                  collapsed ? "justify-center" : ""
-                } space-x-3 p-3 rounded-lg transition-all duration-200
-                 ${
-                   activeSection === "notifications"
-                     ? "bg-green-50 text-green-600 font-medium dark:bg-green-900/30 dark:text-green-400"
-                     : "text-slate-700 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-700/50"
-                 }`}
-              >
-                <div className="relative">
-                  <Bell className="w-5 h-5 flex-shrink-0" />
-                  {unreadCount > 0 && (
-                    <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full h-4 w-4 flex items-center justify-center">
-                      {unreadCount}
-                    </span>
-                  )}
-                </div>
-                <span className={`${collapsed ? "md:hidden" : ""}`}>
-                  Notifications
-                </span>
-                {activeSection === "notifications" && !collapsed && (
-                  <ChevronRight className="w-4 h-4 ml-auto text-green-600 dark:text-green-400" />
-                )}
-              </button>
-
-              <button
-                onClick={() => setActiveSection("settings")}
-                className={`flex items-center ${
-                  collapsed ? "justify-center" : ""
-                } space-x-3 p-3 rounded-lg transition-all duration-200
-                 ${
-                   activeSection === "settings"
-                     ? "bg-green-50 text-green-600 font-medium dark:bg-green-900/30 dark:text-green-400"
-                     : "text-slate-700 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-700/50"
-                 }`}
-              >
-                <Settings className="w-5 h-5 flex-shrink-0" />
-                <span className={`${collapsed ? "md:hidden" : ""}`}>
-                  Settings
-                </span>
-                {activeSection === "settings" && !collapsed && (
                   <ChevronRight className="w-4 h-4 ml-auto text-green-600 dark:text-green-400" />
                 )}
               </button>
@@ -663,14 +612,13 @@ export default function UserDashboard() {
 
                 <h1 className="text-xl font-semibold text-slate-800 dark:text-white">
                   {activeSection === "dashboard" && "Dashboard"}
-                 
+
                   {activeSection === "bookings" && "My Bookings"}
-            
+
                   {activeSection === "payments" && "Payment History"}
-            
+
                   {activeSection === "saved-locations" && "Saved Locations"}
                   {activeSection === "favorite-routes" && "Favorite Routes"}
-                
                 </h1>
               </div>
 
@@ -811,7 +759,7 @@ export default function UserDashboard() {
                         Total Spent
                       </h4>
                       <p className="text-3xl font-bold text-slate-800 dark:text-white">
-                        ${totalSpent.toFixed(2)}
+                        Rs. {totalSpent.toFixed()}
                       </p>
                     </div>
                   </div>
@@ -905,7 +853,7 @@ export default function UserDashboard() {
                                 boxShadow:
                                   "0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)",
                               }}
-                              formatter={(value) => [`$${value}`, "Amount"]}
+                              formatter={(value) => [`Rs. ${value}`, "Amount"]}
                             />
                             <Bar
                               dataKey="amount"
@@ -986,7 +934,7 @@ export default function UserDashboard() {
                               </div>
                               <div className="mt-4 flex items-center gap-3 sm:mt-0">
                                 <p className="font-medium text-slate-800 dark:text-white">
-                                  ${booking.totalAmount || "N/A"}
+                                  Rs. {booking.totalAmount || "N/A"}
                                 </p>
                                 <button
                                   className="rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-200 dark:hover:bg-slate-600 transition-colors"
@@ -1329,7 +1277,7 @@ export default function UserDashboard() {
                                 </div>
                                 <div>
                                   <span className="text-lg font-bold text-slate-800 dark:text-white">
-                                    $
+                                    Rs.{" "}
                                     {booking.totalAmount
                                       ? booking.totalAmount.toFixed(2)
                                       : "N/A"}
@@ -1495,7 +1443,8 @@ export default function UserDashboard() {
                           Total Amount
                         </p>
                         <h3 className="text-2xl font-bold text-blue-600 dark:text-blue-400 mt-1">
-                          ${userPaymentStats.totalAmount?.toFixed(2) || "0.00"}
+                          Rs.{" "}
+                          {userPaymentStats.totalAmount?.toFixed() || "0.00"}
                         </h3>
                       </div>
                     </div>

@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { useDispatch } from "react-redux";
-import { searchTrips } from "../Slices/tripSlice"; // Update this path as needed
+import { useDispatch, useSelector } from "react-redux"; // Added useSelector
+import { searchTrips } from "../Slices/tripSlice";
 import {
   ArrowRight,
   Users,
@@ -10,6 +10,8 @@ import {
   Star,
   Search,
   ChevronRight,
+  Car,
+  Plus,
 } from "lucide-react";
 import { motion } from "framer-motion";
 
@@ -19,6 +21,10 @@ export default function HeroSection() {
   const [isLoaded, setIsLoaded] = useState(false);
   const [searchInput, setSearchInput] = useState("");
 
+  // Get user authentication state and role from Redux
+  const { user, isAuthenticated } = useSelector((state) => state.auth || {});
+  const userRole = user?.role || "user";
+
   useEffect(() => {
     // Set loaded state after a small delay to trigger animations
     const timer = setTimeout(() => setIsLoaded(true), 100);
@@ -27,6 +33,14 @@ export default function HeroSection() {
 
   const handleFindRide = () => {
     navigate("/trips");
+  };
+
+  const handleOfferRide = () => {
+    navigate("/tripForm");
+  };
+
+  const handleRequestRide = () => {
+    navigate("/requestride");
   };
 
   const handleSearch = (e) => {
@@ -66,6 +80,83 @@ export default function HeroSection() {
         delayChildren: 0.3,
       },
     },
+  };
+
+  // Conditionally render buttons based on user role
+  const renderActionButtons = () => {
+    // Not authenticated - show both options
+    if (!isAuthenticated) {
+      return (
+        <div className="flex flex-col sm:flex-row justify-center gap-4 mb-8 md:mb-12">
+          <button
+            onClick={handleFindRide}
+            className="group relative px-6 py-3 md:px-8 md:py-4 bg-green-500 text-white rounded-lg overflow-hidden transition-all duration-300 hover:bg-green-600 shadow-lg flex items-center justify-center"
+          >
+            <span className="relative z-10 text-base md:text-lg font-medium flex items-center">
+              Find a Ride
+              <ArrowRight className="ml-2 w-5 h-5 transition-transform duration-300 group-hover:translate-x-1" />
+            </span>
+            <div className="absolute inset-0 bg-gradient-to-r from-green-600 to-green-400 transform translate-y-full transition-transform duration-300 group-hover:translate-y-0" />
+          </button>
+
+          <button
+            onClick={() => navigate("/login")}
+            className="group relative px-6 py-3 md:px-8 md:py-4 bg-white/10 backdrop-blur-sm text-white rounded-lg overflow-hidden transition-all duration-300 hover:bg-white/20 border border-white/20 shadow-lg flex items-center justify-center"
+          >
+            <span className="relative z-10 text-base md:text-lg font-medium flex items-center">
+              Offer a Ride
+              <Users className="ml-2 w-5 h-5 transition-transform duration-300 group-hover:scale-110" />
+            </span>
+          </button>
+        </div>
+      );
+    }
+
+    // Driver role - show offer ride button
+    else if (userRole === "driver") {
+      return (
+        <div className="flex flex-col sm:flex-row justify-center gap-4 mb-8 md:mb-12">
+          <button
+            onClick={handleOfferRide}
+            className="group relative px-6 py-3 md:px-8 md:py-4 bg-green-500 text-white rounded-lg overflow-hidden transition-all duration-300 hover:bg-green-600 shadow-lg flex items-center justify-center"
+          >
+            <span className="relative z-10 text-base md:text-lg font-medium flex items-center">
+              Offer a Ride
+              <Plus className="ml-2 w-5 h-5 transition-transform duration-300 group-hover:scale-110" />
+            </span>
+            <div className="absolute inset-0 bg-gradient-to-r from-green-600 to-green-400 transform translate-y-full transition-transform duration-300 group-hover:translate-y-0" />
+          </button>
+        </div>
+      );
+    }
+
+    // User role - show find ride button
+    else {
+      return (
+        <div className="flex flex-col sm:flex-row justify-center gap-4 mb-8 md:mb-12">
+          <button
+            onClick={handleRequestRide}
+            className="group relative px-6 py-3 md:px-8 md:py-4 bg-green-500 text-white rounded-lg overflow-hidden transition-all duration-300 hover:bg-green-600 shadow-lg flex items-center justify-center"
+          >
+            <span className="relative z-10 text-base md:text-lg font-medium flex items-center">
+              Request a Ride
+              <Car className="ml-2 w-5 h-5 transition-transform duration-300 group-hover:translate-x-1" />
+            </span>
+            <div className="absolute inset-0 bg-gradient-to-r from-green-600 to-green-400 transform translate-y-full transition-transform duration-300 group-hover:translate-y-0" />
+          </button>
+
+          <button
+            onClick={handleFindRide}
+            className="group relative px-6 py-3 md:px-8 md:py-4 bg-white/10 backdrop-blur-sm text-white rounded-lg overflow-hidden transition-all duration-300 hover:bg-white/20 border border-white/20 shadow-lg flex items-center justify-center"
+          >
+            <span className="relative z-10 text-base md:text-lg font-medium flex items-center">
+              Find Trips
+              <MapPin className="ml-2 w-5 h-5 transition-transform duration-300 group-hover:scale-110" />
+            </span>
+          </button>
+        </div>
+      );
+    }
   };
 
   return (
@@ -133,29 +224,8 @@ export default function HeroSection() {
             Save money, reduce emissions, and make new connections.
           </motion.p>
 
-          {/* CTA buttons with improved styling */}
-          <motion.div
-            variants={fadeInUp}
-            className="flex flex-col sm:flex-row justify-center gap-4 mb-8 md:mb-12"
-          >
-            <button
-              onClick={handleFindRide}
-              className="group relative px-6 py-3 md:px-8 md:py-4 bg-green-500 text-white rounded-lg overflow-hidden transition-all duration-300 hover:bg-green-600 shadow-lg flex items-center justify-center"
-            >
-              <span className="relative z-10 text-base md:text-lg font-medium flex items-center">
-                Find a Ride
-                <ArrowRight className="ml-2 w-5 h-5 transition-transform duration-300 group-hover:translate-x-1" />
-              </span>
-              <div className="absolute inset-0 bg-gradient-to-r from-green-600 to-green-400 transform translate-y-full transition-transform duration-300 group-hover:translate-y-0" />
-            </button>
-
-            <button className="group relative px-6 py-3 md:px-8 md:py-4 bg-white/10 backdrop-blur-sm text-white rounded-lg overflow-hidden transition-all duration-300 hover:bg-white/20 border border-white/20 shadow-lg flex items-center justify-center">
-              <span className="relative z-10 text-base md:text-lg font-medium flex items-center">
-                Offer a Ride
-                <Users className="ml-2 w-5 h-5 transition-transform duration-300 group-hover:scale-110" />
-              </span>
-            </button>
-          </motion.div>
+          {/* Dynamically rendered action buttons */}
+          <motion.div variants={fadeInUp}>{renderActionButtons()}</motion.div>
 
           {/* Search bar with enhanced styling */}
           <motion.form

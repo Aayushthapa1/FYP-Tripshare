@@ -10,6 +10,8 @@ import {
   MessageSquare,
   UserCheck,
   ShieldCheck,
+  Banknote,
+  RefreshCw,
 } from "lucide-react";
 import {
   AreaChart,
@@ -28,7 +30,10 @@ import {
 } from "recharts";
 import { fetchAllUsers } from "../../Slices/userSlice";
 import { fetchAdminTripAnalytics } from "../../Slices/tripSlice";
-import { getAdminPaymentStats, getAllPayments } from "../../Slices/paymentSlice";
+import {
+  getAdminPaymentStats,
+  getAllPayments,
+} from "../../Slices/paymentSlice";
 
 function AdminDashboard() {
   const dispatch = useDispatch();
@@ -43,22 +48,21 @@ function AdminDashboard() {
     loading: usersLoading,
     error: userError,
   } = useSelector((state) => state.user);
-  console.log("Users from Redux:ok", users, userStats, pagination, usersLoading, userError);
-  
+
   const {
     adminAnalytics,
     adminAnalyticsLoading,
     error: tripError,
   } = useSelector((state) => state.trip);
-  console.log("Trip Analytics from Redux:ok", adminAnalytics, adminAnalyticsLoading, tripError);
-  
+
   const {
-    payments,
-    adminPaymentStats,
+    payments = [],
+    adminStats: adminPaymentStats,
+    recentPayments = [],
     loading: paymentsLoading,
+    statsLoading: paymentStatsLoading,
     error: paymentError,
   } = useSelector((state) => state.payment || {});
-  console.log("Payments from Redux:ok", payments, adminPaymentStats, paymentsLoading, paymentError);
 
   // Debug data coming from Redux
   useEffect(() => {
@@ -66,8 +70,18 @@ function AdminDashboard() {
     console.log("User Stats from Redux:", userStats);
     console.log("Trip Analytics from Redux:", adminAnalytics);
     console.log("Payment Stats from Redux:", adminPaymentStats);
+    console.log("Recent Payments from Redux:", recentPayments);
     console.log("Error from Redux:", userError || tripError || paymentError);
-  }, [users, userStats, adminAnalytics, adminPaymentStats, userError, tripError, paymentError]);
+  }, [
+    users,
+    userStats,
+    adminAnalytics,
+    adminPaymentStats,
+    recentPayments,
+    userError,
+    tripError,
+    paymentError,
+  ]);
 
   // Calculate user statistics based on your database schema
   const totalUsers = userStats?.totalUsers || users?.length || 0;
@@ -98,7 +112,7 @@ function AdminDashboard() {
 
   const getInProgressTrips = () => {
     if (!adminAnalytics || !adminAnalytics.tripsByStatus) return 124; // Fallback value
-    return adminAnalytics.tripsByStatus['in-progress'] || 124;
+    return adminAnalytics.tripsByStatus["in-progress"] || 124;
   };
 
   const getScheduledTrips = () => {
@@ -108,15 +122,27 @@ function AdminDashboard() {
 
   // Revenue statistics with fallbacks
   const getTotalRevenue = () => {
-    if (!adminAnalytics && !adminPaymentStats) return 8520; // Fallback value
+    if (!adminPaymentStats && !adminAnalytics) return 8520; // Fallback value
+
+    // First try to get from adminPaymentStats (preferred source)
+    if (adminPaymentStats && adminPaymentStats.totalAmount) {
+      return adminPaymentStats.totalAmount;
+    }
+
+    // Then try adminAnalytics as fallback
     const analyticsRevenue = adminAnalytics?.summary?.totalRevenue;
-    const paymentStatsRevenue = adminPaymentStats?.totalRevenue;
-    return paymentStatsRevenue || analyticsRevenue || 8520;
+    return analyticsRevenue || 8520;
   };
 
   const getCurrentPeriodRevenue = () => {
     if (!adminPaymentStats) return 12234; // Fallback value
-    return adminPaymentStats.currentPeriodRevenue || 12234;
+
+    // Try to extract from adminPaymentStats
+    const currentPeriodRevenue =
+      adminPaymentStats.currentPeriodAmount ||
+      adminPaymentStats.totalAmount ||
+      12234;
+    return currentPeriodRevenue;
   };
 
   // Dispute statistics with fallbacks
@@ -148,25 +174,77 @@ function AdminDashboard() {
       { name: "Sun", revenue: 3490, users: 4300, rides: 2100 },
     ];
 
-    if (!adminAnalytics || !adminAnalytics.bookingTrends) {
-      return defaultData;
-    }
-
     try {
-      // Use adminPaymentStats.revenueTrends if available, otherwise generate from bookingTrends
-      if (adminPaymentStats && adminPaymentStats.revenueTrends && adminPaymentStats.revenueTrends.length > 0) {
-        return adminPaymentStats.revenueTrends.map((item) => ({
-          name: new Date(item.date).toLocaleDateString('en-US', { weekday: 'short' }),
-          revenue: item.revenue || 0,
+      // Check if we have chart data from adminPaymentStats
+      if (
+        adminPaymentStats &&
+        adminPaymentStats.chartData &&
+        adminPaymentStats.chartData.length > 0
+      ) {
+        return adminPaymentStats.chartData.map((item) => ({
+          name: item.date
+            ? new Date(item.date).toLocaleDateString("en-US", {
+                weekday: "short",
+              })
+            : "Day",
+          revenue: item.amount || 0,
           users: item.userCount || 0,
-          rides: item.rideCount || 0
+          rides: item.count || 0,
         }));
-      } else if (adminAnalytics.bookingTrends && adminAnalytics.bookingTrends.length > 0) {
+      }
+
+      // If not, try to use recentPayments to generate chart data
+      if (Array.isArray(recentPayments) && recentPayments.length > 0) {
+        // Group payments by date
+        const paymentsByDate = recentPayments.reduce((acc, payment) => {
+          const date = payment.createdAt
+            ? new Date(payment.createdAt).toLocaleDateString("en-US", {
+                weekday: "short",
+              })
+            : "Unknown";
+
+          if (!acc[date]) {
+            acc[date] = {
+              total: 0,
+              count: 0,
+              users: new Set(),
+            };
+          }
+
+          acc[date].total += payment.amount || 0;
+          acc[date].count += 1;
+          if (payment.user && payment.user._id) {
+            acc[date].users.add(payment.user._id);
+          }
+
+          return acc;
+        }, {});
+
+        // Convert to chart data format
+        return Object.entries(paymentsByDate).map(([date, data]) => ({
+          name: date,
+          revenue: data.total,
+          users: data.users.size,
+          rides: data.count,
+        }));
+      }
+
+      // As a last resort, try to use adminAnalytics
+      if (
+        adminAnalytics &&
+        adminAnalytics.bookingTrends &&
+        adminAnalytics.bookingTrends.length > 0
+      ) {
         return adminAnalytics.bookingTrends.map((item) => ({
-          name: new Date(item.date).toLocaleDateString('en-US', { weekday: 'short' }),
-          revenue: Math.round((adminAnalytics.summary?.totalRevenue || 85245) / adminAnalytics.bookingTrends.length),
+          name: new Date(item.date).toLocaleDateString("en-US", {
+            weekday: "short",
+          }),
+          revenue: Math.round(
+            (adminAnalytics.summary?.totalRevenue || 85245) /
+              adminAnalytics.bookingTrends.length
+          ),
           users: 0,
-          rides: item.count || 0
+          rides: item.count || 0,
         }));
       }
 
@@ -188,52 +266,125 @@ function AdminDashboard() {
       { name: "Jun", booking: 2390, payment: 3800 },
     ];
 
-    if (!adminAnalytics && !adminPaymentStats) {
-      return defaultData;
-    }
-
     try {
-      // Generate from adminAnalytics and adminPaymentStats
-      const bookingData = adminAnalytics?.bookingTrends || [];
-      const paymentData = adminPaymentStats?.paymentTrends || [];
-      
-      if (bookingData.length === 0 && paymentData.length === 0) {
-        return defaultData;
+      // If we have payment data from adminPaymentStats
+      if (
+        adminPaymentStats &&
+        adminPaymentStats.monthlyStats &&
+        adminPaymentStats.monthlyStats.length > 0
+      ) {
+        return adminPaymentStats.monthlyStats.map((item) => ({
+          name: item.month || "Month",
+          payment: item.amount || 0,
+          booking: item.bookings || 0,
+        }));
       }
-      
-      // Group by month
-      const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-      const result = months.map(month => ({ name: month, booking: 0, payment: 0 }));
-      
-      // Populate booking data
-      bookingData.forEach(item => {
-        try {
-          const date = new Date(item.date);
-          if (!isNaN(date.getTime())) {
-            const month = date.getMonth();
-            result[month].booking += item.count || 0;
+
+      // Generate from recentPayments if available
+      if (Array.isArray(recentPayments) && recentPayments.length > 0) {
+        // Group by month
+        const months = [
+          "Jan",
+          "Feb",
+          "Mar",
+          "Apr",
+          "May",
+          "Jun",
+          "Jul",
+          "Aug",
+          "Sep",
+          "Oct",
+          "Nov",
+          "Dec",
+        ];
+        const paymentsByMonth = recentPayments.reduce((acc, payment) => {
+          if (!payment.createdAt) return acc;
+
+          const date = new Date(payment.createdAt);
+          const month = date.getMonth();
+          const monthName = months[month];
+
+          if (!acc[monthName]) {
+            acc[monthName] = {
+              payment: 0,
+              booking: 0,
+            };
           }
-        } catch (err) {
-          console.error("Error processing booking data:", err);
-        }
-      });
-      
-      // Populate payment data
-      paymentData.forEach(item => {
-        try {
-          const date = new Date(item.date);
-          if (!isNaN(date.getTime())) {
-            const month = date.getMonth();
-            result[month].payment += item.count || item.amount || 0;
+
+          acc[monthName].payment += payment.amount || 0;
+          acc[monthName].booking += 1;
+
+          return acc;
+        }, {});
+
+        // Convert to chart format
+        return Object.entries(paymentsByMonth).map(([month, data]) => ({
+          name: month,
+          payment: data.payment,
+          booking: data.booking,
+        }));
+      }
+
+      // Generate from adminAnalytics and adminPaymentStats if available
+      if (adminAnalytics && adminAnalytics.bookingTrends) {
+        const bookingData = adminAnalytics.bookingTrends || [];
+
+        // Group by month
+        const months = [
+          "Jan",
+          "Feb",
+          "Mar",
+          "Apr",
+          "May",
+          "Jun",
+          "Jul",
+          "Aug",
+          "Sep",
+          "Oct",
+          "Nov",
+          "Dec",
+        ];
+        const result = months.map((month) => ({
+          name: month,
+          booking: 0,
+          payment: 0,
+        }));
+
+        // Populate booking data
+        bookingData.forEach((item) => {
+          try {
+            const date = new Date(item.date);
+            if (!isNaN(date.getTime())) {
+              const month = date.getMonth();
+              result[month].booking += item.count || 0;
+            }
+          } catch (err) {
+            console.error("Error processing booking data:", err);
           }
-        } catch (err) {
-          console.error("Error processing payment data:", err);
-        }
-      });
-      
-      // Return only months with data or default if none
-      const filteredResult = result.filter(item => item.booking > 0 || item.payment > 0);
-      return filteredResult.length > 0 ? filteredResult : defaultData.slice(0, 6);
+        });
+
+        // For payments, use total amount divided among months with bookings
+        const totalPaymentAmount = getTotalRevenue();
+        const monthsWithBookings =
+          result.filter((m) => m.booking > 0).length || 1;
+        const paymentPerMonth = totalPaymentAmount / monthsWithBookings;
+
+        result.forEach((item, index) => {
+          if (item.booking > 0) {
+            result[index].payment = paymentPerMonth;
+          }
+        });
+
+        // Return only months with data or default if none
+        const filteredResult = result.filter(
+          (item) => item.booking > 0 || item.payment > 0
+        );
+        return filteredResult.length > 0
+          ? filteredResult
+          : defaultData.slice(0, 6);
+      }
+
+      return defaultData;
     } catch (error) {
       console.error("Error generating booking/payment chart data:", error);
       return defaultData;
@@ -296,19 +447,39 @@ function AdminDashboard() {
       },
     ];
 
-    if ((!users || users.length === 0) && 
-        (!adminAnalytics || !adminAnalytics.tripsByUserType || !adminAnalytics.tripsByUserType.passenger)) {
-      return defaultActivities;
-    }
-
     try {
       const activities = [];
-      
+
+      // Add recent payments to activities if available
+      if (Array.isArray(recentPayments) && recentPayments.length > 0) {
+        const paymentActivities = recentPayments
+          .slice(0, 3)
+          .map((payment, index) => ({
+            id: payment._id || `payment-${index}`,
+            user: payment.user?.fullName || "User",
+            action: `Made a payment of Rs. ${payment.amount || 0} for ${
+              payment.bookingType || "booking"
+            }`,
+            time: payment.createdAt
+              ? new Date(payment.createdAt).toLocaleDateString()
+              : "Recently",
+            status: payment.status || "Completed",
+            statusColor:
+              payment.status === "completed"
+                ? "bg-emerald-600"
+                : payment.status === "pending"
+                ? "bg-amber-500"
+                : "bg-red-500",
+          }));
+
+        activities.push(...paymentActivities);
+      }
+
       // Add recent users
       if (users && users.length > 0) {
         // Sort users by createdAt date (newest first)
         const sortedUsers = [...users]
-          .filter(user => user.createdAt) // Ensure createdAt exists
+          .filter((user) => user.createdAt) // Ensure createdAt exists
           .sort((a, b) => {
             return new Date(b.createdAt || 0) - new Date(a.createdAt || 0);
           })
@@ -342,39 +513,43 @@ function AdminDashboard() {
           });
         });
       }
-      
+
       // Add recent trips/bookings
-      if (adminAnalytics && 
-          adminAnalytics.tripsByUserType && 
-          adminAnalytics.tripsByUserType.passenger && 
-          adminAnalytics.tripsByUserType.passenger.length > 0) {
-        // Sort by most recent 
+      if (
+        adminAnalytics &&
+        adminAnalytics.tripsByUserType &&
+        adminAnalytics.tripsByUserType.passenger &&
+        adminAnalytics.tripsByUserType.passenger.length > 0
+      ) {
+        // Sort by most recent
         const recentBookings = [...adminAnalytics.tripsByUserType.passenger]
-          .filter(booking => booking.bookedAt) // Ensure bookedAt exists
+          .filter((booking) => booking.bookedAt) // Ensure bookedAt exists
           .sort((a, b) => new Date(b.bookedAt || 0) - new Date(a.bookedAt || 0))
           .slice(0, 2);
-          
+
         recentBookings.forEach((booking, index) => {
           activities.push({
             id: booking.bookingId || `booking-${index}`,
             user: booking.passengerName || "Passenger",
-            action: `Booked trip from ${booking.departureLocation || 'location'} to ${booking.destinationLocation || 'destination'}`,
-            time: booking.bookedAt 
+            action: `Booked trip from ${
+              booking.departureLocation || "location"
+            } to ${booking.destinationLocation || "destination"}`,
+            time: booking.bookedAt
               ? new Date(booking.bookedAt).toLocaleDateString()
               : "Recently",
             status: booking.status || "Booked",
-            statusColor: 
-              booking.status === "completed" 
-                ? "bg-emerald-600" 
+            statusColor:
+              booking.status === "completed"
+                ? "bg-emerald-600"
                 : booking.status === "cancelled"
                 ? "bg-red-500"
                 : "bg-violet-600",
           });
         });
       }
-      
+
       // Sort all activities by time (most recent first) and take top 5
-      return activities.length > 0 
+      return activities.length > 0
         ? activities
             .sort((a, b) => {
               // This is a simplified sort - could enhance with proper date parsing
@@ -393,28 +568,28 @@ function AdminDashboard() {
     const fetchData = async () => {
       try {
         setIsLoading(true);
-        
+
         // Dispatch all data fetching actions
         await Promise.all([
           dispatch(fetchAllUsers()),
           dispatch(fetchAdminTripAnalytics({ period: timeRange })),
-          dispatch(getAdminPaymentStats({ period: timeRange })).catch(err => {
+          dispatch(getAdminPaymentStats({ period: timeRange })).catch((err) => {
             console.log("Payment stats fetch error (non-critical):", err);
             return null;
           }),
-          dispatch(getAllPayments()).catch(err => {
+          dispatch(getAllPayments()).catch((err) => {
             console.log("Payments fetch error (non-critical):", err);
             return null;
-          })
+          }),
         ]);
-        
+
         setIsLoading(false);
       } catch (error) {
         console.error("Error fetching dashboard data:", error);
         setIsLoading(false);
       }
     };
-    
+
     fetchData();
   }, [dispatch, timeRange]);
 
@@ -470,6 +645,18 @@ function AdminDashboard() {
           </div>
         </div>
 
+        {/* Loading Indicator */}
+        {isLoading && (
+          <div className="fixed inset-0 bg-slate-900/20 backdrop-blur-sm flex items-center justify-center z-50">
+            <div className="bg-white rounded-xl p-6 shadow-xl flex items-center">
+              <RefreshCw className="w-6 h-6 text-sky-600 animate-spin mr-3" />
+              <p className="text-slate-800 font-medium">
+                Loading dashboard data...
+              </p>
+            </div>
+          </div>
+        )}
+
         {/* Stat Cards */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
           {/* Total Users */}
@@ -512,7 +699,9 @@ function AdminDashboard() {
               {isLoading ? "..." : getActiveTripsCount().toLocaleString()}
             </div>
             <div className="mt-3 text-xs text-slate-600 font-medium">
-              {isLoading ? "" : `${getInProgressTrips()} in progress · ${getScheduledTrips()} scheduled`}
+              {isLoading
+                ? ""
+                : `${getInProgressTrips()} in progress · ${getScheduledTrips()} scheduled`}
             </div>
           </div>
 
@@ -520,7 +709,7 @@ function AdminDashboard() {
           <div className="bg-gradient-to-br from-violet-50 to-violet-100 rounded-2xl shadow-md border border-violet-200 p-6 transition-transform duration-300 hover:scale-105 hover:shadow-lg">
             <div className="flex items-center justify-between mb-5">
               <div className="bg-violet-500 rounded-xl p-3 text-white shadow-lg shadow-violet-200">
-                {/* <DollarSign className="w-7 h-7" /> */}
+                <Banknote className="w-7 h-7" />
               </div>
               <span className="text-xs font-semibold text-violet-600 bg-violet-100 rounded-full px-3 py-1 shadow-inner">
                 ↑15%
@@ -528,10 +717,12 @@ function AdminDashboard() {
             </div>
             <h3 className="text-sm font-medium text-slate-600 mb-1">Revenue</h3>
             <div className="text-3xl font-bold text-slate-800">
-              {isLoading ? "..." : `$${getTotalRevenue().toLocaleString()}`}
+              {isLoading ? "..." : `Rs. ${getTotalRevenue().toLocaleString()}`}
             </div>
             <div className="mt-3 text-xs text-slate-600 font-medium">
-              {isLoading ? "" : `$${getCurrentPeriodRevenue().toLocaleString()} this ${timeRange}`}
+              {isLoading
+                ? ""
+                : `Rs. ${getCurrentPeriodRevenue().toLocaleString()} this ${timeRange}`}
             </div>
           </div>
 
@@ -552,7 +743,9 @@ function AdminDashboard() {
               {isLoading ? "..." : getDisputesCount()}
             </div>
             <div className="mt-3 text-xs text-slate-600 font-medium">
-              {isLoading ? "" : `${getPendingDisputes()} pending · ${getResolvedDisputes()} resolved`}
+              {isLoading
+                ? ""
+                : `${getPendingDisputes()} pending · ${getResolvedDisputes()} resolved`}
             </div>
           </div>
         </div>
@@ -569,7 +762,7 @@ function AdminDashboard() {
                 Revenue Trends
               </h3>
             </div>
-            <select 
+            <select
               className="text-sm border-slate-200 rounded-lg px-3 py-2 bg-slate-50 text-slate-700 focus:ring-2 focus:ring-violet-500 focus:border-violet-500"
               value={timeRange}
               onChange={(e) => setTimeRange(e.target.value)}

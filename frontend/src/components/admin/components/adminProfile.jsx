@@ -6,6 +6,7 @@ import {
   getUserProfile,
   updateUserProfileAction,
 } from "../../Slices/userSlice";
+import { logoutUser } from "../../Slices/authSlice";
 import { Toaster, toast } from "sonner";
 import {
   User,
@@ -26,6 +27,7 @@ import {
   AlertTriangle,
   UserCheck,
   LogOut,
+  RefreshCw,
 } from "lucide-react";
 
 const AdminProfile = () => {
@@ -58,6 +60,7 @@ const AdminProfile = () => {
   });
   const [formErrors, setFormErrors] = useState({});
   const [activeTab, setActiveTab] = useState("personal"); // personal, account
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
 
   // Pre-fill form data when userData changes
   useEffect(() => {
@@ -132,6 +135,94 @@ const AdminProfile = () => {
       );
       setIsEditMode(false);
     }
+  };
+
+  // Show the custom toast confirming logout
+  const confirmLogout = () => {
+    setShowLogoutConfirm(true);
+    toast.custom(
+      (t) => (
+        <div
+          className={`${
+            t.visible ? "animate-enter" : "animate-leave"
+          } max-w-md w-full bg-white shadow-lg rounded-lg pointer-events-auto flex`}
+        >
+          <div className="flex-1 p-4">
+            <div className="flex items-start">
+              <div className="flex-shrink-0 pt-0.5">
+                <svg
+                  className="h-10 w-10 text-red-500"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth="2"
+                    d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+                  ></path>
+                </svg>
+              </div>
+              <div className="ml-3 flex-1">
+                <p className="text-sm font-medium text-gray-900">
+                  Sign out confirmation
+                </p>
+                <p className="mt-1 text-sm text-gray-500">
+                  Are you sure you want to sign out?
+                </p>
+                <div className="mt-4 flex space-x-3">
+                  <button
+                    onClick={() => {
+                      toast.dismiss(t.id);
+                      // Execute logout
+                      logout();
+                      navigate("/login");
+                    }}
+                    className="inline-flex justify-center px-4 py-2 text-sm font-medium text-white bg-red-600 border border-transparent rounded-md hover:bg-red-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-red-500"
+                  >
+                    Sign out
+                  </button>
+                  <button
+                    onClick={() => toast.dismiss(t.id)}
+                    className="inline-flex justify-center px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-gray-500"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      ),
+      {
+        duration: 5000, // 5 seconds
+        position: "top-center",
+      }
+    );
+  };
+
+  // Actual logout handler
+  const handleLogout = () => {
+    // Clear token from localStorage
+    localStorage.removeItem("token");
+    localStorage.removeItem("userInfo");
+
+    // Clear cookies
+    document.cookie.split(";").forEach((cookie) => {
+      document.cookie = cookie
+        .replace(/^ +/, "")
+        .replace(/=.*/, `=;expires=${new Date(0).toUTCString()};path=/`);
+    });
+
+    // Dispatch Redux logout action
+    dispatch(logoutUser());
+
+    // Show success toast
+    toast.success("Successfully logged out");
+
+    // Redirect user to home page
+    navigate("/");
   };
 
   // Get initials for avatar if no profile picture exists
@@ -314,10 +405,7 @@ const AdminProfile = () => {
                 {/* Logout Button */}
                 <div className="mt-6 px-4">
                   <button
-                    onClick={() => {
-                      // Handle logout (you would typically dispatch a logout action here)
-                      toast.info("Logout functionality would go here");
-                    }}
+                    onClick={confirmLogout}
                     className="w-full flex items-center justify-center px-4 py-2.5 rounded-lg border border-red-200 text-red-600 hover:bg-red-50 transition-colors"
                   >
                     <LogOut className="w-4 h-4 mr-2" />

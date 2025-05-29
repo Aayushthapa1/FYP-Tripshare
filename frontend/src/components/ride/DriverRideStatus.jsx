@@ -795,7 +795,6 @@ const ImprovedDriverRideStatus = () => {
   return (
     <>
       <Navbar />
-      <Toaster richColors position="top-center" />
 
       {/* Side Chat Modal */}
       <SideChatModal

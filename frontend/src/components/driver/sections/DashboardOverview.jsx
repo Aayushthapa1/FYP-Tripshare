@@ -11,6 +11,7 @@ import {
   TrendingUp,
   Users,
   CheckCircle,
+  Banknote,
 } from "lucide-react";
 import {
   LineChart,
@@ -193,7 +194,7 @@ export default function DashboardOverview({
         <div className="bg-white dark:bg-slate-800 rounded-xl p-6 shadow-sm border border-slate-100 dark:border-slate-700 hover:shadow-md transition-all duration-200">
           <div className="flex items-center">
             <div className="rounded-xl bg-amber-50 p-3 dark:bg-amber-900/30">
-              <DollarSign className="h-6 w-6 text-amber-600 dark:text-amber-400" />
+              <Banknote className="h-6 w-6 text-amber-600 dark:text-amber-400" />
             </div>
             <div className="ml-4">
               <p className="text-sm font-medium text-slate-500 dark:text-slate-400">

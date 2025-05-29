@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { useLocation, useNavigate } from "react-router-dom";
+import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { useSelector, useDispatch } from "react-redux";
 import {
   Check,
@@ -16,12 +16,13 @@ import {
 import Navbar from "../layout/Navbar";
 import Footer from "../layout/Footer";
 import { toast, Toaster } from "sonner";
-import { getPaymentDetails,getUserPayments } from "../Slices/paymentSlice";
+import { getPaymentDetails, getUserPayments } from "../Slices/paymentSlice";
 
 const PaymentSuccess = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const dispatch = useDispatch();
+  const [searchParams] = useSearchParams();
   const [loading, setLoading] = useState(true);
 
   // Get auth user and payment details from Redux store
@@ -32,21 +33,53 @@ const PaymentSuccess = () => {
     error: paymentError,
   } = useSelector((state) => state.payment);
 
+  // Get transaction details directly from URL parameters
+  const pidx = searchParams.get("pidx");
+  const transactionId = searchParams.get("transaction_id");
+  const amountInPaisa = searchParams.get("amount");
+  const purchaseOrderId = searchParams.get("purchase_order_id");
+  const paymentId = searchParams.get("payment_id");
+
+  // Convert paisa to NPR (1 NPR = 100 paisa)
+  const amountInNPR = amountInPaisa ? parseInt(amountInPaisa) / 100 : null;
+
+  // Check for transaction details from navigation state
+  const transactionDetailsFromState = location.state?.transactionDetails;
+  console.log("transaction details from state", transactionDetailsFromState);
+
   useEffect(() => {
-    // Get payment identifiers from query params
-    const queryParams = new URLSearchParams(location.search);
-    const pidx = queryParams.get("pidx");
-    const transactionId = queryParams.get("transaction_id");
-    const purchaseOrderId = queryParams.get("purchase_order_id");
+    // First check if we have transaction details in navigation state
+    if (transactionDetailsFromState) {
+      console.log(
+        "Using transaction details from navigation state:",
+        transactionDetailsFromState
+      );
 
-    // Added payment_id to potential query params
-    const paymentId = queryParams.get("payment_id");
+      // Store in localStorage as backup
+      if (transactionDetailsFromState.payment) {
+        localStorage.setItem(
+          "lastPayment",
+          JSON.stringify(transactionDetailsFromState.payment)
+        );
+      } else {
+        localStorage.setItem(
+          "lastPayment",
+          JSON.stringify(transactionDetailsFromState)
+        );
+      }
 
-    console.log("Query parameters:", {
+      toast.success("Payment completed successfully!");
+      setLoading(false);
+      return; // Skip the API call if we have transaction details from state
+    }
+
+    console.log("URL Payment parameters:", {
       pidx,
       transactionId,
       purchaseOrderId,
       paymentId,
+      amount: amountInPaisa,
+      amountInNPR,
     });
 
     const fetchPaymentDetails = async () => {
@@ -56,7 +89,7 @@ const PaymentSuccess = () => {
         // Use the first available identifier to fetch payment details
         const paymentIdentifier =
           paymentId || purchaseOrderId || pidx || transactionId;
-          console.log("Payment identifier:", paymentIdentifier);
+        console.log("Payment identifier:", paymentIdentifier);
 
         if (paymentIdentifier) {
           console.log(
@@ -120,11 +153,29 @@ const PaymentSuccess = () => {
     }, 5 * 60 * 1000);
 
     return () => clearTimeout(timer);
-  }, [dispatch, location]);
+  }, [
+    dispatch,
+    location,
+    transactionDetailsFromState,
+    pidx,
+    transactionId,
+    amountInPaisa,
+    purchaseOrderId,
+    paymentId,
+  ]);
 
-  // If Redux store doesn't have payment details, try to get from localStorage
+  // Prioritize payment details in this order:
+  // 1. Transaction details from navigation state
+  // 2. Current payment from Redux store
+  // 3. Stored payment from localStorage
+  // 4. URL parameters for direct display
+  const paymentDetailsFromState =
+    transactionDetailsFromState?.payment || transactionDetailsFromState;
+
   const paymentDetails =
-    currentPayment || JSON.parse(localStorage.getItem("lastPayment") || "null");
+    paymentDetailsFromState ||
+    currentPayment ||
+    JSON.parse(localStorage.getItem("lastPayment") || "null");
 
   console.log("Current payment details:", paymentDetails);
 
@@ -151,17 +202,30 @@ const PaymentSuccess = () => {
   // Format currency
   const formatCurrency = (amount) => {
     if (!amount && amount !== 0) return "N/A";
-    return new Intl.NumberFormat("en-IN", {
+    return new Intl.NumberFormat("en-NP", {
       style: "currency",
-      currency: "INR",
+      currency: "NPR",
       maximumFractionDigits: 2,
     }).format(amount);
+  };
+
+  // Get formatted amount either from payment details or direct URL parameters
+  const getFormattedAmount = () => {
+    // First try to get amount from payment details
+    if (displayData?.amount) {
+      return formatCurrency(displayData.amount);
+    }
+    // If not available, use the direct URL param
+    if (amountInNPR) {
+      return formatCurrency(amountInNPR);
+    }
+    return "N/A";
   };
 
   // Handle chat with driver
   const handleChatWithDriver = () => {
     // Navigate to chat page with driver and trip information
-    navigate(`/chats`); 
+    navigate(`/chats`);
   };
 
   // Show loading state when either component is loading or Redux is loading
@@ -179,7 +243,7 @@ const PaymentSuccess = () => {
   }
 
   // Show error state if there's a payment error
-  if (paymentError && !paymentDetails) {
+  if (paymentError && !paymentDetails && !pidx && !transactionId) {
     return (
       <div className="min-h-screen bg-gray-50">
         <Navbar />
@@ -217,8 +281,9 @@ const PaymentSuccess = () => {
   // Fallback data if we still don't have payment details
   const fallbackData = {
     status: "completed",
-    amount: 0,
-    transactionId: "Available in your account",
+    amount: amountInNPR || 0,
+    transactionId:
+      transactionId || purchaseOrderId || pidx || "Available in your account",
     createdAt: new Date().toISOString(),
     booking: {
       trip: {
@@ -278,7 +343,7 @@ const PaymentSuccess = () => {
                 <div>
                   <p className="text-sm text-gray-500">Amount Paid</p>
                   <p className="font-medium text-gray-900">
-                    {formatCurrency(displayData?.amount)}
+                    {getFormattedAmount()}
                   </p>
                 </div>
                 <div>
@@ -299,7 +364,11 @@ const PaymentSuccess = () => {
                 <div>
                   <p className="text-sm text-gray-500">Transaction ID</p>
                   <p className="font-medium text-gray-900">
-                    {displayData?.transactionId || displayData?._id || "N/A"}
+                    {displayData?.transactionId ||
+                      transactionId ||
+                      displayData?._id ||
+                      pidx ||
+                      "N/A"}
                   </p>
                 </div>
                 <div>

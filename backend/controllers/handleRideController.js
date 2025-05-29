@@ -1,6 +1,7 @@
 import Ride from "../models/handleRideModel.js";
 import User from "../models/userModel.js";
 import mongoose from "mongoose";
+import UserKYC from "../models/UserKYCModel.js";
 
 import { getIO } from "../utils/SocketUtils.js";
 const io = getIO();
@@ -22,15 +23,15 @@ const calculateFare = (distance, vehicleType, trafficCondition) => {
 
   switch (vehicleType) {
     case "Bike":
-      baseFare = 50; // NPR
+      baseFare = 20; // NPR
       ratePerKm = 15;
       break;
     case "Car":
-      baseFare = 100;
+      baseFare = 30;
       ratePerKm = 30;
       break;
     case "Electric":
-      baseFare = 80;
+      baseFare = 25;
       ratePerKm = 25;
       break;
     default:
@@ -152,12 +153,11 @@ export const postRide = async (req, res) => {
   }
 };
 
+
 /**
  * REQUEST A RIDE (Passenger requests a ride)
  */
-/**
- * REQUEST A RIDE (Passenger requests a ride)
- */
+// Fixed requestRide function for handling trafficCondition properly
 export const requestRide = async (req, res) => {
   try {
     const {
@@ -169,7 +169,7 @@ export const requestRide = async (req, res) => {
       vehicleType,
       distance,
       estimatedTime,
-      trafficCondition, // New parameter for traffic condition
+      trafficCondition, // Traffic condition parameter from request
       paymentMethod = "cash",
     } = req.body;
 
@@ -216,10 +216,27 @@ export const requestRide = async (req, res) => {
         ? estimatedTime
         : 15; // Default to 15 mins
 
-    // Validate traffic condition with default
-    const validTrafficCondition = ["light", "moderate", "heavy"].includes(trafficCondition)
-      ? trafficCondition
-      : "light"; // Default to light traffic if not provided or invalid
+    // Enhanced traffic condition handling
+    // Log the traffic condition from the request for debugging
+    console.log("Received traffic condition:", trafficCondition);
+
+    // Make case-insensitive comparison
+    let validTrafficCondition;
+    if (typeof trafficCondition === 'string') {
+      const normalizedTraffic = trafficCondition.toLowerCase();
+      if (["light", "moderate", "heavy"].includes(normalizedTraffic)) {
+        validTrafficCondition = normalizedTraffic;
+      } else {
+        // If not a valid value, use "moderate" as default instead of "light"
+        validTrafficCondition = "moderate";
+      }
+    } else {
+      // If not provided or not a string, use "moderate" as default
+      validTrafficCondition = "moderate";
+    }
+
+    // Log the validated traffic condition for confirmation
+    console.log("Using traffic condition:", validTrafficCondition);
 
     // Use provided location names or defaults
     const validPickupLocationName = pickupLocationName || "Unknown location";
@@ -277,7 +294,7 @@ export const requestRide = async (req, res) => {
       vehicleType: validVehicleType,
       distance: validDistance,
       estimatedTime: validEstimatedTime,
-      trafficCondition: validTrafficCondition, // Store traffic condition
+      trafficCondition: validTrafficCondition,
       fare,
       paymentMethod,
       status: "requested",

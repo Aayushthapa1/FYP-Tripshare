@@ -1,773 +1,381 @@
 import React, { useState, useEffect } from "react";
 import { useDispatch, useSelector } from "react-redux";
+import {
+  getDriverKYCStatus,
+  submitDriverKYC,
+  getDriverKYCDetails,
+} from "../Slices/driverKYCSlice";
+import { useNavigate, useLocation, Navigate, Link } from "react-router-dom";
 import { toast } from "sonner";
 import {
-  submitDriverKYC,
-  fetchPendingDriverKYC,
-  
-  
-} from "../Slices/driverKYCSlice";
+  X,
+  CheckCircle,
+  AlertCircle,
+  Eye,
+  EyeOff,
+  Edit,
+  Home,
+  Car,
+  List,
+  Upload,
+} from "lucide-react";
 
-
-const DriverKYCModal = ({ isOpen, onClose, kycId = null }) => {
+function DriverKycModal({ isOpen, onClose }) {
   const dispatch = useDispatch();
+  const navigate = useNavigate();
+  const location = useLocation();
 
-  // Get user data from auth state
+  // Check if we're on the dedicated route page
+  const isStandalonePage = location.pathname === "/driverkyc";
+
+  // Get user from auth slice
   const { user } = useSelector((state) => state.auth);
-  // Something might be setting isOpen to true unconditionally
+  const userId = user?._id;
 
-  // Get KYC data from redux
-  const { currentSubmission, loading, error, status, operation } = useSelector(
+  // Redux state for KYC
+  const { loading, error, message, kycStatus, kycDetails } = useSelector(
     (state) => state.driverKYC
   );
 
-  // Form state
-  const [formData, setFormData] = useState({
-    fullName: "",
-    address: "",
-    email: "",
-    phone: "",
-    gender: "",
-    dob: "",
-    citizenshipNumber: "",
-    licenseNumber: "",
-    licenseExpiryDate: "",
-    vehicleType: "",
-    numberPlate: "",
-    productionYear: "",
-    user: user?._id || "",
-  });
+  // Local state for personal info
+  const [fullName, setFullName] = useState("");
+  const [gender, setGender] = useState("");
+  const [citizenshipNumber, setCitizenshipNumber] = useState("");
+  const [address, setAddress] = useState("");
+  const [dob, setDob] = useState("");
 
-  // File states
-  const [files, setFiles] = useState({
-    photo: null,
-    frontPhoto: null,
-    backPhoto: null,
-    vehiclePhoto: null,
-  });
+  // Document files
+  const [citizenshipFront, setCitizenshipFront] = useState(null);
+  const [citizenshipBack, setCitizenshipBack] = useState(null);
+  const [licenseFront, setLicenseFront] = useState(null);
+  const [licenseBack, setLicenseBack] = useState(null);
+  const [vehiclePhoto, setVehiclePhoto] = useState(null);
 
-  // Preview URLs for images
-  const [previews, setPreviews] = useState({
-    photo: "",
-    frontPhoto: "",
-    backPhoto: "",
-    vehiclePhoto: "",
-  });
+  // License information
+  const [licenseNumber, setLicenseNumber] = useState("");
+  const [licenseExpiryDate, setLicenseExpiryDate] = useState("");
 
-  // Form errors
-  const [formErrors, setFormErrors] = useState({});
+  // Vehicle information
+  const [vehicleType, setVehicleType] = useState("");
+  const [vehicleModel, setVehicleModel] = useState("");
+  const [vehicleYear, setVehicleYear] = useState("");
 
-  // Submission state
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  // UI state
+  const [viewMode, setViewMode] = useState(false);
+  const [hideDetails, setHideDetails] = useState(false);
+  const [showThankYouModal, setShowThankYouModal] = useState(false);
 
-  // Fetch KYC data if in edit mode
+  // Fetch KYC status and details when component mounts or isOpen changes
   useEffect(() => {
-    if (isOpen && kycId) {
-      dispatch(fetchDriverKYCByIdAction(kycId));
+    if ((isOpen || isStandalonePage) && userId) {
+      dispatch(getDriverKYCStatus(userId));
+      dispatch(getDriverKYCDetails(userId));
     }
-  }, [dispatch, isOpen, kycId]);
+  }, [dispatch, userId, isOpen, isStandalonePage]);
 
-  // Populate form when data is loaded
+  // Populate form with existing details if available
   useEffect(() => {
-    if (currentSubmission && isOpen) {
-      const formFields = {
-        fullName: currentSubmission.fullName || "",
-        address: currentSubmission.address || "",
-        email: currentSubmission.email || "",
-        phone: currentSubmission.phone || "",
-        gender: currentSubmission.gender || "",
-        dob: currentSubmission.dob
-          ? new Date(currentSubmission.dob).toISOString().split("T")[0]
-          : "",
-        citizenshipNumber: currentSubmission.citizenshipNumber || "",
-        licenseNumber: currentSubmission.licenseNumber || "",
-        licenseExpiryDate: currentSubmission.licenseExpiryDate
-          ? new Date(currentSubmission.licenseExpiryDate)
-              .toISOString()
-              .split("T")[0]
-          : "",
-        vehicleType: currentSubmission.vehicleType || "",
-        numberPlate: currentSubmission.numberPlate || "",
-        productionYear: currentSubmission.productionYear || "",
-        user: currentSubmission.user || user?._id || "",
-      };
+    if (kycDetails) {
+      setFullName(kycDetails.fullName || "");
+      setGender(kycDetails.gender || "");
+      setCitizenshipNumber(kycDetails.citizenshipNumber || "");
+      setAddress(kycDetails.address || "");
+      setDob(kycDetails.dob ? kycDetails.dob.split("T")[0] : "");
 
-      setFormData(formFields);
-
-      // Set image previews
-      setPreviews({
-        photo: currentSubmission.photo || "",
-        frontPhoto: currentSubmission.frontPhoto || "",
-        backPhoto: currentSubmission.backPhoto || "",
-        vehiclePhoto: currentSubmission.vehiclePhoto || "",
-      });
-    }
-  }, [currentSubmission, isOpen, user]);
-
-  // Handle errors
-  useEffect(() => {
-    if (error && isSubmitting) {
-      setIsSubmitting(false);
-      toast.error(
-        typeof error === "string" ? error : error.message || "An error occurred"
+      // License info
+      setLicenseNumber(kycDetails.licenseNumber || "");
+      setLicenseExpiryDate(
+        kycDetails.licenseExpiryDate
+          ? kycDetails.licenseExpiryDate.split("T")[0]
+          : ""
       );
-    }
-  }, [error, isSubmitting]);
 
-  // Handle successful submission
+      // Vehicle info
+      setVehicleType(kycDetails.vehicleType || "");
+      setVehicleModel(kycDetails.vehicleModel || "");
+      setVehicleYear(kycDetails.vehicleYear || "");
+
+      // Set view mode if KYC is already submitted
+      if (kycStatus === "verified" || kycStatus === "pending") {
+        setViewMode(true);
+      }
+    }
+  }, [kycDetails, kycStatus]);
+
+  // Reset form state when modal closes
   useEffect(() => {
-    if (
-      (operation === "create" || operation === "update") &&
-      status === "succeeded" &&
-      isSubmitting
-    ) {
-      setIsSubmitting(false);
-      toast.success(
-        operation === "create"
-          ? "KYC submitted successfully!"
-          : "KYC updated successfully!"
-      );
-      onClose();
+    if (!isOpen && !isStandalonePage) {
+      // Reset viewMode to default based on KYC status when reopening
+      if (kycStatus === "not_submitted" || kycStatus === "rejected") {
+        setViewMode(false);
+      } else {
+        setViewMode(true);
+      }
+
+      // Reset hide details flag
+      setHideDetails(false);
+      setShowThankYouModal(false);
     }
-  }, [operation, status, isSubmitting, onClose]);
+  }, [isOpen, isStandalonePage, kycStatus]);
 
-  // Handle input changes
-  const handleChange = (e) => {
-    const { name, value } = e.target;
-    setFormData((prev) => ({
-      ...prev,
-      [name]: value,
-    }));
+  // Handle image upload
+  const handleImageChange = (e, type) => {
+    const file = e.target.files[0];
+    if (!file) return;
 
-    // Clear error for this field
-    if (formErrors[name]) {
-      setFormErrors((prev) => ({
-        ...prev,
-        [name]: "",
-      }));
+    if (!file.type.match("image.*")) {
+      toast.error("Please select an image file");
+      return;
+    }
+
+    switch (type) {
+      case "citizenshipFront":
+        setCitizenshipFront(file);
+        break;
+      case "citizenshipBack":
+        setCitizenshipBack(file);
+        break;
+      case "licenseFront":
+        setLicenseFront(file);
+        break;
+      case "licenseBack":
+        setLicenseBack(file);
+        break;
+      case "vehicle":
+        setVehiclePhoto(file);
+        break;
+      default:
+        break;
     }
   };
 
-  // Handle file changes
-  const handleFileChange = (e) => {
-    const { name, files: selectedFiles } = e.target;
-
-    if (selectedFiles && selectedFiles[0]) {
-      const file = selectedFiles[0];
-
-      // Validate file type
-      const validTypes = ["image/jpeg", "image/jpg", "image/png"];
-      if (!validTypes.includes(file.type)) {
-        setFormErrors((prev) => ({
-          ...prev,
-          [name]: "Please upload a valid image file (jpg, jpeg, png)",
-        }));
-        return;
-      }
-
-      // Set file in state
-      setFiles((prev) => ({
-        ...prev,
-        [name]: file,
-      }));
-
-      // Create preview
-      const previewUrl = URL.createObjectURL(file);
-      setPreviews((prev) => ({
-        ...prev,
-        [name]: previewUrl,
-      }));
-
-      // Clear error
-      if (formErrors[name]) {
-        setFormErrors((prev) => ({
-          ...prev,
-          [name]: "",
-        }));
-      }
+  // Handle close action with appropriate navigation
+  const handleClose = () => {
+    if (isStandalonePage) {
+      navigate(-1); // Go back in history
+    } else if (onClose) {
+      onClose(); // Use provided onClose function
     }
-  };
-
-  // Form validation
-  const validateForm = () => {
-    const errors = {};
-    const requiredFields = [
-      "fullName",
-      "address",
-      "email",
-      "gender",
-      "dob",
-      "citizenshipNumber",
-      "licenseNumber",
-      "licenseExpiryDate",
-    ];
-
-    // Check required text fields
-    requiredFields.forEach((field) => {
-      if (!formData[field]) {
-        errors[field] = `${
-          field.charAt(0).toUpperCase() +
-          field.slice(1).replace(/([A-Z])/g, " $1")
-        } is required`;
-      }
-    });
-
-    // Check required files for new submission
-    if (!kycId) {
-      const requiredFiles = ["photo", "frontPhoto", "backPhoto"];
-      requiredFiles.forEach((field) => {
-        if (!files[field] && !previews[field]) {
-          errors[field] = `${
-            field.charAt(0).toUpperCase() +
-            field.slice(1).replace(/([A-Z])/g, " $1")
-          } is required`;
-        }
-      });
-    }
-
-    // Validate email
-    if (formData.email && !/\S+@\S+\.\S+/.test(formData.email)) {
-      errors.email = "Please enter a valid email address";
-    }
-
-    // Validate dates
-    const today = new Date();
-
-    // DOB - must be at least 18 years ago
-    if (formData.dob) {
-      const dobDate = new Date(formData.dob);
-      const eighteenYearsAgo = new Date();
-      eighteenYearsAgo.setFullYear(eighteenYearsAgo.getFullYear() - 18);
-
-      if (dobDate > eighteenYearsAgo) {
-        errors.dob = "You must be at least 18 years old";
-      }
-    }
-
-    // License expiry - must be in the future
-    if (formData.licenseExpiryDate) {
-      const expiryDate = new Date(formData.licenseExpiryDate);
-      if (expiryDate <= today) {
-        errors.licenseExpiryDate = "License must not be expired";
-      }
-    }
-
-    setFormErrors(errors);
-    return Object.keys(errors).length === 0;
   };
 
   // Handle form submission
   const handleSubmit = (e) => {
     e.preventDefault();
 
-    if (!validateForm()) {
-      toast.error("Please fix the errors in the form");
+    if (!userId) {
+      toast.error("No user ID found. Please log in first.");
       return;
     }
 
-    setIsSubmitting(true);
+    // Validate required files
+    if (!citizenshipFront || !citizenshipBack) {
+      toast.error("Please upload both front and back citizenship images");
+      return;
+    }
 
-    // Create FormData for file uploads
-    const data = new FormData();
+    if (!licenseFront || !licenseBack) {
+      toast.error("Please upload both front and back license images");
+      return;
+    }
 
-    // Add all text fields
-    Object.entries(formData).forEach(([key, value]) => {
-      if (value) {
-        data.append(key, value);
-      }
-    });
+    if (!vehiclePhoto) {
+      toast.error("Please upload a photo of your vehicle");
+      return;
+    }
 
-    // Add files
-    Object.entries(files).forEach(([key, file]) => {
-      if (file) {
-        data.append(key, file);
-      }
-    });
+    // Construct FormData
+    const formData = new FormData();
+    formData.append("userId", userId);
+    formData.append("fullName", fullName);
+    formData.append("gender", gender);
+    formData.append("citizenshipNumber", citizenshipNumber);
+    formData.append("address", address);
+    formData.append("dob", dob);
 
-    // Submit or update KYC
-    if (kycId) {
-      dispatch(updateDriverKYCAction({ id: kycId, data }));
-    } else {
-      dispatch(createDriverKYCAction(data));
+    // Add document files
+    formData.append("citizenshipFront", citizenshipFront);
+    formData.append("citizenshipBack", citizenshipBack);
+    formData.append("licenseFront", licenseFront);
+    formData.append("licenseBack", licenseBack);
+    formData.append("vehiclePhoto", vehiclePhoto);
+
+    // Add license information
+    formData.append("licenseNumber", licenseNumber);
+    formData.append("licenseExpiryDate", licenseExpiryDate);
+
+    // Add vehicle information
+    formData.append("vehicleType", vehicleType);
+    formData.append("vehicleModel", vehicleModel);
+    formData.append("vehicleYear", vehicleYear);
+
+    // Dispatch the Redux thunk
+    dispatch(submitDriverKYC(formData))
+      .unwrap()
+      .then(() => {
+        // Show thank you modal
+        setShowThankYouModal(true);
+        setViewMode(true);
+
+        // If it's standalone page, redirect after timeout
+        if (isStandalonePage) {
+          setTimeout(() => {
+            navigate("/");
+          }, 5000);
+        }
+
+        // Refresh KYC status and details
+        dispatch(getDriverKYCStatus(userId));
+        dispatch(getDriverKYCDetails(userId));
+      })
+      .catch((err) => {
+        toast.error(err.message || "Failed to submit KYC");
+      });
+  };
+
+  // Render status badge based on KYC status
+  const renderStatusBadge = () => {
+    switch (kycStatus) {
+      case "verified":
+        return (
+          <div className="flex items-center px-3 py-1 rounded-full bg-green-100 text-green-800">
+            <CheckCircle className="h-4 w-4 mr-1" />
+            <span className="text-xs font-medium">Verified</span>
+          </div>
+        );
+      case "pending":
+        return (
+          <div className="flex items-center px-3 py-1 rounded-full bg-yellow-100 text-yellow-800">
+            <AlertCircle className="h-4 w-4 mr-1" />
+            <span className="text-xs font-medium">Pending Verification</span>
+          </div>
+        );
+      case "rejected":
+        return (
+          <div className="flex items-center px-3 py-1 rounded-full bg-red-100 text-red-800">
+            <AlertCircle className="h-4 w-4 mr-1" />
+            <span className="text-xs font-medium">Rejected</span>
+          </div>
+        );
+      default:
+        return (
+          <div className="flex items-center px-3 py-1 rounded-full bg-gray-100 text-gray-800">
+            <AlertCircle className="h-4 w-4 mr-1" />
+            <span className="text-xs font-medium">Not Submitted</span>
+          </div>
+        );
     }
   };
 
-  // Close modal handler
-  const handleClose = () => {
-    if (!isSubmitting) {
-      onClose();
-      // Reset form state
-      setFormData({
-        fullName: "",
-        address: "",
-        email: "",
-        phone: "",
-        gender: "",
-        dob: "",
-        citizenshipNumber: "",
-        licenseNumber: "",
-        licenseExpiryDate: "",
-        vehicleType: "",
-        numberPlate: "",
-        productionYear: "",
-        user: user?._id || "",
-      });
-      setFiles({
-        photo: null,
-        frontPhoto: null,
-        backPhoto: null,
-        vehiclePhoto: null,
-      });
-      setPreviews({
-        photo: "",
-        frontPhoto: "",
-        backPhoto: "",
-        vehiclePhoto: "",
-      });
-      setFormErrors({});
+  // Render rejection message if applicable
+  const renderRejectionMessage = () => {
+    if (kycStatus === "rejected" && kycDetails?.rejectionReason) {
+      return (
+        <div className="mb-6 p-4 border border-red-200 rounded-md bg-red-50">
+          <h3 className="text-sm font-semibold text-red-800 mb-1">
+            Rejection Reason:
+          </h3>
+          <p className="text-sm text-red-700">{kycDetails.rejectionReason}</p>
+        </div>
+      );
     }
+    return null;
   };
 
-  if (!isOpen) return null;
+  // Toggle between edit and view mode
+  const toggleViewMode = () => {
+    if (kycStatus === "verified" || kycStatus === "pending") {
+      toast.info("Cannot edit verified or pending KYC submissions");
+      return;
+    }
+    setViewMode(!viewMode);
+  };
+
+  // Toggle visibility of sensitive information
+  const toggleHideDetails = () => {
+    setHideDetails(!hideDetails);
+  };
+
+  // Thank You Modal Component
+  const ThankYouModal = () => {
+    return (
+      <div className="fixed inset-0 z-50 overflow-hidden flex items-center justify-center bg-black bg-opacity-50">
+        <div className="bg-white rounded-lg shadow-xl max-w-md w-full mx-4 p-6">
+          <div className="flex items-center justify-center mb-4">
+            <div className="rounded-full bg-green-100 p-3">
+              <CheckCircle className="h-8 w-8 text-green-600" />
+            </div>
+          </div>
+          <h3 className="text-lg font-bold text-center text-gray-900 mb-2">
+            Thank You for Submitting Your Driver KYC
+          </h3>
+          <p className="text-center text-gray-600 mb-5">
+            Your driver verification information has been successfully
+            submitted. Please wait for verification, which usually takes 1-2
+            business days. We'll notify you once the process is complete.
+          </p>
+          <div className="w-full bg-gray-200 rounded-full h-2 mb-4">
+            <div className="bg-green-500 h-2 rounded-full animate-[progress_5s_linear]"></div>
+          </div>
+          <p className="text-center text-sm text-gray-500">
+            {isStandalonePage
+              ? "Redirecting to home page in 5 seconds..."
+              : "You can close this modal now."}
+          </p>
+          {!isStandalonePage && (
+            <button
+              onClick={handleClose}
+              className="mt-4 w-full inline-flex justify-center items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500"
+            >
+              Close
+            </button>
+          )}
+        </div>
+      </div>
+    );
+  };
+
+  // Redirect if not logged in
+  if (!userId) {
+    return <Navigate to="/login" replace />;
+  }
+
+  // Don't render anything if modal is closed and not on the dedicated page
+  if (!isOpen && !isStandalonePage) return null;
 
   return (
-    
-    <div className="fixed inset-0 z-50 overflow-auto bg-black bg-opacity-50 flex">
-      <div className="relative bg-white w-full max-w-4xl m-auto rounded-lg shadow-lg">
-        <div className="p-5 border-b border-gray-200">
-          <h2 className="text-xl font-semibold">
-            {kycId ? "Update Driver KYC" : "Submit Driver KYC"}
-          </h2>
-          <button
-            onClick={handleClose}
-            disabled={isSubmitting}
-            className="absolute top-5 right-5 text-gray-500 hover:text-gray-700"
-          >
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              className="h-6 w-6"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
+    <div className="fixed inset-0 z-50 overflow-y-auto bg-gray-800 bg-opacity-75 flex items-center justify-center">
+      <div className="bg-white rounded-lg shadow-xl overflow-hidden max-w-3xl w-full mx-4 max-h-[90vh] overflow-y-auto">
+        {/* Header */}
+        <div className="px-6 py-5 border-b border-gray-200 flex items-center justify-between">
+          <div>
+            <h1 className="text-xl font-semibold text-gray-900">
+              Driver Verification
+            </h1>
+            <p className="mt-1 text-sm text-gray-500">
+              {viewMode
+                ? "View your submitted driver verification details"
+                : "Submit your driver information for verification"}
+            </p>
+          </div>
+          <div className="flex items-center space-x-4">
+            {renderStatusBadge()}
+
+            <button
+              onClick={handleClose}
+              className="p-2 rounded-full text-gray-400 hover:text-gray-500 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-gray-500"
             >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M6 18L18 6M6 6l12 12"
-              />
-            </svg>
-          </button>
+              <X className="h-5 w-5" />
+            </button>
+          </div>
         </div>
 
-        <div className="p-5 max-h-[70vh] overflow-y-auto">
-          <form onSubmit={handleSubmit}>
-            {/* Personal Information */}
-            <div className="mb-6">
-              <h3 className="text-lg font-medium mb-4">Personal Information</h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700">
-                    Full Name *
-                  </label>
-                  <input
-                    type="text"
-                    name="fullName"
-                    value={formData.fullName}
-                    onChange={handleChange}
-                    className={`mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 ${
-                      formErrors.fullName ? "border-red-500" : ""
-                    }`}
-                  />
-                  {formErrors.fullName && (
-                    <p className="mt-1 text-sm text-red-600">
-                      {formErrors.fullName}
-                    </p>
-                  )}
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700">
-                    Email *
-                  </label>
-                  <input
-                    type="email"
-                    name="email"
-                    value={formData.email}
-                    onChange={handleChange}
-                    className={`mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 ${
-                      formErrors.email ? "border-red-500" : ""
-                    }`}
-                  />
-                  {formErrors.email && (
-                    <p className="mt-1 text-sm text-red-600">
-                      {formErrors.email}
-                    </p>
-                  )}
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700">
-                    Phone
-                  </label>
-                  <input
-                    type="text"
-                    name="phone"
-                    value={formData.phone}
-                    onChange={handleChange}
-                    className={`mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 ${
-                      formErrors.phone ? "border-red-500" : ""
-                    }`}
-                  />
-                  {formErrors.phone && (
-                    <p className="mt-1 text-sm text-red-600">
-                      {formErrors.phone}
-                    </p>
-                  )}
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700">
-                    Gender *
-                  </label>
-                  <select
-                    name="gender"
-                    value={formData.gender}
-                    onChange={handleChange}
-                    className={`mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 ${
-                      formErrors.gender ? "border-red-500" : ""
-                    }`}
-                  >
-                    <option value="">Select Gender</option>
-                    <option value="Male">Male</option>
-                    <option value="Female">Female</option>
-                    <option value="Other">Other</option>
-                  </select>
-                  {formErrors.gender && (
-                    <p className="mt-1 text-sm text-red-600">
-                      {formErrors.gender}
-                    </p>
-                  )}
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700">
-                    Date of Birth *
-                  </label>
-                  <input
-                    type="date"
-                    name="dob"
-                    value={formData.dob}
-                    onChange={handleChange}
-                    className={`mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 ${
-                      formErrors.dob ? "border-red-500" : ""
-                    }`}
-                  />
-                  {formErrors.dob && (
-                    <p className="mt-1 text-sm text-red-600">
-                      {formErrors.dob}
-                    </p>
-                  )}
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700">
-                    Citizenship Number *
-                  </label>
-                  <input
-                    type="text"
-                    name="citizenshipNumber"
-                    value={formData.citizenshipNumber}
-                    onChange={handleChange}
-                    className={`mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 ${
-                      formErrors.citizenshipNumber ? "border-red-500" : ""
-                    }`}
-                  />
-                  {formErrors.citizenshipNumber && (
-                    <p className="mt-1 text-sm text-red-600">
-                      {formErrors.citizenshipNumber}
-                    </p>
-                  )}
-                </div>
-
-                <div className="md:col-span-2">
-                  <label className="block text-sm font-medium text-gray-700">
-                    Address *
-                  </label>
-                  <input
-                    type="text"
-                    name="address"
-                    value={formData.address}
-                    onChange={handleChange}
-                    className={`mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 ${
-                      formErrors.address ? "border-red-500" : ""
-                    }`}
-                  />
-                  {formErrors.address && (
-                    <p className="mt-1 text-sm text-red-600">
-                      {formErrors.address}
-                    </p>
-                  )}
-                </div>
-
-                <div className="md:col-span-2">
-                  <label className="block text-sm font-medium text-gray-700">
-                    Your Photo *
-                  </label>
-                  <div className="flex items-start mt-1">
-                    <div className="flex-grow">
-                      <input
-                        type="file"
-                        name="photo"
-                        onChange={handleFileChange}
-                        accept="image/jpeg,image/jpg,image/png"
-                        className="block w-full text-sm text-gray-500 
-                          file:mr-4 file:py-2 file:px-4 file:rounded-md
-                          file:border-0 file:text-sm file:font-semibold
-                          file:bg-blue-50 file:text-blue-700
-                          hover:file:bg-blue-100"
-                      />
-                      {formErrors.photo && (
-                        <p className="mt-1 text-sm text-red-600">
-                          {formErrors.photo}
-                        </p>
-                      )}
-                    </div>
-                    {previews.photo && (
-                      <div className="ml-4 w-24 h-24 relative">
-                        <img
-                          src={previews.photo}
-                          alt="Preview"
-                          className="w-full h-full object-cover rounded-md"
-                        />
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* License Information */}
-            <div className="mb-6">
-              <h3 className="text-lg font-medium mb-4">License Information</h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700">
-                    License Number *
-                  </label>
-                  <input
-                    type="text"
-                    name="licenseNumber"
-                    value={formData.licenseNumber}
-                    onChange={handleChange}
-                    className={`mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 ${
-                      formErrors.licenseNumber ? "border-red-500" : ""
-                    }`}
-                  />
-                  {formErrors.licenseNumber && (
-                    <p className="mt-1 text-sm text-red-600">
-                      {formErrors.licenseNumber}
-                    </p>
-                  )}
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700">
-                    License Expiry Date *
-                  </label>
-                  <input
-                    type="date"
-                    name="licenseExpiryDate"
-                    value={formData.licenseExpiryDate}
-                    onChange={handleChange}
-                    className={`mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 ${
-                      formErrors.licenseExpiryDate ? "border-red-500" : ""
-                    }`}
-                  />
-                  {formErrors.licenseExpiryDate && (
-                    <p className="mt-1 text-sm text-red-600">
-                      {formErrors.licenseExpiryDate}
-                    </p>
-                  )}
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700">
-                    License Front Photo *
-                  </label>
-                  <div className="flex items-start mt-1">
-                    <div className="flex-grow">
-                      <input
-                        type="file"
-                        name="frontPhoto"
-                        onChange={handleFileChange}
-                        accept="image/jpeg,image/jpg,image/png"
-                        className="block w-full text-sm text-gray-500 
-                          file:mr-4 file:py-2 file:px-4 file:rounded-md
-                          file:border-0 file:text-sm file:font-semibold
-                          file:bg-blue-50 file:text-blue-700
-                          hover:file:bg-blue-100"
-                      />
-                      {formErrors.frontPhoto && (
-                        <p className="mt-1 text-sm text-red-600">
-                          {formErrors.frontPhoto}
-                        </p>
-                      )}
-                    </div>
-                    {previews.frontPhoto && (
-                      <div className="ml-4 w-24 h-16 relative">
-                        <img
-                          src={previews.frontPhoto}
-                          alt="Preview"
-                          className="w-full h-full object-cover rounded-md"
-                        />
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700">
-                    License Back Photo *
-                  </label>
-                  <div className="flex items-start mt-1">
-                    <div className="flex-grow">
-                      <input
-                        type="file"
-                        name="backPhoto"
-                        onChange={handleFileChange}
-                        accept="image/jpeg,image/jpg,image/png"
-                        className="block w-full text-sm text-gray-500 
-                          file:mr-4 file:py-2 file:px-4 file:rounded-md
-                          file:border-0 file:text-sm file:font-semibold
-                          file:bg-blue-50 file:text-blue-700
-                          hover:file:bg-blue-100"
-                      />
-                      {formErrors.backPhoto && (
-                        <p className="mt-1 text-sm text-red-600">
-                          {formErrors.backPhoto}
-                        </p>
-                      )}
-                    </div>
-                    {previews.backPhoto && (
-                      <div className="ml-4 w-24 h-16 relative">
-                        <img
-                          src={previews.backPhoto}
-                          alt="Preview"
-                          className="w-full h-full object-cover rounded-md"
-                        />
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Vehicle Information (Optional) */}
-            <div className="mb-6">
-              <h3 className="text-lg font-medium mb-4">
-                Vehicle Information (Optional)
-              </h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700">
-                    Vehicle Type
-                  </label>
-                  <select
-                    name="vehicleType"
-                    value={formData.vehicleType}
-                    onChange={handleChange}
-                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
-                  >
-                    <option value="">Select Vehicle Type</option>
-                    <option value="Car">Car</option>
-                    <option value="Bike">Bike</option>
-                    <option value="Electric">Electric</option>
-                    <option value="Truck">Truck</option>
-                    <option value="Auto">Auto</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700">
-                    License Plate Number
-                  </label>
-                  <input
-                    type="text"
-                    name="numberPlate"
-                    value={formData.numberPlate}
-                    onChange={handleChange}
-                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700">
-                    Production Year
-                  </label>
-                  <input
-                    type="number"
-                    name="productionYear"
-                    value={formData.productionYear}
-                    onChange={handleChange}
-                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
-                    min="1990"
-                    max={new Date().getFullYear() + 1}
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700">
-                    Vehicle Photo
-                  </label>
-                  <div className="flex items-start mt-1">
-                    <div className="flex-grow">
-                      <input
-                        type="file"
-                        name="vehiclePhoto"
-                        onChange={handleFileChange}
-                        accept="image/jpeg,image/jpg,image/png"
-                        className="block w-full text-sm text-gray-500 
-                          file:mr-4 file:py-2 file:px-4 file:rounded-md
-                          file:border-0 file:text-sm file:font-semibold
-                          file:bg-blue-50 file:text-blue-700
-                          hover:file:bg-blue-100"
-                      />
-                    </div>
-                    {previews.vehiclePhoto && (
-                      <div className="ml-4 w-24 h-16 relative">
-                        <img
-                          src={previews.vehiclePhoto}
-                          alt="Preview"
-                          className="w-full h-full object-cover rounded-md"
-                        />
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
-            </div>
-          </form>
-        </div>
-
-        <div className="px-5 py-4 border-t border-gray-200 flex justify-end">
-          <button
-            type="button"
-            onClick={handleClose}
-            disabled={isSubmitting}
-            className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-md mr-2 hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500"
-          >
-            Cancel
-          </button>
-          <button
-            type="button"
-            onClick={handleSubmit}
-            disabled={isSubmitting}
-            className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 flex items-center"
-          >
-            {isSubmitting && (
+        {/* Body */}
+        <div className="px-6 py-6">
+          {/* Loading state */}
+          {loading && (
+            <div className="flex justify-center items-center py-8">
               <svg
-                className="animate-spin -ml-1 mr-2 h-4 w-4 text-white"
+                className="animate-spin h-8 w-8 text-green-500"
                 xmlns="http://www.w3.org/2000/svg"
                 fill="none"
                 viewBox="0 0 24 24"
@@ -786,17 +394,647 @@ const DriverKYCModal = ({ isOpen, onClose, kycId = null }) => {
                   d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
                 ></path>
               </svg>
-            )}
-            {isSubmitting
-              ? "Submitting..."
-              : kycId
-              ? "Update KYC"
-              : "Submit KYC"}
-          </button>
+            </div>
+          )}
+
+          {!loading && (
+            <>
+              {/* Display rejection message if applicable */}
+              {renderRejectionMessage()}
+
+              {/* Toggle between view/edit modes */}
+              {kycStatus !== "not_submitted" && (
+                <div className="flex justify-end mb-4">
+                  {kycStatus === "rejected" && (
+                    <button
+                      onClick={toggleViewMode}
+                      className={`flex items-center text-sm font-medium ${
+                        viewMode ? "text-blue-600" : "text-gray-600"
+                      }`}
+                    >
+                      {viewMode ? (
+                        <>
+                          <Edit className="h-4 w-4 mr-1" />
+                          Edit Submission
+                        </>
+                      ) : (
+                        <>
+                          <Eye className="h-4 w-4 mr-1" />
+                          View Submission
+                        </>
+                      )}
+                    </button>
+                  )}
+
+                  {viewMode && (
+                    <button
+                      onClick={toggleHideDetails}
+                      className="ml-4 flex items-center text-sm font-medium text-gray-600"
+                    >
+                      {hideDetails ? (
+                        <>
+                          <EyeOff className="h-4 w-4 mr-1" />
+                          Show Sensitive Info
+                        </>
+                      ) : (
+                        <>
+                          <Eye className="h-4 w-4 mr-1" />
+                          Hide Sensitive Info
+                        </>
+                      )}
+                    </button>
+                  )}
+                </div>
+              )}
+
+              <form onSubmit={handleSubmit} className="space-y-6">
+                {/* Personal Information Section */}
+                <div className="mb-6">
+                  <h2 className="text-lg font-medium text-gray-900 mb-4">
+                    Personal Information
+                  </h2>
+                  <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
+                    <div>
+                      <label
+                        htmlFor="fullName"
+                        className="block text-sm font-medium text-gray-700 mb-1"
+                      >
+                        Full Name
+                      </label>
+                      {viewMode ? (
+                        <div className="px-4 py-2.5 bg-gray-50 rounded-md border border-gray-200">
+                          <span className="text-sm text-gray-800">
+                            {fullName}
+                          </span>
+                        </div>
+                      ) : (
+                        <input
+                          id="fullName"
+                          type="text"
+                          value={fullName}
+                          onChange={(e) => setFullName(e.target.value)}
+                          className="block w-full px-4 py-2.5 text-gray-900 border border-gray-300 rounded-md shadow-sm focus:ring-green-500 focus:border-green-500"
+                          required
+                        />
+                      )}
+                    </div>
+
+                    <div>
+                      <label
+                        htmlFor="gender"
+                        className="block text-sm font-medium text-gray-700 mb-1"
+                      >
+                        Gender
+                      </label>
+                      {viewMode ? (
+                        <div className="px-4 py-2.5 bg-gray-50 rounded-md border border-gray-200">
+                          <span className="text-sm text-gray-800 capitalize">
+                            {gender}
+                          </span>
+                        </div>
+                      ) : (
+                        <select
+                          id="gender"
+                          value={gender}
+                          onChange={(e) => setGender(e.target.value)}
+                          className="block w-full px-4 py-2.5 text-gray-900 border border-gray-300 rounded-md shadow-sm focus:ring-green-500 focus:border-green-500"
+                          required
+                        >
+                          <option value="">Select gender</option>
+                          <option value="male">Male</option>
+                          <option value="female">Female</option>
+                          <option value="other">Other</option>
+                        </select>
+                      )}
+                    </div>
+
+                    <div>
+                      <label
+                        htmlFor="dob"
+                        className="block text-sm font-medium text-gray-700 mb-1"
+                      >
+                        Date of Birth
+                      </label>
+                      {viewMode ? (
+                        <div className="px-4 py-2.5 bg-gray-50 rounded-md border border-gray-200">
+                          <span className="text-sm text-gray-800">
+                            {dob
+                              ? new Date(dob).toLocaleDateString()
+                              : "Not provided"}
+                          </span>
+                        </div>
+                      ) : (
+                        <input
+                          id="dob"
+                          type="date"
+                          value={dob}
+                          onChange={(e) => setDob(e.target.value)}
+                          className="block w-full px-4 py-2.5 text-gray-900 border border-gray-300 rounded-md shadow-sm focus:ring-green-500 focus:border-green-500"
+                          required
+                        />
+                      )}
+                    </div>
+
+                    <div>
+                      <label
+                        htmlFor="citizenshipNumber"
+                        className="block text-sm font-medium text-gray-700 mb-1"
+                      >
+                        Citizenship Number
+                      </label>
+                      {viewMode ? (
+                        <div className="px-4 py-2.5 bg-gray-50 rounded-md border border-gray-200">
+                          <span className="text-sm text-gray-800">
+                            {hideDetails ? "••••••••••" : citizenshipNumber}
+                          </span>
+                        </div>
+                      ) : (
+                        <input
+                          id="citizenshipNumber"
+                          type="text"
+                          value={citizenshipNumber}
+                          onChange={(e) => setCitizenshipNumber(e.target.value)}
+                          className="block w-full px-4 py-2.5 text-gray-900 border border-gray-300 rounded-md shadow-sm focus:ring-green-500 focus:border-green-500"
+                          required
+                        />
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="mt-6">
+                    <label
+                      htmlFor="address"
+                      className="block text-sm font-medium text-gray-700 mb-1"
+                    >
+                      Address
+                    </label>
+                    {viewMode ? (
+                      <div className="px-4 py-2.5 bg-gray-50 rounded-md border border-gray-200">
+                        <span className="text-sm text-gray-800">
+                          {hideDetails ? "••••••••••" : address}
+                        </span>
+                      </div>
+                    ) : (
+                      <textarea
+                        id="address"
+                        rows={2}
+                        value={address}
+                        onChange={(e) => setAddress(e.target.value)}
+                        className="block w-full px-4 py-2.5 text-gray-900 border border-gray-300 rounded-md shadow-sm focus:ring-green-500 focus:border-green-500"
+                        required
+                      />
+                    )}
+                  </div>
+                </div>
+
+                {/* Citizenship Document Uploads */}
+                <div className="mb-6">
+                  <h2 className="text-lg font-medium text-gray-900 mb-4">
+                    Citizenship Documents
+                  </h2>
+                  <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
+                    <div>
+                      <label
+                        htmlFor="citizenshipFront"
+                        className="block text-sm font-medium text-gray-700 mb-1"
+                      >
+                        Citizenship Front
+                      </label>
+                      {viewMode ? (
+                        <div className="px-4 py-2.5 bg-gray-50 rounded-md border border-gray-200">
+                          <span className="text-sm text-gray-800">
+                            {hideDetails ? "••••••••••" : "Document uploaded"}
+                          </span>
+                        </div>
+                      ) : (
+                        <div className="relative">
+                          <input
+                            id="citizenshipFront"
+                            name="citizenshipFront"
+                            type="file"
+                            onChange={(e) =>
+                              handleImageChange(e, "citizenshipFront")
+                            }
+                            className="block w-full px-4 py-2 text-sm text-gray-900 border border-gray-300 rounded-md shadow-sm focus:ring-green-500 focus:border-green-500"
+                            required
+                          />
+                          <span className="text-xs text-gray-500 mt-1">
+                            {citizenshipFront
+                              ? citizenshipFront.name
+                              : "No file selected"}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+
+                    <div>
+                      <label
+                        htmlFor="citizenshipBack"
+                        className="block text-sm font-medium text-gray-700 mb-1"
+                      >
+                        Citizenship Back
+                      </label>
+                      {viewMode ? (
+                        <div className="px-4 py-2.5 bg-gray-50 rounded-md border border-gray-200">
+                          <span className="text-sm text-gray-800">
+                            {hideDetails ? "••••••••••" : "Document uploaded"}
+                          </span>
+                        </div>
+                      ) : (
+                        <div className="relative">
+                          <input
+                            id="citizenshipBack"
+                            name="citizenshipBack"
+                            type="file"
+                            onChange={(e) =>
+                              handleImageChange(e, "citizenshipBack")
+                            }
+                            className="block w-full px-4 py-2 text-sm text-gray-900 border border-gray-300 rounded-md shadow-sm focus:ring-green-500 focus:border-green-500"
+                            required
+                          />
+                          <span className="text-xs text-gray-500 mt-1">
+                            {citizenshipBack
+                              ? citizenshipBack.name
+                              : "No file selected"}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* License Information */}
+                <div className="mb-6">
+                  <h2 className="text-lg font-medium text-gray-900 mb-4">
+                    Driver's License Information
+                  </h2>
+                  <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 mb-4">
+                    <div>
+                      <label
+                        htmlFor="licenseNumber"
+                        className="block text-sm font-medium text-gray-700 mb-1"
+                      >
+                        License Number
+                      </label>
+                      {viewMode ? (
+                        <div className="px-4 py-2.5 bg-gray-50 rounded-md border border-gray-200">
+                          <span className="text-sm text-gray-800">
+                            {hideDetails ? "••••••••••" : licenseNumber}
+                          </span>
+                        </div>
+                      ) : (
+                        <input
+                          id="licenseNumber"
+                          type="text"
+                          value={licenseNumber}
+                          onChange={(e) => setLicenseNumber(e.target.value)}
+                          className="block w-full px-4 py-2.5 text-gray-900 border border-gray-300 rounded-md shadow-sm focus:ring-green-500 focus:border-green-500"
+                          required
+                        />
+                      )}
+                    </div>
+
+                    <div>
+                      <label
+                        htmlFor="licenseExpiryDate"
+                        className="block text-sm font-medium text-gray-700 mb-1"
+                      >
+                        License Expiry Date
+                      </label>
+                      {viewMode ? (
+                        <div className="px-4 py-2.5 bg-gray-50 rounded-md border border-gray-200">
+                          <span className="text-sm text-gray-800">
+                            {licenseExpiryDate
+                              ? new Date(licenseExpiryDate).toLocaleDateString()
+                              : "Not provided"}
+                          </span>
+                        </div>
+                      ) : (
+                        <input
+                          id="licenseExpiryDate"
+                          type="date"
+                          value={licenseExpiryDate}
+                          onChange={(e) => setLicenseExpiryDate(e.target.value)}
+                          className="block w-full px-4 py-2.5 text-gray-900 border border-gray-300 rounded-md shadow-sm focus:ring-green-500 focus:border-green-500"
+                          required
+                        />
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
+                    <div>
+                      <label
+                        htmlFor="licenseFront"
+                        className="block text-sm font-medium text-gray-700 mb-1"
+                      >
+                        License Front
+                      </label>
+                      {viewMode ? (
+                        <div className="px-4 py-2.5 bg-gray-50 rounded-md border border-gray-200">
+                          <span className="text-sm text-gray-800">
+                            {hideDetails ? "••••••••••" : "Document uploaded"}
+                          </span>
+                        </div>
+                      ) : (
+                        <div className="relative">
+                          <input
+                            id="licenseFront"
+                            name="licenseFront"
+                            type="file"
+                            onChange={(e) =>
+                              handleImageChange(e, "licenseFront")
+                            }
+                            className="block w-full px-4 py-2 text-sm text-gray-900 border border-gray-300 rounded-md shadow-sm focus:ring-green-500 focus:border-green-500"
+                            required
+                          />
+                          <span className="text-xs text-gray-500 mt-1">
+                            {licenseFront
+                              ? licenseFront.name
+                              : "No file selected"}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+
+                    <div>
+                      <label
+                        htmlFor="licenseBack"
+                        className="block text-sm font-medium text-gray-700 mb-1"
+                      >
+                        License Back
+                      </label>
+                      {viewMode ? (
+                        <div className="px-4 py-2.5 bg-gray-50 rounded-md border border-gray-200">
+                          <span className="text-sm text-gray-800">
+                            {hideDetails ? "••••••••••" : "Document uploaded"}
+                          </span>
+                        </div>
+                      ) : (
+                        <div className="relative">
+                          <input
+                            id="licenseBack"
+                            name="licenseBack"
+                            type="file"
+                            onChange={(e) =>
+                              handleImageChange(e, "licenseBack")
+                            }
+                            className="block w-full px-4 py-2 text-sm text-gray-900 border border-gray-300 rounded-md shadow-sm focus:ring-green-500 focus:border-green-500"
+                            required
+                          />
+                          <span className="text-xs text-gray-500 mt-1">
+                            {licenseBack
+                              ? licenseBack.name
+                              : "No file selected"}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Vehicle Information */}
+                <div className="mb-6">
+                  <h2 className="text-lg font-medium text-gray-900 mb-4">
+                    Vehicle Information
+                  </h2>
+                  <div className="grid grid-cols-1 gap-6 sm:grid-cols-3 mb-4">
+                    <div>
+                      <label
+                        htmlFor="vehicleType"
+                        className="block text-sm font-medium text-gray-700 mb-1"
+                      >
+                        Vehicle Type
+                      </label>
+                      {viewMode ? (
+                        <div className="px-4 py-2.5 bg-gray-50 rounded-md border border-gray-200">
+                          <span className="text-sm text-gray-800 capitalize">
+                            {vehicleType}
+                          </span>
+                        </div>
+                      ) : (
+                        <select
+                          id="vehicleType"
+                          value={vehicleType}
+                          onChange={(e) => setVehicleType(e.target.value)}
+                          className="block w-full px-4 py-2.5 text-gray-900 border border-gray-300 rounded-md shadow-sm focus:ring-green-500 focus:border-green-500"
+                          required
+                        >
+                          <option value="">Select type</option>
+                          <option value="bike">Bike</option>
+                          <option value="car">Car</option>
+                          <option value="van">Van</option>
+                          <option value="truck">Truck</option>
+                        </select>
+                      )}
+                    </div>
+
+                    <div>
+                      <label
+                        htmlFor="vehicleModel"
+                        className="block text-sm font-medium text-gray-700 mb-1"
+                      >
+                        Vehicle Model
+                      </label>
+                      {viewMode ? (
+                        <div className="px-4 py-2.5 bg-gray-50 rounded-md border border-gray-200">
+                          <span className="text-sm text-gray-800">
+                            {vehicleModel}
+                          </span>
+                        </div>
+                      ) : (
+                        <input
+                          id="vehicleModel"
+                          type="text"
+                          value={vehicleModel}
+                          onChange={(e) => setVehicleModel(e.target.value)}
+                          className="block w-full px-4 py-2.5 text-gray-900 border border-gray-300 rounded-md shadow-sm focus:ring-green-500 focus:border-green-500"
+                          required
+                        />
+                      )}
+                    </div>
+
+                    <div>
+                      <label
+                        htmlFor="vehicleYear"
+                        className="block text-sm font-medium text-gray-700 mb-1"
+                      >
+                        Vehicle Year
+                      </label>
+                      {viewMode ? (
+                        <div className="px-4 py-2.5 bg-gray-50 rounded-md border border-gray-200">
+                          <span className="text-sm text-gray-800">
+                            {vehicleYear}
+                          </span>
+                        </div>
+                      ) : (
+                        <input
+                          id="vehicleYear"
+                          type="number"
+                          min="1990"
+                          max={new Date().getFullYear()}
+                          value={vehicleYear}
+                          onChange={(e) => setVehicleYear(e.target.value)}
+                          className="block w-full px-4 py-2.5 text-gray-900 border border-gray-300 rounded-md shadow-sm focus:ring-green-500 focus:border-green-500"
+                          required
+                        />
+                      )}
+                    </div>
+                  </div>
+
+                  <div>
+                    <label
+                      htmlFor="vehiclePhoto"
+                      className="block text-sm font-medium text-gray-700 mb-1"
+                    >
+                      Vehicle Photo
+                    </label>
+                    {viewMode ? (
+                      <div className="px-4 py-2.5 bg-gray-50 rounded-md border border-gray-200">
+                        <span className="text-sm text-gray-800">
+                          {hideDetails ? "••••••••••" : "Photo uploaded"}
+                        </span>
+                      </div>
+                    ) : (
+                      <div className="relative">
+                        <input
+                          id="vehiclePhoto"
+                          name="vehiclePhoto"
+                          type="file"
+                          onChange={(e) => handleImageChange(e, "vehicle")}
+                          className="block w-full px-4 py-2 text-sm text-gray-900 border border-gray-300 rounded-md shadow-sm focus:ring-green-500 focus:border-green-500"
+                          required
+                        />
+                        <span className="text-xs text-gray-500 mt-1">
+                          {vehiclePhoto
+                            ? vehiclePhoto.name
+                            : "No file selected"}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Submit Button / Status Info */}
+                <div className="pt-4">
+                  {(!viewMode || kycStatus === "rejected") && (
+                    <button
+                      type="submit"
+                      disabled={
+                        loading ||
+                        kycStatus === "pending" ||
+                        kycStatus === "verified"
+                      }
+                      className={`w-full flex justify-center items-center px-4 py-3 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition-colors ${
+                        loading ||
+                        kycStatus === "pending" ||
+                        kycStatus === "verified"
+                          ? "opacity-70 cursor-not-allowed"
+                          : ""
+                      }`}
+                    >
+                      {loading ? (
+                        <>
+                          <svg
+                            className="animate-spin -ml-1 mr-2 h-4 w-4 text-white"
+                            xmlns="http://www.w3.org/2000/svg"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                          >
+                            <circle
+                              className="opacity-25"
+                              cx="12"
+                              cy="12"
+                              r="10"
+                              stroke="currentColor"
+                              strokeWidth="4"
+                            ></circle>
+                            <path
+                              className="opacity-75"
+                              fill="currentColor"
+                              d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                            ></path>
+                          </svg>
+                          Submitting...
+                        </>
+                      ) : (
+                        <>
+                          <Upload className="mr-2 h-4 w-4" />
+                          Submit Driver Verification
+                        </>
+                      )}
+                    </button>
+                  )}
+
+                  {viewMode && kycStatus === "pending" && (
+                    <div className="bg-blue-50 border border-blue-200 rounded-md p-4 mt-6">
+                      <div className="flex">
+                        <div className="flex-shrink-0">
+                          <AlertCircle className="h-5 w-5 text-blue-400" />
+                        </div>
+                        <div className="ml-3">
+                          <h3 className="text-sm font-medium text-blue-800">
+                            Verification in progress
+                          </h3>
+                          <div className="mt-2 text-sm text-blue-700">
+                            <p>
+                              Your driver documents are being reviewed. This
+                              usually takes 1-2 business days. You'll be
+                              notified once the verification is complete.
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {viewMode && kycStatus === "verified" && (
+                    <div className="bg-green-50 border border-green-200 rounded-md p-4 mt-6">
+                      <div className="flex">
+                        <div className="flex-shrink-0">
+                          <CheckCircle className="h-5 w-5 text-green-400" />
+                        </div>
+                        <div className="ml-3">
+                          <h3 className="text-sm font-medium text-green-800">
+                            Verification complete
+                          </h3>
+                          <div className="mt-2 text-sm text-green-700">
+                            <p>
+                              Your driver information has been successfully
+                              verified. You now have full access to all driver
+                              features.
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </form>
+            </>
+          )}
         </div>
+
+       
+        
       </div>
+
+      {/* Thank You Modal */}
+      {showThankYouModal && <ThankYouModal />}
+
+      {/* Add custom CSS for the animation */}
+      <style jsx>{`
+        @keyframes progress {
+          0% {
+            width: 0%;
+          }
+          100% {
+            width: 100%;
+          }
+        }
+      `}</style>
     </div>
   );
-};
+}
 
-export default DriverKYCModal;
+export default DriverKycModal;

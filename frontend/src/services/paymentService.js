@@ -6,13 +6,13 @@ import axios from "axios";
 
 /**
  * INITIATE a payment (with Khalti)
- * POST /api/initiate
+ * POST /api/payments/initiate
  */
 const initiatePayment = async (paymentData) => {
   try {
     console.log("Initiating payment with data:", paymentData);
 
-    const response = await axios.post(
+    const response = await axiosInstance.post(
       `${Base_Backend_Url}/api/payments/initiate`,
       paymentData,
       { withCredentials: true }
@@ -39,7 +39,7 @@ const completeKhaltiPayment = async (queryParams) => {
     const params = new URLSearchParams(queryParams).toString();
 
     // Call the backend endpoint for completing Khalti payment
-    const response = await axiosI.get(
+    const response = await axiosInstance.get(
       `${Base_Backend_Url}/api/payments/completeKhaltiPayment?${params}`,
       { withCredentials: true }
     );
@@ -54,7 +54,7 @@ const completeKhaltiPayment = async (queryParams) => {
 
 /**
  * GET payment details by ID
- * GET /api/getpaymentdetails/:paymentId
+ * GET /api/payments/getpaymentdetails/:paymentId
  */
 const getPaymentDetails = async (paymentId) => {
   try {
@@ -101,7 +101,7 @@ const getPaymentStatusByBooking = async (bookingId) => {
 
 /**
  * GET all user payments
- * GET /api/getuserpayments
+ * GET /api/payments/getuserpayments
  */
 const getUserPayments = async (filters = {}) => {
   try {
@@ -136,7 +136,7 @@ const getUserPayments = async (filters = {}) => {
 
 /**
  * GET driver payments
- * GET /api/getdriverpayments
+ * GET /api/payments/getdriverpayments
  */
 const getDriverPayments = async (filters = {}) => {
   try {
@@ -169,7 +169,7 @@ const getDriverPayments = async (filters = {}) => {
 
 /**
  * GET all payments (Admin only)
- * GET /api/admin/allpayments
+ * GET /api/payments/admin/allpayments
  */
 const getAllPayments = async (filters = {}) => {
   try {
@@ -181,15 +181,13 @@ const getAllPayments = async (filters = {}) => {
       if (value) queryParams.append(key, value);
     });
 
-    // Add trailing slash to Base_Backend_Url if not present
-    const baseUrl = Base_Backend_Url.endsWith("/")
-      ? Base_Backend_Url.slice(0, -1)
-      : Base_Backend_Url;
+    // Ensure no trailing slash on base URL
+    const baseUrl = Base_Backend_Url.replace(/\/$/, "");
 
     const queryString = queryParams.toString();
     const url = queryString
-      ? `${baseUrl}/api/admin/allpayments?${queryString}`
-      : `${baseUrl}/api/admin/allpayments`;
+      ? `${baseUrl}/api/payments/admin/allpayments?${queryString}`
+      : `${baseUrl}/api/payments/admin/allpayments`;
 
     const response = await axiosInstance.get(url, { withCredentials: true });
     return response.data;
@@ -202,27 +200,30 @@ const getAllPayments = async (filters = {}) => {
 
 /**
  * GET admin payment stats
- * GET /api/admin/paymentstats
+ * GET /api/payments/admin/paymentstats
  */
-export const getAdminPaymentStats = async (filters = {}) => {
+const getAdminPaymentStats = async (filters = {}) => {
   try {
     // Build query string from filters
-    const queryParams = new URLSearchParams(filters).toString();
+    const queryParams = new URLSearchParams();
+    Object.entries(filters).forEach(([key, value]) => {
+      if (value) queryParams.append(key, value);
+    });
 
     // Ensure no trailing slash on base URL
     const baseUrl = Base_Backend_Url.replace(/\/$/, "");
 
-    // Construct the full URL (note the /payments prefix)
-    const url = queryParams
-      ? `${baseUrl}/api/payments/admin/paymentstats?${queryParams}`
+    // Construct the full URL
+    const queryString = queryParams.toString();
+    const url = queryString
+      ? `${baseUrl}/api/payments/admin/paymentstats?${queryString}`
       : `${baseUrl}/api/payments/admin/paymentstats`;
 
-    console.log("Fdhbgh URL:", url);
+    console.log("Fetching admin payment stats from URL:", url);
 
     // Call the endpoint
-    const response = await axios.get(url, { withCredentials: true });
+    const response = await axiosInstance.get(url, { withCredentials: true });
 
-    // Return the actual payload for Redux (the createResponse wrapper uses "Result")
     return response.data;
   } catch (error) {
     console.error("getAdminPaymentStats error:", error);
@@ -241,15 +242,13 @@ const checkKhaltiPaymentStatus = async (queryParams) => {
     // Convert params to query string
     const params = new URLSearchParams(queryParams).toString();
 
-    // Add trailing slash to Base_Backend_Url if not present
-    const baseUrl = Base_Backend_Url.endsWith("/")
-      ? Base_Backend_Url.slice(0, -1)
-      : Base_Backend_Url;
+    // Ensure no trailing slash on base URL
+    const baseUrl = Base_Backend_Url.replace(/\/$/, "");
 
     // This is a simulation since the actual endpoint redirects to frontend
     // In a real scenario, we'd check the payment status separately after redirect
     const response = await axiosInstance.get(
-      `${baseUrl}/api/check-status?${params}`,
+      `${baseUrl}/api/payments/check-status?${params}`,
       { withCredentials: true }
     );
 

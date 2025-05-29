@@ -76,7 +76,6 @@ const RatingModal = ({
       tabIndex={-1}
       ref={modalRef}
     >
-      <Toaster position="top-center" richColors />
 
       {/* Background overlay */}
       <div

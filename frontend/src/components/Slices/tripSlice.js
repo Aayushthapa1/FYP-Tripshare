@@ -15,6 +15,7 @@ export const createTrip = createAsyncThunk(
   }
 );
 
+
 export const getTrips = createAsyncThunk(
   "trip/getTrips",
   async (_, { rejectWithValue }) => {
@@ -111,7 +112,7 @@ export const fetchDriverTripStats = createAsyncThunk(
   }
 );
 
-// New action for admin trip analytics
+// Admin trip analytics
 export const fetchAdminTripAnalytics = createAsyncThunk(
   "trip/getAdminTripAnalytics",
   async (params = {}, { rejectWithValue }) => {
@@ -125,7 +126,7 @@ export const fetchAdminTripAnalytics = createAsyncThunk(
   }
 );
 
-// New action for cleaning up expired trips
+// Cleanup expired trips
 export const cleanupExpiredTrips = createAsyncThunk(
   "trip/cleanupExpired",
   async (_, { rejectWithValue }) => {
@@ -359,8 +360,8 @@ const tripSlice = createSlice({
         state.error = action.payload;
       })
 
-       // ADMIN TRIP ANALYTICS
-       .addCase(fetchAdminTripAnalytics.pending, (state) => {
+      // ADMIN TRIP ANALYTICS
+      .addCase(fetchAdminTripAnalytics.pending, (state) => {
         state.adminAnalyticsLoading = true;
         state.error = null;
       })

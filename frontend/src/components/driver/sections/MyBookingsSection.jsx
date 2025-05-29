@@ -100,8 +100,8 @@ const DriverBookingManagement = () => {
 
   // Handle trip completion success or error
   useEffect(() => {
-    if (tripSuccess) {
-      // Refresh booking data to reflect the trip completion
+    if (tripSuccess && processingTripIds.length > 0) {
+    
       dispatch(fetchDriverPendingBookings());
       dispatch(fetchDriverBookings());
       setProcessingTripIds([]); // Clear processing state
@@ -114,7 +114,7 @@ const DriverBookingManagement = () => {
         description: tripError || "Failed to complete trip. Please try again.",
       });
     }
-  }, [tripSuccess, tripError, dispatch]);
+  }, [tripSuccess, tripError, dispatch, processingTripIds.length]);
 
   // Handle booking error
   useEffect(() => {

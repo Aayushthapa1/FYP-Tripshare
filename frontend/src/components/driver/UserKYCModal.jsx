@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { useDispatch, useSelector } from "react-redux";
+import { useNavigate, useLocation } from "react-router-dom";
 import {
   getUserKYCStatus,
   submitUserKYC,
@@ -19,6 +20,15 @@ import {
 
 function UserKycModal({ isOpen, onClose, userId }) {
   const dispatch = useDispatch();
+  const navigate = useNavigate();
+  const location = useLocation();
+
+  // Check if we're on the dedicated route page
+  const isStandalonePage = location.pathname === "/userkyc";
+
+  // Get user ID from Redux if not provided
+  const authUser = useSelector((state) => state.auth.user);
+  const effectiveUserId = userId || authUser?._id;
 
   // Redux state
   const { loading, error, message, kycStatus, kycDetails } = useSelector(
@@ -38,13 +48,13 @@ function UserKycModal({ isOpen, onClose, userId }) {
   const [viewMode, setViewMode] = useState(false);
   const [hideDetails, setHideDetails] = useState(false);
 
-  // Fetch KYC status and details when the modal opens
+  // Fetch KYC status and details when component mounts or isOpen changes
   useEffect(() => {
-    if (isOpen && userId) {
-      dispatch(getUserKYCStatus(userId));
-      dispatch(getUserKYCDetails(userId));
+    if ((isOpen || isStandalonePage) && effectiveUserId) {
+      dispatch(getUserKYCStatus(effectiveUserId));
+      dispatch(getUserKYCDetails(effectiveUserId));
     }
-  }, [dispatch, userId, isOpen]);
+  }, [dispatch, effectiveUserId, isOpen, isStandalonePage]);
 
   // Populate form with existing details if available
   useEffect(() => {
@@ -64,7 +74,7 @@ function UserKycModal({ isOpen, onClose, userId }) {
 
   // Reset form state when modal closes
   useEffect(() => {
-    if (!isOpen) {
+    if (!isOpen && !isStandalonePage) {
       // Only reset form previews, not the actual data
       setCitizenshipFrontPreview(null);
       setCitizenshipBackPreview(null);
@@ -79,7 +89,7 @@ function UserKycModal({ isOpen, onClose, userId }) {
       // Reset hide details flag
       setHideDetails(false);
     }
-  }, [isOpen, kycStatus]);
+  }, [isOpen, isStandalonePage, kycStatus]);
 
   // Handle image preview
   const handleImageChange = (e, type) => {
@@ -108,7 +118,7 @@ function UserKycModal({ isOpen, onClose, userId }) {
   const handleSubmit = (e) => {
     e.preventDefault();
 
-    if (!userId) {
+    if (!effectiveUserId) {
       toast.error("No user ID found. Please log in first.");
       return;
     }
@@ -120,7 +130,7 @@ function UserKycModal({ isOpen, onClose, userId }) {
 
     // Construct FormData
     const formData = new FormData();
-    formData.append("userId", userId);
+    formData.append("userId", effectiveUserId);
     formData.append("fullName", fullName);
     formData.append("gender", gender);
     formData.append("citizenshipNumber", citizenshipNumber);
@@ -136,12 +146,26 @@ function UserKycModal({ isOpen, onClose, userId }) {
         toast.success("KYC submitted successfully!");
         setViewMode(true);
         // Refresh KYC status and details
-        dispatch(getUserKYCStatus(userId));
-        dispatch(getUserKYCDetails(userId));
+        dispatch(getUserKYCStatus(effectiveUserId));
+        dispatch(getUserKYCDetails(effectiveUserId));
+
+        // If standalone page, navigate back
+        if (isStandalonePage) {
+          navigate(-1);
+        }
       })
       .catch((err) => {
         toast.error(err.message || "Failed to submit KYC");
       });
+  };
+
+  // Handle close action with appropriate navigation
+  const handleClose = () => {
+    if (isStandalonePage) {
+      navigate(-1); // Go back in history
+    } else if (onClose) {
+      onClose(); // Use provided onClose function
+    }
   };
 
   // Render status badge based on KYC status
@@ -211,8 +235,8 @@ function UserKycModal({ isOpen, onClose, userId }) {
   const defaultKycImage =
     "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100' height='100' viewBox='0 0 24 24' fill='none' stroke='%23cccccc' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='3' y='3' width='18' height='18' rx='2' ry='2'%3E%3C/rect%3E%3Ccircle cx='8.5' cy='8.5' r='1.5'%3E%3C/circle%3E%3Cpolyline points='21 15 16 10 5 21'%3E%3C/polyline%3E%3C/svg%3E";
 
-  // Don't render anything if modal is closed
-  if (!isOpen) return null;
+  // Don't render anything if modal is closed and not on the dedicated page
+  if (!isOpen && !isStandalonePage) return null;
 
   return (
     <div className="fixed inset-0 z-50 overflow-y-auto bg-gray-800 bg-opacity-75 flex items-center justify-center">
@@ -233,7 +257,7 @@ function UserKycModal({ isOpen, onClose, userId }) {
             {renderStatusBadge()}
 
             <button
-              onClick={onClose}
+              onClick={handleClose}
               className="p-2 rounded-full text-gray-400 hover:text-gray-500 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-gray-500"
             >
               <X className="h-5 w-5" />

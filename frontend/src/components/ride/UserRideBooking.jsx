@@ -29,9 +29,7 @@ import {
   getTrafficBgClass,
 } from "../../utils/mapUtills";
 
-// Fix: removing dependency on process.env which causes the error
-// Using constants instead
-const BACKEND_URL = "http://localhost:3301";
+
 
 // Validate form function
 const validateForm = (

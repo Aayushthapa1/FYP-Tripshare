@@ -42,13 +42,12 @@ const AdminKYCRequests = () => {
   } = useSelector((state) => state.userKYC);
 
   const {
-    submissions: pendingDrivers,
+    pendingDrivers, // FIXED: Access pendingDrivers directly (was "submissions: pendingDrivers")
     loading: driverLoading,
     error: driverError,
     status: driverStatus,
     operation: driverOperation,
   } = useSelector((state) => state.driverKYC);
-  
 
   // Local states
   const [kycType, setKycType] = useState("user"); // 'user' or 'driver'
@@ -67,7 +66,7 @@ const AdminKYCRequests = () => {
     if (kycType === "user") {
       dispatch(fetchPendingUserKYC());
     } else {
-      dispatch(fetchPendingDriverKYC({ status: statusFilter })); // Fixed: using the correctly imported function
+      dispatch(fetchPendingDriverKYC({ status: statusFilter }));
     }
   }, [dispatch, kycType, statusFilter]);
 
@@ -132,10 +131,11 @@ const AdminKYCRequests = () => {
           updateUserKYCStatus({ userId: id, status: "verified" })
         ).unwrap();
       } else {
+        // FIXED: Updated parameters to match the thunk's expected format
         await dispatch(
           updateDriverKYCStatus({
-            id,
-            statusData: { status: "verified" },
+            userId: id,
+            status: "verified",
           })
         ).unwrap();
       }
@@ -175,13 +175,12 @@ const AdminKYCRequests = () => {
           })
         ).unwrap();
       } else {
+        // FIXED: Updated parameters to match the thunk's expected format
         await dispatch(
           updateDriverKYCStatus({
-            id,
-            statusData: {
-              status: "rejected",
-              rejectionReason: reason,
-            },
+            userId: id,
+            status: "rejected",
+            rejectionReason: reason,
           })
         ).unwrap();
       }
@@ -217,13 +216,12 @@ const AdminKYCRequests = () => {
 
     setActionInProgress(true);
     try {
+      // FIXED: Updated parameters to match the thunk's expected format
       await dispatch(
         updateDriverKYCStatus({
-          id,
-          statusData: {
-            status: "needs_resubmission",
-            rejectionReason: reason,
-          },
+          userId: id,
+          status: "needs_resubmission",
+          rejectionReason: reason,
         })
       ).unwrap();
 

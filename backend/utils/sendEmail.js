@@ -2,7 +2,8 @@ import nodemailer from "nodemailer";
 import {
     registrationEmailTemplate,
     resetPasswordEmailTemplate,
-    passwordResetSuccessTemplate
+    passwordResetSuccessTemplate,
+    kycStatusUpdateTemplate
 } from "./emailTemplate.js";
 
 /**
@@ -38,6 +39,9 @@ export async function sendEmail({ to, subject, template, context }) {
             break;
         case "passwordResetSuccess":
             html = passwordResetSuccessTemplate(context);
+            break;
+        case "kycStatusUpdate":
+            html = kycStatusUpdateTemplate(context);
             break;
         // Add more cases for other templates if needed
         default:

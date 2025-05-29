@@ -32,7 +32,7 @@ const VerifiedUsersPage = () => {
   } = useSelector((state) => state.userKYC);
 
   const {
-    submissions: verifiedDrivers,
+    verifiedDrivers, // FIXED: Directly accessing verifiedDrivers instead of submissions
     loading: driverLoading,
     error: driverError,
   } = useSelector((state) => state.driverKYC);
@@ -48,7 +48,7 @@ const VerifiedUsersPage = () => {
   useEffect(() => {
     // Fetch both users and drivers KYC data
     dispatch(fetchVerifiedUserKYC());
-    dispatch(fetchVerifiedDriverKYC()); // Fixed: using the correctly imported function
+    dispatch(fetchVerifiedDriverKYC());
   }, [dispatch]);
 
   // Toggle expanded view for a user or driver
@@ -59,7 +59,7 @@ const VerifiedUsersPage = () => {
   // Refresh the list
   const handleRefresh = () => {
     dispatch(fetchVerifiedUserKYC());
-    dispatch(fetchVerifiedDriverKYC()); // Fixed: using the correctly imported function
+    dispatch(fetchVerifiedDriverKYC());
   };
 
   // Clear search term

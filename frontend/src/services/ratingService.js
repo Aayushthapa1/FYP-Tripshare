@@ -19,13 +19,24 @@ const submitRating = async ({ referenceId, referenceType, rating, review, catego
 };
 
 // Get all ratings for a specific driver
-const getDriverRatings = async (driverId, page = 1, limit = 10) => {
+const getDriverRatings = async (driverId, page = 1, limit = 10, referenceType = null, sortBy = 'date', sortOrder = 'desc') => {
     try {
-        const response = await axiosInstance.get(
-            `${Base_Backend_Url}/api/ratings/getdriverratings/${driverId}?page=${page}&limit=${limit}`,
-            { withCredentials: true }
-        );
-        // Fix: Return response.data instead of the full response object
+        let url = `${Base_Backend_Url}/api/ratings/getdriverratings/${driverId}?page=${page}&limit=${limit}`;
+
+        // Add optional query parameters if provided
+        if (referenceType) {
+            url += `&referenceType=${referenceType}`;
+        }
+
+        if (sortBy) {
+            url += `&sortBy=${sortBy}`;
+        }
+
+        if (sortOrder) {
+            url += `&sortOrder=${sortOrder}`;
+        }
+
+        const response = await axiosInstance.get(url, { withCredentials: true });
         return response.data;
     } catch (error) {
         const formattedError = formatError(error);
@@ -36,13 +47,14 @@ const getDriverRatings = async (driverId, page = 1, limit = 10) => {
 // Get rating summary for a driver
 const getDriverRatingSummary = async (driverId) => {
     try {
-        // Fix: Corrected the URL path by removing redundant "/summary"
+        // Match exact path from router including /summary
         const response = await axiosInstance.get(
-            `${Base_Backend_Url}/api/ratings/getdriverratingsummary/${driverId}`,
+            `${Base_Backend_Url}/api/ratings/getdriverratingsummary/${driverId}/summary`,
             { withCredentials: true }
         );
         return response.data;
     } catch (error) {
+        console.error("Error fetching driver rating summary:", error);
         const formattedError = formatError(error);
         throw formattedError;
     }

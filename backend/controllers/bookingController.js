@@ -2,11 +2,9 @@
 
 import mongoose from "mongoose";
 import Booking from "../models/bookingModel.js";
-import Trip from "../models/TripModel.js";
+import Trip from "../models/tripModel.js";
 import { createResponse } from "../utils/responseHelper.js";
 
-// Add import for the Chat initialization if available
-// import { initializeChat } from "../controllers/chatController.js";
 
 export const initializeChatAfterBooking = async (booking, req) => {
   try {
@@ -349,6 +347,7 @@ export const completeBooking = async (req, res, next) => {
     try {
       // Update booking status to "completed"
       booking.status = "completed";
+      booking.completedAt = new Date(); // Add completion timestamp
 
       // If payment method was COD, update payment status to paid
       if (booking.paymentMethod === "COD") {
@@ -357,19 +356,45 @@ export const completeBooking = async (req, res, next) => {
 
       await booking.save({ session });
 
-      // Check if all bookings for this trip are complete, and if so, mark trip as completed
-      const pendingBookings = await Booking.countDocuments({
-        trip: booking.trip._id,
-        status: { $nin: ["completed", "cancelled"] }
-      });
+      // Get the actual Trip document separately to ensure we have the most up-to-date version
+      const tripToUpdate = await Trip.findById(booking.trip._id).session(session);
 
+      if (!tripToUpdate) {
+        throw new Error("Trip not found during completion process");
+      }
+
+      console.log(`Current trip status: ${tripToUpdate.status}`);
+
+      // Check if all bookings for this trip are complete or cancelled
+      const pendingBookings = await Booking.countDocuments({
+        trip: tripToUpdate._id,
+        status: { $nin: ["completed", "cancelled"] }
+      }).session(session);
+
+      console.log(`Trip ${tripToUpdate._id}: ${pendingBookings} pending bookings remaining`);
+
+      // If no pending bookings remain, update the trip status
       if (pendingBookings === 0) {
-        booking.trip.status = "completed";
-        await booking.trip.save({ session });
+        console.log(`All bookings completed or cancelled for trip ${tripToUpdate._id}. Marking trip as completed.`);
+
+        // Update trip status and completion details
+        tripToUpdate.status = "completed";
+        tripToUpdate.completedAt = new Date();
+        tripToUpdate.completedBy = driverId;
+
+        await tripToUpdate.save({ session });
+        console.log(`Trip status updated to: ${tripToUpdate.status}`);
+      } else {
+        console.log(`Trip ${tripToUpdate._id} has ${pendingBookings} pending bookings. Trip remains ${tripToUpdate.status}.`);
       }
 
       await session.commitTransaction();
       session.endSession();
+
+      // Reload the booking with the updated trip data to ensure response has latest status
+      const updatedBooking = await Booking.findById(bookingId)
+        .populate("trip")
+        .populate("user", "fullName email phoneNumber");
 
       // Notify the user that their trip is completed
       if (req.io) {
@@ -380,10 +405,20 @@ export const completeBooking = async (req, res, next) => {
         });
       }
 
+      // If trip was completed, also notify the driver
+      if (pendingBookings === 0 && req.io) {
+        req.io.to(`driver-${driverId}`).emit("trip_completed", {
+          tripId: booking.trip._id,
+          message: "All bookings for this trip have been completed"
+        });
+      }
+
       return res.status(200).json(
         createResponse(200, true, [], {
           message: "Booking marked as completed successfully",
-          booking,
+          booking: updatedBooking,
+          tripCompleted: pendingBookings === 0,
+          pendingBookingsCount: pendingBookings
         })
       );
     } catch (error) {

@@ -57,6 +57,10 @@ const Booking = () => {
   // Get auth user
   const { user } = useSelector((state) => state.auth) || {};
   const isDriver = user?.role === "driver";
+  const { kycStatus } = useSelector((state) => state.userKYC) || {
+    kycStatus: null,
+  };
+  console.log("kycStatus:", kycStatus);
 
   // Get trip and booking details from Redux state
   const {
@@ -95,85 +99,77 @@ const Booking = () => {
   const [paymentStatus, setPaymentStatus] = useState(null);
 
   // Check for Khalti payment return
+  // In your Booking component:
   useEffect(() => {
-    // Check if this is a return from Khalti payment
-    const pidx = queryParams.get("pidx");
-    const khaltiStatus = queryParams.get("status");
-    const purchase_order_id = queryParams.get("purchase_order_id");
+    const handlePaymentCompletion = async () => {
+      try {
+        // Get payment identifiers from URL params
+        const pidx = queryParams.get("pidx");
+        const transaction_id = queryParams.get("transaction_id");
+        const amount = queryParams.get("amount");
+        const purchase_order_id = queryParams.get("purchase_order_id");
+        const khaltiStatus = queryParams.get("status");
 
-    if (pidx) {
-      console.log("Detected Khalti payment return:", {
-        pidx,
-        khaltiStatus,
-        purchase_order_id,
-      });
+        if (pidx) {
+          console.log("Detected Khalti payment return:", {
+            pidx,
+            khaltiStatus,
+            transaction_id,
+            amount,
+            purchase_order_id,
+          });
 
-      // Process the payment completion
-      const khaltiParams = extractKhaltiCallbackParams();
-      setIsProcessingPayment(true);
+          setIsProcessingPayment(true);
 
-      // Dispatch completeKhaltiPayment action
-      dispatch(completeKhaltiPayment(khaltiParams))
-        .unwrap()
-        .then((result) => {
+          // Extract all Khalti parameters using your utility function
+          const khaltiParams = extractKhaltiCallbackParams();
+
+          // Dispatch completeKhaltiPayment action
+          const result = await dispatch(
+            completeKhaltiPayment(khaltiParams)
+          ).unwrap();
+
           console.log("Payment completion result:", result);
 
-          // Store the payment details in localStorage for the success page
+          // Store payment details in localStorage for backup
           if (result && result.payment) {
             localStorage.setItem("lastPayment", JSON.stringify(result.payment));
-
-            // Navigate to the payment success page with payment ID
-            // If we're already on a success page, don't navigate
-            if (!location.pathname.includes("payment-success")) {
-              navigate(
-                `/payment-success?payment_id=${result.payment._id}&pidx=${pidx}`
-              );
-            }
           }
 
-          // Update local state based on the result or URL path
-          if (location.pathname.includes("payment-success")) {
-            setPaymentStatus("success");
+          if (result) {
+            // Show success notification
             toast.success("Payment Successful", {
               description: "Your payment was processed successfully!",
             });
-          } else if (location.pathname.includes("payment-cancel")) {
-            setPaymentStatus("cancelled");
-            toast.info("Payment Cancelled", {
-              description: "You've cancelled the payment process.",
-            });
-          } else if (location.pathname.includes("payment-failed")) {
-            setPaymentStatus("failed");
-            toast.error("Payment Failed", {
-              description: "Your payment attempt was unsuccessful.",
-            });
-          } else if (location.pathname.includes("payment-error")) {
-            setPaymentStatus("error");
-            toast.error("Payment Error", {
-              description: "An error occurred during payment processing.",
-            });
-          }
 
-          setIsProcessingPayment(false);
-
-          // If successful, refresh the bookings list
-          if (
-            result &&
-            result.payment &&
-            result.payment.status === "completed"
-          ) {
-            dispatch(fetchMyBookings());
+            // Navigate to success page with transaction details in state
+            if (!location.pathname.includes("payment-success")) {
+              navigate(
+                `/bookings?payment_id=${result.payment?._id || ""}&pidx=${
+                  pidx || ""
+                }`,
+                {
+                  state: { transactionDetails: result },
+                }
+              );
+            }
+          } else {
+            throw new Error("Payment verification failed.");
           }
-        })
-        .catch((error) => {
-          console.error("Payment completion error:", error);
-          toast.error("Payment Processing Error", {
-            description:
-              error?.message || "Failed to process payment completion.",
-          });
-          setIsProcessingPayment(false);
+        }
+      } catch (error) {
+        console.error("Payment completion error:", error);
+        toast.error("Payment Failed", {
+          description: error.message || "Payment verification failed.",
         });
-    }
+        setIsProcessingPayment(false);
+        navigate("/payment-failed");
+      } finally {
+        setIsProcessingPayment(false);
+      }
+    };
+
+    handlePaymentCompletion();
   }, [dispatch, location, queryParams, navigate]);
 
   // Fetch trip details on mount if in create mode
@@ -227,9 +223,16 @@ const Booking = () => {
   // Handle booking error
   useEffect(() => {
     if (bookingError) {
+      console.error("Booking error:", bookingError);
+      // Extract string message from error object if needed
+      const errorMessage =
+        typeof bookingError === "object"
+          ? bookingError.message || JSON.stringify(bookingError)
+          : bookingError;
+
       toast.error("Action Failed", {
         description:
-          bookingError || "Failed to process booking action. Please try again.",
+          errorMessage || "Failed to process booking action. Please try again.",
       });
       setIsProcessingPayment(false);
       dispatch(clearBookingError());
@@ -239,9 +242,15 @@ const Booking = () => {
   // Handle payment error
   useEffect(() => {
     if (paymentError) {
+      // Extract string message from error object if needed
+      const errorMessage =
+        typeof paymentError === "object"
+          ? paymentError.message || JSON.stringify(paymentError)
+          : paymentError;
+
       toast.error("Payment Failed", {
         description:
-          paymentError || "Failed to process payment. Please try again.",
+          errorMessage || "Failed to process payment. Please try again.",
       });
       setIsProcessingPayment(false);
       dispatch(clearPaymentError());
@@ -260,7 +269,7 @@ const Booking = () => {
 
       // If we have a booking ID on successful payment, navigate to the payment success page
       if (currentPayment._id) {
-        navigate(`/payment-success?payment_id=${currentPayment._id}`);
+        // navigate(`/payment-success?payment_id=${currentPayment._id}`);
       } else {
         // If no payment ID but we have a booking, navigate to booking details
         if (currentPayment.booking) {
@@ -316,56 +325,47 @@ const Booking = () => {
   // Process a new booking
   const processBooking = async () => {
     try {
+      // Check if user is KYC verified
+      if (kycStatus !== "verified") {
+        toast.error("KYC Verification Required", {
+          description:
+            "You need to complete KYC verification before booking a trip.",
+        }); // Redirect to KYC submission page
+        return; // Stop the booking process
+      }
+
       console.log("entered inside try block");
       setIsProcessingPayment(true);
 
       if (selectedPaymentMethod === "online") {
         console.log("Processing online payment");
-        // For online payments, initiate payment
+
+        const paymentData = {
+          userId: user._id,
+          tripId: tripId,
+          seats: seats,
+          amount: calculateTotal(),
+          bookingType: "trip",
+        };
+
         const paymentResponse = await dispatch(
-          initiatePayment({
-            userId: user._id,
-            tripId: tripId,
-            seats: seats,
-            amount: calculateTotal(),
-            bookingType: "trip",
-          })
+          initiatePayment(paymentData)
         ).unwrap();
 
         console.log("The payment response ", paymentResponse);
 
-        if (paymentResponse && typeof paymentResponse === "object") {
-          console.log("Payment response keys:", Object.keys(paymentResponse));
-
-          if (paymentResponse.payment_url) {
-            console.log(
-              "Found payment_url at top level:",
-              paymentResponse.payment_url
-            );
-            setPaymentUrl(paymentResponse.payment_url);
-            setShowPaymentModal(true);
-            setIsProcessingPayment(false);
-            return; // Add this return to prevent execution continuing
-          } else if (
-            paymentResponse.Result &&
-            paymentResponse.Result.payment_url
-          ) {
-            console.log(
-              "Found payment_url in Result:",
-              paymentResponse.Result.payment_url
-            );
-            setPaymentUrl(paymentResponse.Result.payment_url);
-            setShowPaymentModal(true);
-            setIsProcessingPayment(false);
-            return; // Add this return to prevent execution continuing
-          } else {
-            console.log("No payment_url found in response");
-            throw new Error("No payment URL received");
-          }
+        // Ensure success before accessing Result
+        if (paymentResponse) {
+          console.log("Found payment_url:", paymentResponse.payment_url);
+          setPaymentUrl(paymentResponse.payment_url);
+          window.location.href = paymentResponse.payment_url;
+        } else {
+          console.error("Payment initiation failed: ", paymentResponse);
+          throw new Error("Payment initiation failed");
         }
       } else {
         console.log("Processing COD payment");
-        // For COD, create the booking immediately
+
         const bookingData = {
           tripId: tripId,
           seats: seats,
@@ -378,13 +378,16 @@ const Booking = () => {
 
       setIsProcessingPayment(false);
     } catch (err) {
-      console.error("Booking adbjkadcbmerror:", err);
-      toast.error("Booking Failed", {
-        description: err?.message || "Failed to book trip",
+      console.error("Booking error:", err);
+      const errorMessage =
+        typeof err === "object" ? err.message || JSON.stringify(err) : err;
+      toast.error("Failed to process booking", {
+        description: errorMessage,
       });
       setIsProcessingPayment(false);
     }
   };
+
   // Handle direct payment without modal
   const handleDirectPayment = () => {
     if (paymentUrl) {
@@ -543,7 +546,7 @@ const Booking = () => {
                 : "Error Loading Booking"}
             </h2>
             <p className="text-center text-gray-600 mb-6">
-              {tripError || bookingError}
+              {tripError?.message || bookingError?.message}
             </p>
             <button
               onClick={handleGoBack}
@@ -864,6 +867,30 @@ const Booking = () => {
                   Booking Details
                 </h3>
 
+                {/* Add KYC warning here - right after the "Booking Details" heading */}
+                {kycStatus !== "verified" && (
+                  <div className="mb-6 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+                    <div className="flex items-start">
+                      <AlertCircle className="w-5 h-5 text-yellow-500 mt-0.5 mr-3 flex-shrink-0" />
+                      <div>
+                        <h4 className="font-medium text-yellow-800">
+                          KYC Verification Required
+                        </h4>
+                        <p className="text-sm text-yellow-700 mt-1">
+                          You must complete your KYC verification before booking
+                          a trip. This helps ensure safety for all users.
+                        </p>
+                        <button
+                          onClick={() => navigate("/userkyc")}
+                          className="mt-2 px-3 py-1.5 bg-yellow-500 text-white text-sm rounded hover:bg-yellow-600 transition-colors"
+                        >
+                          Complete KYC Verification
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
                 {/* Seats Selection */}
                 <div className="mb-6">
                   <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -989,9 +1016,7 @@ const Booking = () => {
                       <CreditCard className="h-6 w-6 text-gray-500 mr-3" />
                       <div>
                         <p className="font-medium">Online Payment</p>
-                        <p className="text-sm text-gray-500">
-                          Pay via Khalti, eSewa, or other methods
-                        </p>
+                        <p className="text-sm text-gray-500">Pay via Khalti</p>
                       </div>
                     </div>
                   </div>
@@ -1019,6 +1044,7 @@ const Booking = () => {
                 </div>
 
                 {/* Action Buttons */}
+                {/* Action Buttons */}
                 <div className="flex flex-wrap justify-end gap-3">
                   <button
                     onClick={handleGoBack}
@@ -1028,22 +1054,32 @@ const Booking = () => {
                     <X size={16} className="mr-1.5" /> Cancel
                   </button>
 
-                  <button
-                    onClick={processBooking}
-                    className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center"
-                    disabled={isProcessingPayment || bookingLoading}
-                  >
-                    {isProcessingPayment || bookingLoading ? (
-                      <>
-                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2"></div>
-                        Processing...
-                      </>
-                    ) : (
-                      <>
-                        <Check size={16} className="mr-1.5" /> Confirm Booking
-                      </>
-                    )}
-                  </button>
+                  {kycStatus !== "verified" ? (
+                    <button
+                      onClick={() => navigate("/userkyc")}
+                      className="px-4 py-2 bg-yellow-500 text-white rounded-lg hover:bg-yellow-600 transition-colors flex items-center"
+                    >
+                      <AlertCircle size={16} className="mr-1.5" /> Complete KYC
+                      First
+                    </button>
+                  ) : (
+                    <button
+                      onClick={processBooking}
+                      className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center"
+                      disabled={isProcessingPayment || bookingLoading}
+                    >
+                      {isProcessingPayment || bookingLoading ? (
+                        <>
+                          <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2"></div>
+                          Processing...
+                        </>
+                      ) : (
+                        <>
+                          <Check size={16} className="mr-1.5" /> Confirm Booking
+                        </>
+                      )}
+                    </button>
+                  )}
                 </div>
               </div>
             </div>
